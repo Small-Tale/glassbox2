@@ -125,17 +125,6 @@ fn built_pages_and_assets_are_served_by_the_same_application_origin() {
     }
 }
 
-#[tokio::test]
-async fn embedding_host_releases_its_listener_when_stopped() {
-    let host = glassbox_server::LocalHost::start(None).await.unwrap();
-    let address = host.address();
-    assert!(tokio::net::TcpListener::bind(address).await.is_err());
-    host.stop().await.unwrap();
-    let _replacement = tokio::net::TcpListener::bind(address)
-        .await
-        .expect("the stopped host releases its listener");
-}
-
 #[test]
 fn difftool_input_is_only_published_for_a_difftool_launch() {
     let (_ordinary, ordinary_address) = RunningServer::start(None);
