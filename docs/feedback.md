@@ -58,3 +58,26 @@ path. Storage management is tracked in `HS2-D518Y2`.
 
 Disk tests cover copied instructions, edits after handoff, binary
 evidence, failed publication and retry, and concurrent reading.
+
+## Hot Sheet 2 delivery
+
+Glassbox uses the local `hotsheet-cli` and the selected project's
+Hot Sheet 2 store (`HS2-AJZ2J3`). Project discovery follows UX Review's
+store override, linked store, and sibling store lookup. An explicitly
+selected store is scoped to that destination for every command.
+
+New Ticket is the default. Existing Ticket appends to the selected
+ticket and keeps its current status. Each deliberate delivery freezes
+the current feedback and its referenced evidence in one attachment
+batch. The Markdown refers to files by their Hot Sheet attachment names.
+Optional reviewer summary text is included in the delivery note.
+
+Retrying the same prepared delivery reconciles the ticket, batch files,
+and note before writing. It preserves a partial batch and skips files and
+the note already recorded for that delivery. Starting another delivery
+uses the latest bundle and a separate batch. The export controls are
+tracked in `HS2-6DE0XA`.
+
+The isolated real-store check can run with
+`cargo test -p glassbox-feedback real_hotsheet -- --ignored` when a
+current Hot Sheet 2 CLI is installed.

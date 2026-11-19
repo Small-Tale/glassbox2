@@ -1,5 +1,8 @@
 //! Durable, database-free handoff bundles for Glassbox reviews.
 
+mod hotsheet;
+
+use std::collections::BTreeSet;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -12,6 +15,8 @@ use glassbox_model::feedback::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tempfile::{Builder, NamedTempFile};
+
+pub use hotsheet::{ExportReceipt, ExportRequest, ExportTarget, HotSheetClient, PreparedExport};
 
 const HANDOFF: &str = "review.md";
 const ATTACHMENTS: &str = "attachments";
@@ -51,7 +56,7 @@ impl BundleStore {
         let bundle = FeedbackBundle {
             directory: directory.path().to_owned(),
             context,
-            publication: Mutex::new(()),
+            publication: Mutex::new(BTreeSet::new()),
         };
         let context_json = serde_json::to_vec_pretty(&bundle.context)?;
         write_replace(&bundle.directory, "context.json", &context_json)?;
@@ -64,7 +69,7 @@ impl BundleStore {
 pub struct FeedbackBundle {
     directory: PathBuf,
     context: BundleContext,
-    publication: Mutex<()>,
+    publication: Mutex<BTreeSet<String>>,
 }
 
 impl FeedbackBundle {
@@ -81,7 +86,7 @@ impl FeedbackBundle {
     }
 
     pub fn publish(&self, feedback: &ReviewFeedback) -> io::Result<()> {
-        let _publication = self
+        let mut publication = self
             .publication
             .lock()
             .map_err(|_| io::Error::other("The feedback writer lost its publication lock"))?;
@@ -89,6 +94,7 @@ impl FeedbackBundle {
         fs::create_dir_all(&attachment_directory)?;
 
         let mut output = Vec::new();
+        let mut evidence = BTreeSet::new();
         writeln!(
             output,
             "# Glassbox review feedback\n\n<!-- Glassbox feedback bundle v1 -->\n"
@@ -135,6 +141,7 @@ impl FeedbackBundle {
                 &attachment_directory,
                 "Opening",
                 &thread.opening,
+                &mut evidence,
             )?;
             for reply in &thread.replies {
                 write_message(
@@ -142,11 +149,14 @@ impl FeedbackBundle {
                     &attachment_directory,
                     &format!("Reply {}", reply.id),
                     &reply.message,
+                    &mut evidence,
                 )?;
             }
         }
 
-        write_replace(&self.directory, HANDOFF, &output)
+        write_replace(&self.directory, HANDOFF, &output)?;
+        *publication = evidence;
+        Ok(())
     }
 }
 
@@ -198,6 +208,7 @@ fn write_message(
     directory: &Path,
     heading: &str,
     message: &FeedbackMessage,
+    evidence: &mut BTreeSet<String>,
 ) -> io::Result<()> {
     writeln!(output, "\n### {heading} · {}\n", quoted(&message.author))?;
     for line in message.markdown.split('\n') {
@@ -213,6 +224,7 @@ fn write_message(
                 quoted(&attachment.filename),
                 attachment.bytes.len(),
             )?;
+            evidence.insert(filename);
         }
     }
     Ok(())

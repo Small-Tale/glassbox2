@@ -8,5 +8,6 @@ rust-version.workspace = true
 glassbox-model.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+serde_yaml = "0.9"
 sha2 = "0.10"
 tempfile.workspace = true
