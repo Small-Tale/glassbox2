@@ -9,4 +9,5 @@
 - [Git review](../git-review.md) is partly built. The core retrieves Git change metadata and patches. The CLI starts a client through Git difftool, and the shared host exposes launch paths. The workbench opens Git reviews and difftool launches and lists changed files. Text diff content is implemented. Image presentation is tracked separately.
 - [UI conventions](../ui-conventions.md) are in use. The Kerf catalog ships grouped specimens for the review workbench and navigator. Source selection and the changed-file navigator are implemented. The text diff viewer ships with a catalog specimen. Review threads and the inspector are tracked in Hot Sheet.
 - Hot Sheet export UI, optional AI, and cross-platform release verification are planned in the linked tickets.
+- [Glassbox v1 workflow parity](../v1-workflow-parity.md) records the remaining product decisions. File actions and symbol navigation have focused follow-ups.
 - PostgreSQL, the review completion lifecycle and ground-truth image comparison are retired. Native clients and distribution decisions are deferred.

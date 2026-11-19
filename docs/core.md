@@ -13,6 +13,9 @@ project or review data. See [Web and Tauri host](hosting.md) for launch, lifecyc
 
 ## Glassbox v1 parity map
 
+See [Glassbox v1 workflow parity](v1-workflow-parity.md) for the remaining
+workflow decisions and their implementation tickets.
+
 | Area                                   | v1 reference                                                              | v2 plan                                                                                                                                                                                                                                                              |
 | -------------------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Git changes and arbitrary comparisons  | `src/git/`, `src/review-open/`, `docs/18-direct-comparison.md`            | Port behavior and fixtures with `HS2-G9TCM1`, `HS2-2DDNCY` and `HS2-B7QRKJ`.                                                                                                                                                                                         |
