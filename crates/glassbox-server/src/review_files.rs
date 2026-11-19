@@ -8,7 +8,9 @@ use glassbox_comparison::{
     GitChange, GitFileChange, GitReview, GitReviewMode, compare_difftool_paths,
     compare_direct_content, compare_git_content, compare_paths, review_git,
 };
-use glassbox_model::{Change, ComparisonData, ComparisonEntry, DifftoolInput, TextHunk};
+use glassbox_model::{
+    Change, ComparisonData, ComparisonEntry, DifftoolInput, TextHunk, UnavailableLfsObject,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
@@ -74,8 +76,14 @@ pub(crate) struct SelectedFile {
 #[derive(Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 enum FileContent {
-    Text { hunks: Vec<TextHunk> },
+    Text {
+        hunks: Vec<TextHunk>,
+    },
     Media,
+    UnavailableLfs {
+        before: Option<UnavailableLfsObject>,
+        after: Option<UnavailableLfsObject>,
+    },
     Binary,
 }
 
@@ -146,6 +154,9 @@ pub(crate) async fn selected(input: SelectedFile, difftool: Option<DifftoolInput
         Ok(match result.entries.content(input.index)? {
             ComparisonData::Text(hunks) => FileContent::Text { hunks },
             ComparisonData::Media { .. } => FileContent::Media,
+            ComparisonData::UnavailableLfs { before, after } => {
+                FileContent::UnavailableLfs { before, after }
+            }
             ComparisonData::Binary => FileContent::Binary,
         })
     })

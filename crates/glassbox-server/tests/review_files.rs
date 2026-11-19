@@ -110,5 +110,28 @@ async fn reads_git_path_and_difftool_sources_through_the_real_host() -> io::Resu
     )
     .await;
     assert_eq!(status, "HTTP/1.1 400 Bad Request");
+    let oid = "a".repeat(64);
+    fs::write(
+        repo.join("preview.png"),
+        format!("version https://git-lfs.github.com/spec/v1\noid sha256:{oid}\nsize 5\n"),
+    )?;
+    let source = json!({"kind":"git", "directory":repo, "mode":{"kind":"working_tree"}});
+    let (_, files) = post(&host, "files", source.clone()).await;
+    let index = files["files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .position(|file| file["path"] == "preview.png")
+        .unwrap();
+    let (status, media) = post(
+        &host,
+        "file",
+        json!({"source":source, "index":index, "path":"preview.png"}),
+    )
+    .await;
+    assert_eq!(status, "HTTP/1.1 200 OK");
+    assert_eq!(media["kind"], "unavailable_lfs");
+    assert_eq!(media["after"]["object"]["oid"], oid);
+    assert_eq!(media["after"]["reason"], "missing");
     host.stop().await
 }

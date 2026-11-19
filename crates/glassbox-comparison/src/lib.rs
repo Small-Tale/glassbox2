@@ -1,6 +1,7 @@
 //! Comparison sources for Glassbox review.
 mod content;
 mod git;
+mod lfs;
 mod paths;
 
 pub use content::{compare_direct_content, compare_git_content, parse_hunks};

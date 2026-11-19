@@ -4,10 +4,56 @@ use std::io;
 use std::path::Path;
 
 use glassbox_model::{
-    ComparisonData, ComparisonEntry, DiffLine, DiffLineKind, MediaAsset, TextHunk,
+    ComparisonData, ComparisonEntry, DiffLine, DiffLineKind, LfsObject, MediaAsset, TextHunk,
+    UnavailableLfsObject,
 };
 
 use crate::git::{GitReview, git, read_local_entry};
+use crate::lfs::{parse_pointer, read_object};
+
+struct FileSide<'a> {
+    path: &'a Path,
+    bytes: Vec<u8>,
+    lfs_object: Option<LfsObject>,
+}
+
+impl<'a> FileSide<'a> {
+    fn new((path, bytes): (&'a Path, Vec<u8>)) -> Self {
+        Self {
+            path,
+            bytes,
+            lfs_object: None,
+        }
+    }
+
+    fn media_pointer(&self) -> Option<LfsObject> {
+        asset_type(self.path)?;
+        parse_pointer(&self.bytes)
+    }
+
+    fn materialize(
+        &mut self,
+        directory: &Path,
+        object: LfsObject,
+    ) -> io::Result<Option<UnavailableLfsObject>> {
+        match read_object(directory, &object)? {
+            Ok(bytes) => {
+                self.bytes = bytes;
+                self.lfs_object = Some(object);
+                Ok(None)
+            }
+            Err(reason) => Ok(Some(UnavailableLfsObject { object, reason })),
+        }
+    }
+
+    fn into_asset(self) -> MediaAsset {
+        MediaAsset {
+            content_type: asset_type(self.path).unwrap_or("application/octet-stream"),
+            bytes: self.bytes,
+            lfs_object: self.lfs_object,
+        }
+    }
+}
 
 pub fn compare_direct_content(entry: &ComparisonEntry) -> io::Result<ComparisonData> {
     compare_content(
@@ -16,48 +62,69 @@ pub fn compare_direct_content(entry: &ComparisonEntry) -> io::Result<ComparisonD
     )
 }
 
-fn load_direct_side(side: &glassbox_model::EntrySide) -> io::Result<(&Path, Vec<u8>)> {
-    Ok((&side.display_path, read_local_entry(&side.source_path)?))
+fn load_direct_side(side: &glassbox_model::EntrySide) -> io::Result<FileSide<'_>> {
+    let bytes = read_local_entry(&side.source_path)?;
+    Ok(FileSide::new((&side.display_path, bytes)))
 }
 
 pub fn compare_git_content(review: &GitReview, index: usize) -> io::Result<ComparisonData> {
     let contents = review.read_change_sides(index)?;
     let entry = &review.changes[index];
-    compare_content(
-        entry.before_path.as_deref().zip(contents.before),
-        entry.after_path.as_deref().zip(contents.after),
-    )
+    let mut before = entry
+        .before_path
+        .as_deref()
+        .zip(contents.before)
+        .map(FileSide::new);
+    let mut after = entry
+        .after_path
+        .as_deref()
+        .zip(contents.after)
+        .map(FileSide::new);
+    let before_pointer = before
+        .as_mut()
+        .and_then(|side| side.media_pointer().map(|pointer| (side, pointer)));
+    let after_pointer = after
+        .as_mut()
+        .and_then(|side| side.media_pointer().map(|pointer| (side, pointer)));
+    if before_pointer.is_some() || after_pointer.is_some() {
+        let directory = review.lfs_objects_directory()?;
+        let materialize =
+            |(side, pointer): (&mut FileSide<'_>, LfsObject)| side.materialize(&directory, pointer);
+        let missing_before = before_pointer.map(materialize).transpose()?.flatten();
+        let missing_after = after_pointer.map(materialize).transpose()?.flatten();
+        if missing_before.is_some() || missing_after.is_some() {
+            return Ok(ComparisonData::UnavailableLfs {
+                before: missing_before,
+                after: missing_after,
+            });
+        }
+    }
+    compare_content(before, after)
 }
 
 fn compare_content(
-    before: Option<(&Path, Vec<u8>)>,
-    after: Option<(&Path, Vec<u8>)>,
+    before: Option<FileSide<'_>>,
+    after: Option<FileSide<'_>>,
 ) -> io::Result<ComparisonData> {
-    let before_type = before.as_ref().and_then(|(path, _)| asset_type(path));
-    let after_type = after.as_ref().and_then(|(path, _)| asset_type(path));
-    let before = before.map(|(_, bytes)| bytes);
-    let after = after.map(|(_, bytes)| bytes);
-
     if [&before, &after]
         .into_iter()
         .flatten()
-        .any(|bytes| is_lfs_pointer(bytes))
+        .any(|side| side.lfs_object.is_none() && parse_pointer(&side.bytes).is_some())
     {
         return Ok(ComparisonData::Binary);
     }
-    if before_type.is_some() || after_type.is_some() {
-        let asset = |bytes: Vec<u8>, content_type| MediaAsset {
-            content_type,
-            bytes,
-        };
+    if [&before, &after]
+        .into_iter()
+        .flatten()
+        .any(|side| asset_type(side.path).is_some())
+    {
         return Ok(ComparisonData::Media {
-            before: before
-                .map(|bytes| asset(bytes, before_type.unwrap_or("application/octet-stream"))),
-            after: after
-                .map(|bytes| asset(bytes, after_type.unwrap_or("application/octet-stream"))),
+            before: before.map(FileSide::into_asset),
+            after: after.map(FileSide::into_asset),
         });
     }
-
+    let before = before.map(|side| side.bytes);
+    let after = after.map(|side| side.bytes);
     let before = before.as_deref().unwrap_or_default();
     let after = after.as_deref().unwrap_or_default();
     if [before, after]
@@ -93,26 +160,6 @@ fn compare_content(
     }
     let patch = std::str::from_utf8(&output.stdout).map_err(io::Error::other)?;
     Ok(ComparisonData::Text(parse_hunks(patch)?))
-}
-
-fn is_lfs_pointer(bytes: &[u8]) -> bool {
-    if bytes.len() > 1024 {
-        return false;
-    }
-    let Ok(text) = std::str::from_utf8(bytes) else {
-        return false;
-    };
-    let mut lines = text.lines();
-    lines.next() == Some("version https://git-lfs.github.com/spec/v1")
-        && lines
-            .next()
-            .and_then(|line| line.strip_prefix("oid sha256:"))
-            .is_some_and(|oid| oid.len() == 64 && oid.as_bytes().iter().all(u8::is_ascii_hexdigit))
-        && lines
-            .next()
-            .and_then(|line| line.strip_prefix("size "))
-            .is_some_and(|size| size.parse::<u64>().is_ok())
-        && lines.next().is_none()
 }
 
 fn asset_type(path: &Path) -> Option<&'static str> {
@@ -282,8 +329,14 @@ mod tests {
             "version https://git-lfs.github.com/spec/v1\noid sha256:{}\nsize 42\n",
             "a".repeat(64)
         );
-        let result =
-            compare_content(None, Some((Path::new("preview.png"), pointer.into_bytes()))).unwrap();
+        let result = compare_content(
+            None,
+            Some(FileSide::new((
+                Path::new("preview.png"),
+                pointer.into_bytes(),
+            ))),
+        )
+        .unwrap();
         assert_eq!(result, ComparisonData::Binary);
     }
 }

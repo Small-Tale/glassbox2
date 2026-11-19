@@ -1109,6 +1109,7 @@ name = "glassbox-comparison"
 version = "0.1.0"
 dependencies = [
  "glassbox-model",
+ "sha2",
  "tempfile",
 ]
 

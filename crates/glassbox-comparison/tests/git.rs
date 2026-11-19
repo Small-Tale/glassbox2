@@ -215,3 +215,110 @@ fn selected_text_comparison_reads_the_correct_index_and_worktree_sides() {
         assert_eq!(hunks[0].lines[1].text, new);
     }
 }
+
+fn lfs_pointer(bytes: &[u8]) -> (String, String) {
+    use sha2::{Digest, Sha256};
+
+    let oid = format!("{:x}", Sha256::digest(bytes));
+    let pointer = format!(
+        "version https://git-lfs.github.com/spec/v1\noid sha256:{oid}\nsize {}\n",
+        bytes.len(),
+    );
+    (oid, pointer)
+}
+
+fn lfs_cache(cache: &Path, oid: &str, bytes: &[u8]) -> PathBuf {
+    let directory = cache.join("objects").join(&oid[0..2]).join(&oid[2..4]);
+    fs::create_dir_all(&directory).unwrap();
+    let object = directory.join(oid);
+    fs::write(&object, bytes).unwrap();
+    object
+}
+
+#[test]
+fn original_git_lfs_bytes_and_ids_are_available_for_historical_and_index_sides() {
+    use glassbox_comparison::compare_git_content;
+    use glassbox_model::{ComparisonData, LfsObject};
+
+    let repo = Repository::new();
+    let first = b"<svg><circle r=\"1\"/></svg>";
+    let second = b"<svg><circle r=\"2\"/></svg>";
+    let (first_oid, first_pointer) = lfs_pointer(first);
+    let (second_oid, second_pointer) = lfs_pointer(second);
+    let cache = repo.path().join(".git/lfs");
+    lfs_cache(&cache, &first_oid, first);
+    lfs_cache(&cache, &second_oid, second);
+    repo.write("preview.svg", &first_pointer);
+    repo.commit("Initial image");
+    repo.write("preview.svg", &second_pointer);
+    repo.git(["add", "preview.svg"]);
+
+    let verify = |review: &glassbox_comparison::GitReview| {
+        let ComparisonData::Media {
+            before: Some(before),
+            after: Some(after),
+        } = compare_git_content(review, 0).unwrap()
+        else {
+            panic!("expected original media on both sides");
+        };
+        assert_eq!(before.bytes, first);
+        assert_eq!(before.content_type, "image/svg+xml");
+        assert_eq!(
+            before.lfs_object,
+            Some(LfsObject {
+                oid: first_oid.clone(),
+                size: first.len() as u64
+            })
+        );
+        assert_eq!(after.bytes, second);
+        assert_eq!(
+            after.lfs_object,
+            Some(LfsObject {
+                oid: second_oid.clone(),
+                size: second.len() as u64
+            })
+        );
+    };
+    verify(&review_git(repo.path(), GitReviewMode::Staged).unwrap());
+    let revision = repo.commit("Updated image");
+    verify(&review_git(repo.path(), GitReviewMode::Commit(&revision)).unwrap());
+    assert_eq!(
+        fs::read_to_string(repo.path().join("preview.svg")).unwrap(),
+        second_pointer
+    );
+}
+
+#[test]
+fn configured_lfs_cache_distinguishes_missing_and_corrupt_objects() {
+    use glassbox_comparison::compare_git_content;
+    use glassbox_model::{ComparisonData, LfsUnavailableReason};
+
+    let repo = Repository::new();
+    repo.git(["config", "lfs.storage", "custom lfs"]);
+    let object = b"original asset";
+    let (oid, pointer) = lfs_pointer(object);
+    repo.write("asset.png", &pointer);
+    let revision = repo.commit("Add binary media");
+    let review = review_git(repo.path(), GitReviewMode::Commit(&revision)).unwrap();
+    let missing = |expected| {
+        let ComparisonData::UnavailableLfs {
+            before: None,
+            after: Some(after),
+        } = compare_git_content(&review, 0).unwrap()
+        else {
+            panic!("expected a typed unavailable object");
+        };
+        assert_eq!(after.object.oid, oid);
+        assert_eq!(after.object.size, object.len() as u64);
+        assert_eq!(after.reason, expected);
+    };
+    missing(LfsUnavailableReason::Missing);
+    let cache = repo.path().join(".git/custom lfs");
+    let path = lfs_cache(&cache, &oid, b"tampered asset");
+    missing(LfsUnavailableReason::Mismatched);
+    fs::write(path, object).unwrap();
+    assert!(matches!(
+        compare_git_content(&review, 0).unwrap(),
+        ComparisonData::Media { before: None, after: Some(asset) } if asset.bytes == object
+    ));
+}

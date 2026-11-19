@@ -12,7 +12,14 @@ review entry point. Both return the same content types.
   are identified without turning their bytes into code lines.
 - Historical Git inputs are pinned to the resolved commits. Index and worktree
   views read the index and working files when the selected entry is requested.
-  Git LFS pointers are classified as unavailable binary content.
+  Git LFS media pointers resolve through the repository's local object cache,
+  including a configured `lfs.storage` directory (`HS2-YMDPBP`). Glassbox
+  retains the object ID and size and checks both against the cached bytes.
+  Missing or mismatched objects are reported in the comparison. Glassbox
+  reads the local LFS cache without fetching. Direct path comparisons
+  continue to treat a bare pointer as binary content.
+
+The LFS storage directory follows the [Git LFS configuration](https://github.com/git-lfs/git-lfs/blob/main/docs/man/git-lfs-config.adoc).
 
 The v1 renderer contracts in `docs/29-content-plugins.md` of Glassbox v1 used
 extension-based discovery, then passed one side to a renderer or both sides to
@@ -31,5 +38,5 @@ layout. With Wrap off, long lines can scroll within the comparison.
 The workbench requests selected content using
 `POST /api/v1/review/file`. The service checks the selected index and
 path against the comparison before loading content. It returns text
-hunks or a media or binary indicator. Media rendering is tracked in
+hunks, a media or binary indicator, or the unavailable LFS sides. Media rendering is tracked in
 `HS2-B9NHFE`.

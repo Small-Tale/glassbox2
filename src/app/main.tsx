@@ -60,6 +60,14 @@ mount(root, () => {
       case 'media':
         comparison = <EmptyState title="Media Comparison" />;
         break;
+      case 'unavailable_lfs':
+        comparison = (
+          <EmptyState
+            title="Git LFS Media Unavailable"
+            detail="The original object is unavailable in the local cache."
+          />
+        );
+        break;
       case 'binary':
         comparison = <EmptyState title="Binary File Changed" />;
         break;

@@ -32,7 +32,10 @@ pub mod feedback;
 mod settings;
 
 pub use comparison::{Change, ComparisonEntry, ContentKind, EntrySide};
-pub use content::{ComparisonData, DiffLine, DiffLineKind, MediaAsset, TextHunk};
+pub use content::{
+    ComparisonData, DiffLine, DiffLineKind, LfsObject, LfsUnavailableReason, MediaAsset, TextHunk,
+    UnavailableLfsObject,
+};
 pub use difftool::DifftoolInput;
 pub use settings::{Appearance, ApplicationSettings};
 

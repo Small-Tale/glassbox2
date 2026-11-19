@@ -14,7 +14,8 @@ export type TextHunk = {
   lines: DiffLine[];
 };
 
-export type FileContent = { kind: 'text'; hunks: TextHunk[] } | { kind: 'media' } | { kind: 'binary' };
+export type FileContent =
+  { kind: 'text'; hunks: TextHunk[] } | { kind: 'media' } | { kind: 'unavailable_lfs' } | { kind: 'binary' };
 
 export function splitLines(lines: readonly DiffLine[]) {
   const rows: { before?: DiffLine; after?: DiffLine }[] = [];

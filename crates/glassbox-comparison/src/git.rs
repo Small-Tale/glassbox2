@@ -62,6 +62,27 @@ impl GitReview {
             .then(|| String::from_utf8_lossy(strip_line_ending(&output.stdout)).into_owned()))
     }
 
+    pub(crate) fn lfs_objects_directory(&self) -> io::Result<PathBuf> {
+        let common = checked_git(
+            &self.root,
+            ["rev-parse", "--path-format=absolute", "--git-common-dir"],
+        )?;
+        let git_directory = git_path(strip_line_ending(&common.stdout))?;
+        let configured = git(&self.root, ["config", "--path", "--get", "lfs.storage"])?;
+        let storage = match configured.status.code() {
+            Some(0) if !strip_line_ending(&configured.stdout).is_empty() => {
+                git_path(strip_line_ending(&configured.stdout))?
+            }
+            Some(0 | 1) => PathBuf::from("lfs"),
+            _ => {
+                return Err(io::Error::other(
+                    String::from_utf8_lossy(&configured.stderr).into_owned(),
+                ));
+            }
+        };
+        Ok(git_directory.join(storage).join("objects"))
+    }
+
     pub(crate) fn read_change_sides(&self, index: usize) -> io::Result<GitFileBytes> {
         let change = self
             .changes

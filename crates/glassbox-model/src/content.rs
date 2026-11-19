@@ -26,10 +26,30 @@ pub struct TextHunk {
     pub lines: Vec<DiffLine>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LfsObject {
+    pub oid: String,
+    pub size: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LfsUnavailableReason {
+    Missing,
+    Mismatched,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UnavailableLfsObject {
+    pub object: LfsObject,
+    pub reason: LfsUnavailableReason,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MediaAsset {
     pub content_type: &'static str,
     pub bytes: Vec<u8>,
+    pub lfs_object: Option<LfsObject>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,6 +58,10 @@ pub enum ComparisonData {
     Media {
         before: Option<MediaAsset>,
         after: Option<MediaAsset>,
+    },
+    UnavailableLfs {
+        before: Option<UnavailableLfsObject>,
+        after: Option<UnavailableLfsObject>,
     },
     Binary,
 }
