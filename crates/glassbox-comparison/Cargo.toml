@@ -6,6 +6,4 @@ rust-version.workspace = true
 
 [dependencies]
 glassbox-model.workspace = true
-
-[dev-dependencies]
 tempfile.workspace = true

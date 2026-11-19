@@ -98,3 +98,31 @@ fn symlink_targets_are_compared_without_traversing_them() {
         ContentKind::Symlink
     );
 }
+
+#[test]
+fn direct_comparison_maps_text_hunks_and_loads_diagram_sources() {
+    use glassbox_comparison::compare_direct_content;
+    use glassbox_model::ComparisonData;
+
+    let before = tempdir().unwrap();
+    let after = tempdir().unwrap();
+    fs::write(before.path().join("lines.txt"), "same\nold\n").unwrap();
+    fs::write(after.path().join("lines.txt"), "same\nnew\n").unwrap();
+    fs::write(after.path().join("process.dot"), "digraph { a -> b }").unwrap();
+    let changes = compare_paths(before.path(), after.path()).unwrap();
+
+    let ComparisonData::Text(hunks) = compare_direct_content(&changes[0]).unwrap() else {
+        panic!("expected text hunks");
+    };
+    assert_eq!(hunks[0].lines[1].before_line, Some(2));
+    assert_eq!(hunks[0].lines[2].after_line, Some(2));
+    let ComparisonData::Media {
+        before: None,
+        after: Some(asset),
+    } = compare_direct_content(&changes[1]).unwrap()
+    else {
+        panic!("expected an added diagram");
+    };
+    assert_eq!(asset.content_type, "text/plain");
+    assert_eq!(asset.bytes, b"digraph { a -> b }");
+}

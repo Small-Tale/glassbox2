@@ -1,7 +1,7 @@
 use std::ffi::{OsStr, OsString};
-use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
+use std::{fs, io};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GitReviewMode<'a> {
@@ -33,43 +33,78 @@ pub struct GitFileChange {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+enum GitSource {
+    Tree(String),
+    Index,
+    Worktree,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GitReview {
     pub root: PathBuf,
     pub changes: Vec<GitFileChange>,
     pub patch: Vec<u8>,
+    before: GitSource,
+    after: GitSource,
+}
+
+pub(crate) struct GitFileBytes {
+    pub(crate) before: Option<Vec<u8>>,
+    pub(crate) after: Option<Vec<u8>>,
+}
+
+impl GitReview {
+    pub(crate) fn read_change_sides(&self, index: usize) -> io::Result<GitFileBytes> {
+        let change = self
+            .changes
+            .get(index)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "Unknown changed file"))?;
+        let read = |path: Option<&Path>, source: &GitSource| {
+            path.map(|path| source.read(&self.root, path)).transpose()
+        };
+        Ok(GitFileBytes {
+            before: read(change.before_path.as_deref(), &self.before)?,
+            after: read(change.after_path.as_deref(), &self.after)?,
+        })
+    }
+}
+
+impl GitSource {
+    fn read(&self, root: &Path, path: &Path) -> io::Result<Vec<u8>> {
+        let mut revision = match self {
+            Self::Tree(tree) => OsString::from(tree),
+            Self::Index => OsString::new(),
+            Self::Worktree => return read_local_entry(&root.join(path)),
+        };
+        revision.push(":");
+        revision.push(path.as_os_str());
+        Ok(checked_git(
+            root,
+            [OsStr::new("cat-file"), OsStr::new("blob"), &revision],
+        )?
+        .stdout)
+    }
+}
+
+pub(crate) fn read_local_entry(path: &Path) -> io::Result<Vec<u8>> {
+    let kind = fs::symlink_metadata(path)?.file_type();
+    if kind.is_symlink() {
+        return Ok(fs::read_link(path)?.as_os_str().as_encoded_bytes().to_vec());
+    }
+    if !kind.is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Expected a regular file or symbolic link",
+        ));
+    }
+    fs::read(path)
 }
 
 pub fn review_git(directory: &Path, mode: GitReviewMode<'_>) -> io::Result<GitReview> {
     let root = git_path(strip_line_ending(
         &checked_git(directory, ["rev-parse", "--show-toplevel"])?.stdout,
     ))?;
-    let mut args = Vec::<OsString>::new();
-    match mode {
-        GitReviewMode::Commit(revision) => {
-            args.extend(["show", "--format=", "--diff-merges=first-parent"].map(OsString::from));
-            args.push(resolve_commit(&root, revision)?.into());
-        }
-        _ => {
-            args.push("diff".into());
-            match mode {
-                GitReviewMode::WorkingTree | GitReviewMode::Paths(_) => {
-                    args.push(head_or_empty_tree(&root)?.into());
-                }
-                GitReviewMode::Staged => args.push("--cached".into()),
-                GitReviewMode::Unstaged => {}
-                GitReviewMode::Range { before, after } => {
-                    args.push(resolve_commit(&root, before)?.into());
-                    args.push(resolve_commit(&root, after)?.into());
-                }
-                GitReviewMode::Branch(branch) => {
-                    let branch = resolve_commit(&root, branch)?;
-                    let head = resolve_commit(&root, "HEAD")?;
-                    args.push(format!("{branch}...{head}").into());
-                }
-                GitReviewMode::Commit(_) => unreachable!("commit uses git show"),
-            }
-        }
-    }
+    let (mut args, before, after) = diff_sources(&root, mode)?;
     args.extend(
         [
             "--raw",
@@ -104,10 +139,76 @@ pub fn review_git(directory: &Path, mode: GitReviewMode<'_>) -> io::Result<GitRe
         root,
         changes,
         patch,
+        before,
+        after,
     })
 }
 
-fn git(directory: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> io::Result<Output> {
+fn diff_sources(
+    root: &Path,
+    mode: GitReviewMode<'_>,
+) -> io::Result<(Vec<OsString>, GitSource, GitSource)> {
+    use GitSource::{Index, Tree, Worktree};
+    let args = |values: Vec<String>| values.into_iter().map(OsString::from).collect();
+    let (command, before, after) = match mode {
+        GitReviewMode::WorkingTree | GitReviewMode::Paths(_) => {
+            let head = head_or_empty_tree(root)?;
+            (
+                args(vec!["diff".into(), head.clone()]),
+                Tree(head),
+                Worktree,
+            )
+        }
+        GitReviewMode::Staged => {
+            let head = head_or_empty_tree(root)?;
+            (
+                args(vec!["diff".into(), "--cached".into(), head.clone()]),
+                Tree(head),
+                Index,
+            )
+        }
+        GitReviewMode::Unstaged => (vec!["diff".into()], Index, Worktree),
+        GitReviewMode::Commit(revision) => {
+            let commit = resolve_commit(root, revision)?;
+            let parents = checked_git(root, ["rev-list", "--parents", "-n", "1", &commit])?;
+            let parents = String::from_utf8_lossy(&parents.stdout);
+            let base = match parents.split_whitespace().nth(1) {
+                Some(parent) => parent.to_owned(),
+                None => empty_tree(root)?,
+            };
+            (
+                args(vec!["diff".into(), base.clone(), commit.clone()]),
+                Tree(base),
+                Tree(commit),
+            )
+        }
+        GitReviewMode::Range { before, after } => {
+            let before = resolve_commit(root, before)?;
+            let after = resolve_commit(root, after)?;
+            (
+                args(vec!["diff".into(), before.clone(), after.clone()]),
+                Tree(before),
+                Tree(after),
+            )
+        }
+        GitReviewMode::Branch(branch) => {
+            let branch = resolve_commit(root, branch)?;
+            let head = resolve_commit(root, "HEAD")?;
+            let base = object_name(&checked_git(root, ["merge-base", &branch, &head])?)?;
+            (
+                args(vec!["diff".into(), base.clone(), head.clone()]),
+                Tree(base),
+                Tree(head),
+            )
+        }
+    };
+    Ok((command, before, after))
+}
+
+pub(crate) fn git(
+    directory: &Path,
+    args: impl IntoIterator<Item = impl AsRef<OsStr>>,
+) -> io::Result<Output> {
     let mut command = Command::new("git");
     command
         .current_dir(directory)
@@ -164,6 +265,13 @@ fn head_or_empty_tree(root: &Path) -> io::Result<String> {
         )?),
         _ => Err(git_error(&output)),
     }
+}
+
+fn empty_tree(root: &Path) -> io::Result<String> {
+    object_name(&checked_git(
+        root,
+        ["hash-object", "-t", "tree", "--stdin"],
+    )?)
 }
 
 fn object_name(output: &Output) -> io::Result<String> {

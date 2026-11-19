@@ -160,3 +160,58 @@ fn nested_launch_discovers_the_root_and_keeps_relative_paths() {
         Some(Path::new("sub folder").join("file.txt"))
     );
 }
+
+#[test]
+fn historical_media_reads_original_blob_and_ignores_working_tree_changes() {
+    use glassbox_comparison::compare_git_content;
+    use glassbox_model::ComparisonData;
+
+    let repo = Repository::new();
+    let before = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1\"/>";
+    let after = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"2\"/>";
+    repo.write("illustration.svg", before);
+    repo.commit("Initial");
+    repo.write("illustration.svg", after);
+    let revision = repo.commit("Resize");
+    let review = review_git(repo.path(), GitReviewMode::Commit(&revision)).unwrap();
+    repo.write("illustration.svg", "working copy");
+
+    let ComparisonData::Media {
+        before: old,
+        after: new,
+    } = compare_git_content(&review, 0).unwrap()
+    else {
+        panic!("expected original media");
+    };
+    let old = old.unwrap();
+    let new = new.unwrap();
+    assert_eq!(old.content_type, "image/svg+xml");
+    assert_eq!(new.content_type, "image/svg+xml");
+    assert_eq!(old.bytes, before.as_bytes());
+    assert_eq!(new.bytes, after.as_bytes());
+}
+
+#[test]
+fn selected_text_comparison_reads_the_correct_index_and_worktree_sides() {
+    use glassbox_comparison::compare_git_content;
+    use glassbox_model::ComparisonData;
+
+    let repo = Repository::new();
+    repo.write("source.txt", "initial\n");
+    repo.commit("Initial");
+    repo.write("source.txt", "staged\n");
+    repo.git(["add", "source.txt"]);
+    repo.write("source.txt", "worktree\n");
+
+    for (mode, old, new) in [
+        (GitReviewMode::Staged, "initial", "staged"),
+        (GitReviewMode::Unstaged, "staged", "worktree"),
+    ] {
+        let review = review_git(repo.path(), mode).unwrap();
+        let ComparisonData::Text(hunks) = compare_git_content(&review, 0).unwrap() else {
+            panic!("expected text hunks");
+        };
+        assert_eq!(hunks[0].lines[0].text, old);
+        assert_eq!(hunks[0].lines[1].text, new);
+    }
+}
