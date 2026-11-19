@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "setupVersion": "5.0.0-beta.130",
+  "setupVersion": "5.0.0-beta.132",
   "packageManager": "npm",
   "packages": {
     ".": {
@@ -54,7 +54,7 @@
           "sha256": "1413ad9430212c82278e6a648b7fea14401a320534a9730fede42a98cc396b7b"
         },
         "package.json#devDependencies.eslint-plugin-kerfjs": {
-          "sha256": "2553cce52341c963721a1468b9224109d6e5b92d5468442470d88df54778937d"
+          "sha256": "3d0b9b88806f835d53b681f01958ad6866b1ba0ab6590abfb042bf1fb9ff484c"
         },
         "package.json#devDependencies.@typescript-eslint/parser": {
           "sha256": "5569cd8a233b359b3e2a98241ab3eb5c1e26f9014ed16de2b87186ddb6a033a3"
@@ -66,7 +66,7 @@
           "sha256": "9b90e5dbf935f6b5ba752977b087a23541ae1b938a20c0d2ccf4aa3ccf2ba459"
         },
         "package.json#devDependencies.create-kerf-component": {
-          "sha256": "2553cce52341c963721a1468b9224109d6e5b92d5468442470d88df54778937d"
+          "sha256": "3d0b9b88806f835d53b681f01958ad6866b1ba0ab6590abfb042bf1fb9ff484c"
         },
         "package.json#devDependencies.@eslint/js": {
           "sha256": "dfe87518f7c72d088ecc2477ed36833b5c24e38efb271a55aea88907fe9c460a"
@@ -110,12 +110,6 @@
         "tsconfig.json#compilerOptions.jsxImportSource": {
           "sha256": "d135eae45f7e35e79f394a40253fc30d83707b6f2c8051d8d8a0b265e87d87b9"
         },
-        "eslint.config.mjs": {
-          "sha256": "ac60f48c52acdfa307e72773c4337c13af1d6785365e045ff5532b22aafdf84c"
-        },
-        ".prettierignore": {
-          "sha256": "8602b97b89440aa999b9396c70408731779238bbf62091112efad63f6e820a0d"
-        },
         "index.html": {
           "sha256": "7fbea20dae9a5b35b1e60ff03cf66c5fd38f59751ea934c89458d8ea722f6aff"
         },
@@ -152,9 +146,6 @@
         "src/styles.d.ts": {
           "sha256": "da5bf71d48cf909584a01c80b445f730507068f5b34c920f352e2bfcf0315e4c"
         },
-        "tests/structure.test.mjs": {
-          "sha256": "abff73a4a876b31c60c53d8f751ec7c2cc88c0b50b3063d1a14ad1a3fc4450b7"
-        },
         ".kerf-ui-profile.json#$schema": {
           "sha256": "4f75e89cfaf676ac4294947aa801762722f7f9e6f9c07f287759ba44ddda996b"
         },
@@ -168,7 +159,11 @@
           "sha256": "ff7eedd18452afd5d723ab7bbf74b078899d86df77a04d7ea0e1dfdfa74b8781"
         }
       },
-      "resolutions": {}
+      "resolutions": {
+        "eslint.config.mjs": "keep",
+        ".prettierignore": "keep",
+        "tests/structure.test.mjs": "keep"
+      }
     }
   }
 }
