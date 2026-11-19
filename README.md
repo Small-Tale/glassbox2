@@ -21,6 +21,7 @@ names for icon-only actions, and the Workbench's responsive toolbar layout.
 ## Architecture and verification
 
 - [Shared core, readiness API, and v1 parity](docs/core.md)
+- [Application settings](docs/settings.md)
 - [Codebase map](docs/ai/codebase-map.md)
 - [Requirements summary](docs/ai/requirements-summary.md)
 

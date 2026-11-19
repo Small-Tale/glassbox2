@@ -1,0 +1,11 @@
+[package]
+name = "glassbox-settings"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+glassbox-model.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true

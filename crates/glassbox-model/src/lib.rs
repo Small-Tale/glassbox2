@@ -25,6 +25,9 @@ impl ServiceHealth {
     }
 }
 
+mod settings;
+pub use settings::{Appearance, ApplicationSettings};
+
 #[cfg(test)]
 mod tests {
     use super::*;
