@@ -27,14 +27,10 @@ impl ServiceHealth {
 
 mod comparison;
 mod content;
-mod review_note;
 mod settings;
 
 pub use comparison::{Change, ComparisonEntry, ContentKind, EntrySide};
 pub use content::{ComparisonData, DiffLine, DiffLineKind, MediaAsset, TextHunk};
-pub use review_note::{
-    NoteAnchor, NoteArtifact, NoteKind, NoteOrigin, NoteRelatedLocation, ReviewNote,
-};
 pub use settings::{Appearance, ApplicationSettings};
 
 #[cfg(test)]
