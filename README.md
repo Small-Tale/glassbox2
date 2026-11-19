@@ -26,6 +26,7 @@ names for icon-only actions, and the Workbench's responsive toolbar layout.
 - [Direct file and folder comparisons](docs/direct-comparison.md)
 - [Git review inputs](docs/git-review.md)
 - [Text and media comparison content](docs/comparison-content.md)
+- [Review feedback](docs/feedback.md)
 - [Codebase map](docs/ai/codebase-map.md)
 - [Requirements summary](docs/ai/requirements-summary.md)
 

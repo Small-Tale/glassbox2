@@ -28,6 +28,7 @@ impl ServiceHealth {
 mod comparison;
 mod content;
 mod difftool;
+pub mod feedback;
 mod settings;
 
 pub use comparison::{Change, ComparisonEntry, ContentKind, EntrySide};
