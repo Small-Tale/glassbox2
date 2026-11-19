@@ -12,3 +12,4 @@ CLAUDE.md
 
 .kerf-cache/
 component-catalog.json
+target/

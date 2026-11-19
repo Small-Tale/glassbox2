@@ -295,3 +295,9 @@ passed (HS2-DVZXSD).
 ## Kerf UI
 
 Before UI work, read `node_modules/@kerfjs/ui/llms.txt` and follow its retrieval order. For design mocks, read `node_modules/@kerfjs/ui/ai/design-mock/SKILL.md`.
+
+<!-- hotsheet:specifics -->
+## Glassbox code and requirements
+
+Use `docs/ai/codebase-map.md` for codebase orientation and
+`docs/ai/requirements-summary.md` for shipped and planned behavior.

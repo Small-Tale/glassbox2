@@ -17,3 +17,13 @@ code. Run `npm run lint` and `npm run typecheck` locally. Use strict typed ESLin
 sorted imports with type-only imports where applicable, Prettier for formatting,
 and Kerf's composition rules. Use public Kerf controls, Lucide icons, accessible
 names for icon-only actions, and the Workbench's responsive toolbar layout.
+
+## Architecture and verification
+
+- [Shared core, readiness API, and v1 parity](docs/core.md)
+- [Codebase map](docs/ai/codebase-map.md)
+- [Requirements summary](docs/ai/requirements-summary.md)
+
+Run `cargo test --locked --workspace --quiet` for Rust unit and real-service
+checks. GitHub Actions runs Rust formatting, Clippy and tests alongside the
+web gate.
