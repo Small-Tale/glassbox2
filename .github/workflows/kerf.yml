@@ -22,6 +22,16 @@ jobs:
       - run: cargo +stable clippy --locked --workspace --all-targets -- -D warnings
       - run: cargo +stable test --locked --workspace --quiet
 
+  difftool:
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install stable --profile minimal
+      - run: cargo +stable test --locked -p glassbox-cli --quiet
+
   native:
     runs-on: macos-latest
     steps:

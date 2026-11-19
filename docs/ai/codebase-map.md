@@ -1,5 +1,6 @@
 # Codebase map
 
+- `crates/glassbox-cli` runs Git difftool and forwards its two paths to the selected Glassbox client.
 - `crates/glassbox-model` owns client-neutral types and the readiness wire shape.
 - `crates/glassbox-server` owns the shared loopback HTTP host, frontend hosting and real-process tests.
 - `src-tauri` owns the native window and embedded host lifecycle.

@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = [
+    "crates/glassbox-cli",
     "crates/glassbox-comparison",
     "crates/glassbox-model",
     "crates/glassbox-server",

@@ -2,18 +2,25 @@
 
 use std::path::PathBuf;
 
-use glassbox_server::LocalHost;
+use glassbox_server::{DifftoolInput, LocalHost};
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
 fn main() -> tauri::Result<()> {
+    let args: Vec<_> = std::env::args_os().skip(1).collect();
+    let difftool = (!args.is_empty())
+        .then(|| DifftoolInput::from_arguments(&args))
+        .transpose()?;
     tauri::Builder::default()
-        .setup(|app| {
+        .setup(move |app| {
             let assets = if cfg!(debug_assertions) {
                 PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../dist")
             } else {
                 app.path().resource_dir()?.join("web")
             };
-            let host = tauri::async_runtime::block_on(LocalHost::start(Some(&assets)))?;
+            let host = tauri::async_runtime::block_on(LocalHost::start_with_difftool(
+                Some(&assets),
+                difftool,
+            ))?;
             let url: tauri::Url = format!("http://{}/", host.address()).parse()?;
             let origin = url.origin();
             app.manage(host);

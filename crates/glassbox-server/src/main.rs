@@ -1,27 +1,26 @@
 use std::io;
 use std::path::PathBuf;
 
-use glassbox_server::LocalHost;
+use glassbox_server::{DifftoolInput, LocalHost};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> io::Result<()> {
-    let mut args = std::env::args_os().skip(1);
-    let assets = match args.next() {
-        None => None,
-        Some(flag) if flag == "--assets" => Some(PathBuf::from(args.next().ok_or_else(usage)?)),
-        Some(_) => return Err(usage()),
+    let args: Vec<_> = std::env::args_os().skip(1).collect();
+    let (assets, remaining) = match args.as_slice() {
+        [flag, path, remaining @ ..] if flag == "--assets" => {
+            (Some(PathBuf::from(path)), remaining)
+        }
+        remaining => (
+            std::env::var_os("GLASSBOX_WEB_ASSETS").map(PathBuf::from),
+            remaining,
+        ),
     };
-    if args.next().is_some() {
-        return Err(usage());
-    }
-    let host = LocalHost::start(assets.as_deref()).await?;
+    let difftool = if remaining.is_empty() {
+        None
+    } else {
+        Some(DifftoolInput::from_arguments(remaining)?)
+    };
+    let host = LocalHost::start_with_difftool(assets.as_deref(), difftool).await?;
     println!("{}", host.address());
     host.wait().await
-}
-
-fn usage() -> io::Error {
-    io::Error::new(
-        io::ErrorKind::InvalidInput,
-        "Usage: glassbox-server [--assets <built-web-directory>]",
-    )
 }

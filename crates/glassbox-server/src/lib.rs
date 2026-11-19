@@ -9,6 +9,7 @@ use axum::http::{StatusCode, header};
 use axum::middleware::{Next, from_fn_with_state};
 use axum::response::{IntoResponse, Response};
 use axum::{Json, Router, routing::get};
+pub use glassbox_model::DifftoolInput;
 use glassbox_model::ServiceHealth;
 use glassbox_settings::SettingsStore;
 use tokio::net::TcpListener;
@@ -23,12 +24,19 @@ pub struct LocalHost {
 
 impl LocalHost {
     pub async fn start(assets: Option<&Path>) -> io::Result<Self> {
+        Self::start_with_difftool(assets, None).await
+    }
+
+    pub async fn start_with_difftool(
+        assets: Option<&Path>,
+        difftool: Option<DifftoolInput>,
+    ) -> io::Result<Self> {
         if let Some(path) = assets {
             verify_assets(path)?;
         }
         let listener = TcpListener::bind(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0)).await?;
         let address = listener.local_addr()?;
-        let router = router(address, assets);
+        let router = router(address, assets, difftool);
         let (shutdown, closing) = oneshot::channel();
         let task = tokio::spawn(async move {
             axum::serve(listener, router)
@@ -85,13 +93,16 @@ struct LocalOrigin {
     origin: String,
 }
 
-fn router(address: SocketAddr, assets: Option<&Path>) -> Router {
+fn router(address: SocketAddr, assets: Option<&Path>, difftool: Option<DifftoolInput>) -> Router {
     let mut router = Router::new()
         .route(
             "/api/v1/health",
             get(|| async { Json(ServiceHealth::ready()) }),
         )
         .route("/api/v1/settings", get(settings));
+    if let Some(difftool) = difftool {
+        router = router.route("/api/v1/difftool", get(move || async { Json(difftool) }));
+    }
     if let Some(assets) = assets {
         router = router.fallback_service(ServeDir::new(assets));
     }

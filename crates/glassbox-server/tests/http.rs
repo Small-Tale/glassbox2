@@ -1,3 +1,4 @@
+use std::ffi::OsStr;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{IpAddr, SocketAddr, TcpStream};
 use std::path::Path;
@@ -5,7 +6,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::mpsc;
 use std::time::Duration;
 
-use glassbox_model::ServiceHealth;
+use glassbox_model::{DifftoolInput, ServiceHealth};
 
 struct RunningServer(Child);
 
@@ -18,11 +19,16 @@ impl Drop for RunningServer {
 
 impl RunningServer {
     fn start(assets: Option<&Path>) -> (Self, SocketAddr) {
+        Self::start_with_args(assets, &[])
+    }
+
+    fn start_with_args(assets: Option<&Path>, args: &[&OsStr]) -> (Self, SocketAddr) {
         let mut command = Command::new(env!("CARGO_BIN_EXE_glassbox-server"));
         if let Some(path) = assets {
             command.arg("--assets").arg(path);
         }
         let child = command
+            .args(args)
             .stdout(Stdio::piped())
             .spawn()
             .expect("start Glassbox service");
@@ -128,4 +134,30 @@ async fn embedding_host_releases_its_listener_when_stopped() {
     let _replacement = tokio::net::TcpListener::bind(address)
         .await
         .expect("the stopped host releases its listener");
+}
+
+#[test]
+fn difftool_input_is_only_published_for_a_difftool_launch() {
+    let (_ordinary, ordinary_address) = RunningServer::start(None);
+    assert!(get(ordinary_address, "/api/v1/difftool").starts_with("HTTP/1.1 404 Not Found"));
+
+    let before = OsStr::new("before with spaces & punctuation");
+    let after = OsStr::new("after with spaces & punctuation");
+    let (_server, address) =
+        RunningServer::start_with_args(None, &[OsStr::new("--difftool"), before, after]);
+    let response = get(address, "/api/v1/difftool");
+    let (headers, body) = response.split_once("\r\n\r\n").unwrap();
+    assert!(headers.starts_with("HTTP/1.1 200 OK"));
+    let input = serde_json::from_str::<DifftoolInput>(body).unwrap();
+    assert_eq!(input.before, std::path::absolute(before).unwrap());
+    assert_eq!(input.after, std::path::absolute(after).unwrap());
+    assert!(
+        request(
+            address,
+            "/api/v1/difftool",
+            &address.to_string(),
+            "Origin: https://example.test\r\n"
+        )
+        .starts_with("HTTP/1.1 403 Forbidden")
+    );
 }
