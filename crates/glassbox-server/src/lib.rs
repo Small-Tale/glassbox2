@@ -8,13 +8,18 @@ use axum::extract::{Request, State};
 use axum::http::{StatusCode, header};
 use axum::middleware::{Next, from_fn_with_state};
 use axum::response::{IntoResponse, Response};
-use axum::{Json, Router, routing::get};
+use axum::{
+    Json, Router,
+    routing::{get, post},
+};
 pub use glassbox_model::DifftoolInput;
 use glassbox_model::ServiceHealth;
 use glassbox_settings::SettingsStore;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 use tower_http::services::ServeDir;
+
+mod review_files;
 
 pub struct LocalHost {
     address: SocketAddr,
@@ -94,12 +99,17 @@ struct LocalOrigin {
 }
 
 fn router(address: SocketAddr, assets: Option<&Path>, difftool: Option<DifftoolInput>) -> Router {
+    let source_launch = difftool.clone();
     let mut router = Router::new()
         .route(
             "/api/v1/health",
             get(|| async { Json(ServiceHealth::ready()) }),
         )
-        .route("/api/v1/settings", get(settings));
+        .route("/api/v1/settings", get(settings))
+        .route(
+            "/api/v1/review/files",
+            post(move |Json(source)| review_files::list(source, source_launch)),
+        );
     if let Some(difftool) = difftool {
         router = router.route("/api/v1/difftool", get(move || async { Json(difftool) }));
     }

@@ -5,6 +5,41 @@
   "description": "Glassbox components for reviewing changes and sharing feedback.",
   "entries": [
     {
+      "id": "review-navigator",
+      "name": "Review Navigator",
+      "kind": "composition",
+      "purpose": "Open a review source and navigate its changed files.",
+      "useWhen": [
+        "Open or navigate a comparison."
+      ],
+      "avoidWhen": [
+        "Display a standalone file view."
+      ],
+      "publicClasses": [
+        "review-navigator"
+      ],
+      "publicTokens": [],
+      "uses": [
+        "badge",
+        "button",
+        "empty-state",
+        "select",
+        "text-field",
+        "tree-list"
+      ],
+      "source": "src/components/review/review-navigator.tsx",
+      "styleSources": [
+        "src/components/review/review-navigator.css"
+      ],
+      "demoSource": "src/ux-demo/demos/review/review-navigator.tsx",
+      "geometry": {
+        "margin": "none",
+        "border": "none",
+        "padding": "none"
+      },
+      "documentation": "docs/ui-conventions.md"
+    },
+    {
       "id": "review-workbench",
       "name": "Review Workbench",
       "kind": "composition",

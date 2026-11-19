@@ -15,5 +15,10 @@ ends the embedded task.
 
 The host binds IPv4 loopback on a port chosen by the OS. It accepts the bound
 Host value and rejects requests with a foreign Origin or cross-site API
-fetch metadata. The current API exposes health and application appearance
-only. Client contracts remain independent of the webview implementation.
+fetch metadata. Client contracts remain independent of the webview implementation.
+
+The clients load changed-file metadata from `POST /api/v1/review/files`.
+The source can be a repository with a Git mode, a direct path pair, or
+the host's difftool launch. The response includes the source identity,
+branch when available, paths, and change statuses. Difftool lookup uses
+the inputs held by the host for the lifetime of that launch.

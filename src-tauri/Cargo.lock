@@ -1105,6 +1105,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "glassbox-comparison"
+version = "0.1.0"
+dependencies = [
+ "glassbox-model",
+ "tempfile",
+]
+
+[[package]]
 name = "glassbox-desktop"
 version = "0.1.0"
 dependencies = [
@@ -1125,8 +1133,10 @@ name = "glassbox-server"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "glassbox-comparison",
  "glassbox-model",
  "glassbox-settings",
+ "serde",
  "tokio",
  "tower-http",
 ]

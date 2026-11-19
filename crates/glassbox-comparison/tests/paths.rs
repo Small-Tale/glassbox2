@@ -126,3 +126,28 @@ fn direct_comparison_maps_text_hunks_and_loads_diagram_sources() {
     assert_eq!(asset.content_type, "text/plain");
     assert_eq!(asset.bytes, b"digraph { a -> b }");
 }
+
+#[test]
+fn per_file_difftool_recognizes_git_missing_sides() {
+    use glassbox_comparison::compare_difftool_paths;
+    use glassbox_model::DifftoolInput;
+
+    let directory = tempdir().unwrap();
+    let file = directory.path().join("new empty file");
+    fs::write(&file, []).unwrap();
+    let missing = Path::new("/dev/null").to_path_buf();
+    let added = compare_difftool_paths(&DifftoolInput {
+        before: missing.clone(),
+        after: file.clone(),
+    })
+    .unwrap();
+    let deleted = compare_difftool_paths(&DifftoolInput {
+        before: file,
+        after: missing,
+    })
+    .unwrap();
+    assert_eq!(added[0].change, Change::Added);
+    assert!(added[0].before.is_none());
+    assert_eq!(deleted[0].change, Change::Deleted);
+    assert!(deleted[0].after.is_none());
+}

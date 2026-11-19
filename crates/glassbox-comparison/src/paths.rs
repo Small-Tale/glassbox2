@@ -3,9 +3,35 @@ use std::fs::{self, File, FileType};
 use std::io::{self, BufRead, BufReader, Read};
 use std::path::{self, Path, PathBuf};
 
-use glassbox_model::{Change, ComparisonEntry, ContentKind, EntrySide};
+use glassbox_model::{Change, ComparisonEntry, ContentKind, DifftoolInput, EntrySide};
 
 const BINARY_SAMPLE_BYTES: usize = 8192;
+
+pub fn compare_difftool_paths(input: &DifftoolInput) -> io::Result<Vec<ComparisonEntry>> {
+    let missing = |path: &Path| {
+        path == Path::new("/dev/null")
+            || (cfg!(windows)
+                && path.file_name().is_some_and(|name| {
+                    name.eq_ignore_ascii_case("nul")
+                        || (path.ends_with("dev/null") && !path.exists())
+                }))
+    };
+    match (missing(&input.before), missing(&input.after)) {
+        (false, false) => compare_paths(&input.before, &input.after),
+        (true, true) => Ok(Vec::new()),
+        (true, false) | (false, true) => {
+            let removed = missing(&input.after);
+            let path = if removed { &input.before } else { &input.after };
+            let side = entry(path, basename(path)?, file_type(path)?)?;
+            let (before, after) = if removed {
+                (Some(side), None)
+            } else {
+                (None, Some(side))
+            };
+            Ok(compare_entry(before, after)?.into_iter().collect())
+        }
+    }
+}
 
 pub fn compare_paths(before: &Path, after: &Path) -> io::Result<Vec<ComparisonEntry>> {
     let before = path::absolute(before)?;

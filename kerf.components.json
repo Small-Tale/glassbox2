@@ -138,6 +138,75 @@
         "demoSource": "src/ux-demo/demos/review/review-workbench.tsx",
         "documentation": "docs/ui-conventions.md"
       }
+    },
+    {
+      "id": "review-navigator",
+      "name": "Review Navigator",
+      "kind": "composition",
+      "purpose": "Open a review source and navigate its changed files.",
+      "source": "src/components/review/review-navigator.tsx",
+      "publicExports": [
+        {
+          "name": "ReviewNavigator"
+        },
+        {
+          "name": "wireReviewNavigator"
+        }
+      ],
+      "sourceLinks": ["src/components/review/review-navigator.tsx"],
+      "composition": {
+        "parents": {
+          "mode": "any",
+          "entries": []
+        },
+        "contexts": ["application-ui"],
+        "zones": [],
+        "children": {
+          "mode": "any",
+          "concepts": [],
+          "requiredConcepts": []
+        },
+        "state": [],
+        "wiring": {
+          "required": false,
+          "helpers": [],
+          "obligations": []
+        },
+        "responsive": {
+          "owner": "component",
+          "behaviors": ["fit-sidebar-or-overlay"]
+        },
+        "layout": {
+          "roles": ["content"],
+          "geometry": {
+            "margin": "none",
+            "border": "none",
+            "padding": "none"
+          }
+        }
+      },
+      "boundaries": {
+        "rootClass": "review-navigator",
+        "publicClasses": ["review-navigator"],
+        "publicTokens": [],
+        "placeableClasses": ["review-navigator"]
+      },
+      "accessibility": {
+        "obligations": ["Label source controls and wire keyboard movement for the changed-file tree."]
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/review/review-navigator.tsx",
+        "composition": "src/components/review/review-navigator.tsx"
+      },
+      "selection": {
+        "useWhen": ["Open or navigate a comparison."],
+        "avoidWhen": ["Display a standalone file view."],
+        "styleSources": ["src/components/review/review-navigator.css"],
+        "demoSource": "src/ux-demo/demos/review/review-navigator.tsx",
+        "documentation": "docs/ui-conventions.md",
+        "uses": ["badge", "button", "empty-state", "select", "text-field", "tree-list"]
+      }
     }
   ],
   "description": "Glassbox components for reviewing changes and sharing feedback."

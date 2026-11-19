@@ -1,0 +1,22 @@
+.review-navigator {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.review-navigator__form,
+.review-navigator__source,
+.review-navigator__files {
+  display: grid;
+  align-content: start;
+  gap: 0.5rem;
+  padding: 0.5rem;
+}
+
+.review-navigator__source {
+  padding-inline: 1rem;
+}
+
+.review-navigator__source > button {
+  justify-self: start;
+}

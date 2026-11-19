@@ -8,6 +8,7 @@ import { wireCatalog } from '@kerfjs/ui/wire-catalog';
 import { mount, signal } from 'kerfjs';
 
 import { catalogSections, componentDemos, type DemoId, isDemoId } from './catalog.js';
+import { wireReviewNavigatorDemo } from './demos/review/review-navigator.js';
 import { wireReviewWorkbenchDemo } from './demos/review/review-workbench.js';
 
 const active = signal<DemoId>('source-context');
@@ -35,3 +36,5 @@ void wireCatalog(root, {
 });
 
 void wireReviewWorkbenchDemo(root);
+
+void wireReviewNavigatorDemo(root);

@@ -49,4 +49,4 @@ entry in the desired Git config scope. The wrapper needs no persistent config.
 
 The shared host exposes the current launch paths through
 `GET /api/v1/difftool`, available only when started by difftool.
-The workbench source controls consume the launch input in HS2-KGVXT8.
+The workbench opens that source automatically and lists the changed files (HS2-KGVXT8).

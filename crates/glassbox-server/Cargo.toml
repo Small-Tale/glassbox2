@@ -6,7 +6,9 @@ rust-version.workspace = true
 
 [dependencies]
 axum.workspace = true
+glassbox-comparison = { path = "../glassbox-comparison" }
 glassbox-model.workspace = true
+serde.workspace = true
 glassbox-settings.workspace = true
 tokio.workspace = true
 tower-http.workspace = true
@@ -14,3 +16,4 @@ tower-http.workspace = true
 [dev-dependencies]
 serde_json.workspace = true
 tempfile.workspace = true
+tokio = { workspace = true, features = ["io-util"] }

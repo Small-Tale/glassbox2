@@ -17,6 +17,6 @@ their stored link target and are never descended into as directory entries.
 An unreadable entry or unsupported file type produces an error. The result
 includes each side's display path, original source path, and content kind.
 
-Presentation of text hunks, images, SVG, and diagram inputs is tracked in
-`HS2-B7QRKJ`. The entry point for selecting review paths is tracked in
-`HS2-KGVXT8`.
+Use Files or Folders in the left rail to open a direct comparison
+(`HS2-KGVXT8`). Select a changed file from the tree. The text and media
+viewers are tracked in `HS2-RVP90A` and `HS2-B9NHFE`.

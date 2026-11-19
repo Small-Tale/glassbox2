@@ -2,11 +2,13 @@ import type { CatalogSection } from '@kerfjs/ui/catalog';
 import type { SafeHtml } from 'kerfjs';
 
 import metadata from '../../component-catalog.json';
+import { ReviewNavigatorDemo } from './demos/review/review-navigator.js';
 import { ReviewWorkbenchDemo } from './demos/review/review-workbench.js';
 import { SourceContextDemo } from './demos/review/source-context.js';
 
 export const componentDemos = {
   'source-context': SourceContextDemo,
+  'review-navigator': ReviewNavigatorDemo,
   'review-workbench': ReviewWorkbenchDemo,
 } satisfies Record<string, () => SafeHtml>;
 

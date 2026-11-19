@@ -29,3 +29,11 @@ resized by drag or keyboard. The same rail actions restore collapsed
 panels, and overlay panels dismiss with Escape or an outside click.
 The catalog's Review Workbench entry shows the shared composition with
 a sample source context.
+
+## Review source and changed files
+
+The left rail accepts a Git repository or a pair of files or folders
+(`HS2-KGVXT8`). With a review open, Change Source retains the active files
+until the next source loads. The navigator shows the source context,
+path hierarchy, file statuses, and a path filter. Keyboard navigation
+follows Kerf Tree List. Selection drives the central filename heading.

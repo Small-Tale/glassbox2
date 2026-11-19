@@ -54,6 +54,14 @@ pub(crate) struct GitFileBytes {
 }
 
 impl GitReview {
+    pub fn branch_name(&self) -> io::Result<Option<String>> {
+        let output = git(&self.root, ["symbolic-ref", "--quiet", "--short", "HEAD"])?;
+        Ok(output
+            .status
+            .success()
+            .then(|| String::from_utf8_lossy(strip_line_ending(&output.stdout)).into_owned()))
+    }
+
     pub(crate) fn read_change_sides(&self, index: usize) -> io::Result<GitFileBytes> {
         let change = self
             .changes
