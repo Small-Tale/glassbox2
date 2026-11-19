@@ -1,0 +1,8 @@
+# >>> Hot Sheet 2 (managed; edit outside this block) >>>
+/.hotsheet2/*
+!/.hotsheet2/settings.json
+!/.hotsheet2/groups/
+# <<< Hot Sheet 2 <<<
+
+/node_modules/
+/dist/

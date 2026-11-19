@@ -1,0 +1,11 @@
+.claude/
+dist/
+node_modules/
+component-composition.json
+tsconfig.json
+
+.agents/
+.hotsheet2/
+AGENTS.md
+CLAUDE.md
+.mcp.json

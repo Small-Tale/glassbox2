@@ -1,0 +1,37 @@
+{
+  "devDependencies": {
+    "@kerfjs/ui": "5.0.0-beta.130",
+    "kerfjs": "5.0.0-beta.130",
+    "eslint-plugin-kerfjs": "5.0.0-beta.130",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.0.0",
+    "typescript": "^5.0.0 || ^6.0.0",
+    "create-kerf-component": "5.0.0-beta.130",
+    "@eslint/js": "^9.0.0",
+    "@stylistic/eslint-plugin": "^5.0.0",
+    "eslint-plugin-simple-import-sort": "^12.1.1",
+    "prettier": "^3.0.0",
+    "typescript-eslint": "^8.65.0",
+    "vite": "^7.0.0"
+  },
+  "name": "glassbox2",
+  "private": true,
+  "scripts": {
+    "lint": "prettier --check . --ignore-unknown && eslint . --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "check": "prettier --check . --ignore-unknown && eslint . --max-warnings 0 && tsc --noEmit && kerf-component-catalog --check && kerf-ui-doctor --full && node --test tests/structure.test.mjs && vite build",
+    "kerf:check": "prettier --check . --ignore-unknown && eslint . --max-warnings 0 && tsc --noEmit && kerf-component-catalog --check && kerf-ui-doctor --full && node --test tests/structure.test.mjs && vite build",
+    "kerf:doctor": "kerf-ui-doctor --full",
+    "kerf:doctor:changed": "kerf-ui-doctor --changed",
+    "catalog:generate": "kerf-component-catalog --write",
+    "catalog:check": "kerf-component-catalog --check",
+    "dev": "vite",
+    "build": "vite build",
+    "test:structure": "node --test tests/structure.test.mjs"
+  },
+  "dependencies": {},
+  "kerfComponentCatalog": {
+    "source": "./kerf.components.json",
+    "output": "./component-composition.json"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "$schema": "https://raw.githubusercontent.com/brianwestphal/kerf/main/ui/ai/component-composition-extension.schema.json",
+  "schemaVersion": 1,
+  "package": "glassbox2",
+  "compatibility": {
+    "componentCatalog": "not-applicable",
+    "identity": "package:id"
+  },
+  "entries": []
+}

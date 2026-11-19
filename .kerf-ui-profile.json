@@ -1,0 +1,14 @@
+{
+  "$schema": "https://raw.githubusercontent.com/brianwestphal/kerf/main/ui/ai/application-ui-profile.schema.json",
+  "schemaVersion": 1,
+  "scope": "workspace",
+  "catalogs": [
+    {
+      "package": "glassbox2",
+      "composition": {
+        "path": "./component-composition.json",
+        "schemaVersion": 1
+      }
+    }
+  ]
+}
