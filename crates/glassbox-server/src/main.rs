@@ -1,19 +1,27 @@
 use std::io;
-use std::net::{Ipv4Addr, SocketAddrV4};
+use std::path::PathBuf;
 
-use axum::{Json, Router, routing::get};
-use glassbox_model::ServiceHealth;
-use tokio::net::TcpListener;
+use glassbox_server::LocalHost;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> io::Result<()> {
-    let listener = TcpListener::bind(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0)).await?;
-    let address = listener.local_addr()?;
-    let router = Router::new().route("/api/v1/health", get(health));
-    println!("{address}");
-    axum::serve(listener, router).await
+    let mut args = std::env::args_os().skip(1);
+    let assets = match args.next() {
+        None => None,
+        Some(flag) if flag == "--assets" => Some(PathBuf::from(args.next().ok_or_else(usage)?)),
+        Some(_) => return Err(usage()),
+    };
+    if args.next().is_some() {
+        return Err(usage());
+    }
+    let host = LocalHost::start(assets.as_deref()).await?;
+    println!("{}", host.address());
+    host.wait().await
 }
 
-async fn health() -> Json<ServiceHealth> {
-    Json(ServiceHealth::ready())
+fn usage() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidInput,
+        "Usage: glassbox-server [--assets <built-web-directory>]",
+    )
 }

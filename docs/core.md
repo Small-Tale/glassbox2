@@ -9,8 +9,7 @@ Run `cargo run -p glassbox-server` to launch the service. It binds an
 OS-assigned port on IPv4 loopback and prints the resolved socket address on
 stdout once bound. `GET /api/v1/health` returns HTTP 200 with
 `{"api_version":1,"status":"ready"}`. The readiness response contains no
-project or review data. Client launch and access boundaries for project
-operations belong to `HS2-4PZVQG`.
+project or review data. See [Web and Tauri host](hosting.md) for launch, lifecycle and origin rules.
 
 ## Glassbox v1 parity map
 

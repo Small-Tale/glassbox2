@@ -13,3 +13,5 @@ CLAUDE.md
 .kerf-cache/
 component-catalog.json
 target/
+src-tauri/target/
+src-tauri/gen/

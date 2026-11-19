@@ -21,6 +21,7 @@ names for icon-only actions, and the Workbench's responsive toolbar layout.
 ## Architecture and verification
 
 - [Shared core, readiness API, and v1 parity](docs/core.md)
+- [Web and Tauri host](docs/hosting.md)
 - [Application settings](docs/settings.md)
 - [Direct file and folder comparisons](docs/direct-comparison.md)
 - [Git review inputs](docs/git-review.md)

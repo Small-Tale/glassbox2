@@ -1,5 +1,6 @@
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{IpAddr, SocketAddr, TcpStream};
+use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::sync::mpsc;
 use std::time::Duration;
@@ -16,8 +17,12 @@ impl Drop for RunningServer {
 }
 
 impl RunningServer {
-    fn start() -> (Self, SocketAddr) {
-        let child = Command::new(env!("CARGO_BIN_EXE_glassbox-server"))
+    fn start(assets: Option<&Path>) -> (Self, SocketAddr) {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_glassbox-server"));
+        if let Some(path) = assets {
+            command.arg("--assets").arg(path);
+        }
+        let child = command
             .stdout(Stdio::piped())
             .spawn()
             .expect("start Glassbox service");
@@ -41,13 +46,17 @@ impl RunningServer {
 }
 
 fn get(address: SocketAddr, path: &str) -> String {
+    request(address, path, &address.to_string(), "")
+}
+
+fn request(address: SocketAddr, path: &str, host: &str, extra_headers: &str) -> String {
     let timeout = Duration::from_secs(5);
     let mut connection = TcpStream::connect_timeout(&address, timeout).unwrap();
     connection.set_read_timeout(Some(timeout)).unwrap();
     connection.set_write_timeout(Some(timeout)).unwrap();
     write!(
         connection,
-        "GET {path} HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\n\r\n"
+        "GET {path} HTTP/1.1\r\nHost: {host}\r\n{extra_headers}Connection: close\r\n\r\n"
     )
     .unwrap();
     let mut response = String::new();
@@ -57,7 +66,7 @@ fn get(address: SocketAddr, path: &str) -> String {
 
 #[test]
 fn health_is_available_through_the_real_loopback_service() {
-    let (_server, address) = RunningServer::start();
+    let (_server, address) = RunningServer::start(None);
     assert!(IpAddr::is_loopback(&address.ip()));
 
     let response = get(address, "/api/v1/health");
@@ -69,4 +78,54 @@ fn health_is_available_through_the_real_loopback_service() {
         ServiceHealth::ready()
     );
     assert!(get(address, "/api/v2/health").starts_with("HTTP/1.1 404 Not Found"));
+}
+
+#[test]
+fn built_pages_and_assets_are_served_by_the_same_application_origin() {
+    let directory = tempfile::tempdir().unwrap();
+    std::fs::create_dir(directory.path().join("ux-demo")).unwrap();
+    std::fs::write(
+        directory.path().join("index.html"),
+        "<title>Glassbox</title>",
+    )
+    .unwrap();
+    std::fs::write(
+        directory.path().join("ux-demo/index.html"),
+        "<title>Catalog</title>",
+    )
+    .unwrap();
+    std::fs::write(directory.path().join("app.js"), "console.log('Glassbox');").unwrap();
+    let (_host, address) = RunningServer::start(Some(directory.path()));
+    assert!(get(address, "/").contains("<title>Glassbox</title>"));
+    assert!(get(address, "/ux-demo/").contains("<title>Catalog</title>"));
+    let js = get(address, "/app.js");
+    assert!(js.starts_with("HTTP/1.1 200 OK"));
+    assert!(js.contains("javascript"));
+    assert_eq!(
+        request(address, "/api/v1/health", "host.example.test", "")
+            .lines()
+            .next(),
+        Some("HTTP/1.1 403 Forbidden")
+    );
+    let disallowed = [
+        "Origin: https://example.test\r\n",
+        "Sec-Fetch-Site: cross-site\r\n",
+    ];
+    for extra in disallowed {
+        assert!(
+            request(address, "/api/v1/health", &address.to_string(), extra)
+                .starts_with("HTTP/1.1 403 Forbidden")
+        );
+    }
+}
+
+#[tokio::test]
+async fn embedding_host_releases_its_listener_when_stopped() {
+    let host = glassbox_server::LocalHost::start(None).await.unwrap();
+    let address = host.address();
+    assert!(tokio::net::TcpListener::bind(address).await.is_err());
+    host.stop().await.unwrap();
+    let _replacement = tokio::net::TcpListener::bind(address)
+        .await
+        .expect("the stopped host releases its listener");
 }

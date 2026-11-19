@@ -8,3 +8,5 @@
 /dist/
 /.kerf-cache/
 /target/
+/src-tauri/target/
+/src-tauri/gen/
