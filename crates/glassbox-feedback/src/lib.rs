@@ -1,9 +1,10 @@
 //! Durable, database-free handoff bundles for Glassbox reviews.
 
 mod hotsheet;
+mod storage;
 
 use std::collections::BTreeSet;
-use std::fs;
+use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -17,8 +18,12 @@ use sha2::{Digest, Sha256};
 use tempfile::{Builder, NamedTempFile};
 
 pub use hotsheet::{ExportReceipt, ExportRequest, ExportTarget, HotSheetClient, PreparedExport};
+pub use storage::{CleanupProblem, CleanupReport, CleanupScope, ProjectStorage, StorageUsage};
 
 const HANDOFF: &str = "review.md";
+const CONTEXT: &str = "context.json";
+const BUNDLE_PREFIX: &str = "review-";
+const BUNDLE_HEADER: &str = "# Glassbox review feedback\n\n<!-- Glassbox feedback bundle v1 -->\n";
 const ATTACHMENTS: &str = "attachments";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -52,14 +57,15 @@ impl BundleStore {
         let root = std::path::absolute(&self.root)?;
         context.project = context.project.map(std::path::absolute).transpose()?;
         fs::create_dir_all(&root)?;
-        let directory = Builder::new().prefix("review-").tempdir_in(root)?;
+        let directory = Builder::new().prefix(BUNDLE_PREFIX).tempdir_in(root)?;
         let bundle = FeedbackBundle {
             directory: directory.path().to_owned(),
+            _lease: storage::open_bundle_lease(directory.path())?,
             context,
             publication: Mutex::new(BTreeSet::new()),
         };
         let context_json = serde_json::to_vec_pretty(&bundle.context)?;
-        write_replace(&bundle.directory, "context.json", &context_json)?;
+        write_replace(&bundle.directory, CONTEXT, &context_json)?;
         bundle.publish(feedback)?;
         let _ = directory.keep();
         Ok(bundle)
@@ -70,6 +76,7 @@ pub struct FeedbackBundle {
     directory: PathBuf,
     context: BundleContext,
     publication: Mutex<BTreeSet<String>>,
+    _lease: File,
 }
 
 impl FeedbackBundle {
@@ -95,10 +102,7 @@ impl FeedbackBundle {
 
         let mut output = Vec::new();
         let mut evidence = BTreeSet::new();
-        writeln!(
-            output,
-            "# Glassbox review feedback\n\n<!-- Glassbox feedback bundle v1 -->\n"
-        )?;
+        writeln!(output, "{BUNDLE_HEADER}")?;
         write_context(&mut output, &self.context)?;
         if feedback.threads().is_empty() {
             writeln!(output, "\nNo feedback has been recorded.\n")?;

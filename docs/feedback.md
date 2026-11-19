@@ -81,3 +81,22 @@ tracked in `HS2-6DE0XA`.
 The isolated real-store check can run with
 `cargo test -p glassbox-feedback real_hotsheet -- --ignored` when a
 current Hot Sheet 2 CLI is installed.
+
+## Feedback storage
+
+Glassbox measures bundle counts and logical file bytes per project
+and across the local store (`HS2-D518Y2`). Reports include evidence,
+unassigned bundles, and open reviews. Existing project paths are
+grouped by their canonical location.
+
+First-release retention is manual. A 30-day expiry would make saved
+instructions stop working as they aged. Explicit cleanup can clear one
+project or the entire store. Cleanup skips open bundles, including a
+bundle being edited by another Glassbox process. Each removed bundle
+releases its Markdown and evidence, and copied instructions for it stop
+resolving. Cleanup can resume after an individual removal error.
+
+A filesystem lease protects each live bundle and is released when the
+writer exits. Only directories identified as Glassbox bundles are
+eligible for cleanup. The settings controls and confirmation are
+tracked in `HS2-5TN81D`.

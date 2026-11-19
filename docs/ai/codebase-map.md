@@ -1,7 +1,7 @@
 # Codebase map
 
 - `crates/glassbox-cli` runs Git difftool and forwards its two paths to the selected Glassbox client.
-- `crates/glassbox-feedback` publishes the durable Markdown handoff, its attachments, and Hot Sheet delivery.
+- `crates/glassbox-feedback` publishes the durable Markdown handoff, its attachments, Hot Sheet delivery, and feedback storage operations.
 - `crates/glassbox-model` owns client-neutral types, the readiness wire shape, and the versioned feedback model under `src/feedback`.
 - `crates/glassbox-server` owns the shared loopback HTTP host, frontend hosting, review source endpoints, and real-process tests.
 - `src-tauri` owns the native window and embedded host lifecycle.
