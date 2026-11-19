@@ -4,6 +4,7 @@
 - [Application settings](../settings.md) are partly built. The shared appearance contract and file store are implemented. Client wiring and controls are tracked separately.
 - [Direct comparison](../direct-comparison.md) is partly built. The core compares file pairs and directory trees. Media presentation and the UI entry point are tracked separately.
 - [Comparison content](../comparison-content.md) is partly built. Shared hunks and original media inputs are implemented. The real viewer and plugin rendering are tracked separately.
+- [AI review notes](../review-notes.md) are partly built. SARIF ingestion and new-side anchoring work in the core. Thread replies and the inspector are tracked separately.
 - [Git review](../git-review.md) is partly built. The core retrieves Git change metadata and patches. Launch and presentation are tracked separately.
 - [UI conventions](../ui-conventions.md) are in use. The Kerf catalog is shipped with its first grouped specimen. The workbench is a design fixture and the real review flows are tracked in Hot Sheet.
 - Git and arbitrary comparison, the CLI, file-based feedback, Hot Sheet export, optional AI, and Tauri integration are planned in the linked tickets.

@@ -1,0 +1,13 @@
+[package]
+name = "glassbox-notes"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+glassbox-model.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+glassbox-comparison = { path = "../glassbox-comparison" }
+tempfile.workspace = true

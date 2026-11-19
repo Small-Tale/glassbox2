@@ -164,6 +164,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "glassbox-notes"
+version = "0.1.0"
+dependencies = [
+ "glassbox-comparison",
+ "glassbox-model",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "glassbox-server"
 version = "0.1.0"
 dependencies = [

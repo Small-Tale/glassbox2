@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": { "driver": { "name": "Hot Sheet", "version": "2" } },
+      "versionControlProvenance": [
+        { "repositoryUri": "https://example.test/review", "revisionId": "abc123", "branch": "main" }
+      ],
+      "results": [
+        {
+          "ruleId": "review-note",
+          "kind": "informational",
+          "level": "none",
+          "guid": "v1-fix-rationale",
+          "message": { "text": "Publish atomically.", "markdown": "Publish **atomically**." },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "src/save.rs" },
+                "region": { "startLine": 4, "endLine": 5, "snippet": { "text": "persist();\nreturn Ok(());" } }
+              }
+            }
+          ],
+          "relatedLocations": [
+            {
+              "id": 0,
+              "physicalLocation": {
+                "artifactLocation": { "uri": "tests/save.rs" },
+                "region": { "startLine": 8 }
+              }
+            }
+          ],
+          "properties": { "tags": ["rationale"], "ext-ai-tool-confidence": 0.8 },
+          "partialFingerprints": { "prNoteAnchor/v1": "e4cae6b4e8c2f2ba2c706569c35b71a2" },
+          "attachments": [{ "artifactLocation": { "uri": ".pr-notes/proof/trace.txt" } }],
+          "workItemUris": ["HS2-EXAMPLE"],
+          "rank": 45
+        },
+        {
+          "ruleId": "review-note",
+          "kind": "informational",
+          "level": "none",
+          "guid": "v1-fix-proof",
+          "message": { "text": "The old file survives a failed replacement." },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "src/save.rs" },
+                "region": { "startLine": 4 }
+              }
+            }
+          ],
+          "properties": { "tags": ["proof"] }
+        }
+      ]
+    }
+  ]
+}

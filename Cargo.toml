@@ -3,6 +3,7 @@ resolver = "3"
 members = [
     "crates/glassbox-comparison",
     "crates/glassbox-model",
+    "crates/glassbox-notes",
     "crates/glassbox-server",
     "crates/glassbox-settings",
 ]
