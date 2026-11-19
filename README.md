@@ -23,6 +23,7 @@ names for icon-only actions, and the Workbench's responsive toolbar layout.
 - [Shared core, readiness API, and v1 parity](docs/core.md)
 - [Application settings](docs/settings.md)
 - [Direct file and folder comparisons](docs/direct-comparison.md)
+- [Git review inputs](docs/git-review.md)
 - [Codebase map](docs/ai/codebase-map.md)
 - [Requirements summary](docs/ai/requirements-summary.md)
 

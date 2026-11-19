@@ -1,0 +1,335 @@
+use std::ffi::{OsStr, OsString};
+use std::io;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Output, Stdio};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GitReviewMode<'a> {
+    WorkingTree,
+    Staged,
+    Unstaged,
+    Commit(&'a str),
+    Range { before: &'a str, after: &'a str },
+    Branch(&'a str),
+    Paths(&'a [&'a Path]),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GitChange {
+    Added,
+    Copied,
+    Deleted,
+    Modified,
+    Renamed,
+    TypeChanged,
+    Unmerged,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitFileChange {
+    pub change: GitChange,
+    pub before_path: Option<PathBuf>,
+    pub after_path: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitReview {
+    pub root: PathBuf,
+    pub changes: Vec<GitFileChange>,
+    pub patch: Vec<u8>,
+}
+
+pub fn review_git(directory: &Path, mode: GitReviewMode<'_>) -> io::Result<GitReview> {
+    let root = git_path(strip_line_ending(
+        &checked_git(directory, ["rev-parse", "--show-toplevel"])?.stdout,
+    ))?;
+    let mut args = Vec::<OsString>::new();
+    match mode {
+        GitReviewMode::Commit(revision) => {
+            args.extend(["show", "--format=", "--diff-merges=first-parent"].map(OsString::from));
+            args.push(resolve_commit(&root, revision)?.into());
+        }
+        _ => {
+            args.push("diff".into());
+            match mode {
+                GitReviewMode::WorkingTree | GitReviewMode::Paths(_) => {
+                    args.push(head_or_empty_tree(&root)?.into());
+                }
+                GitReviewMode::Staged => args.push("--cached".into()),
+                GitReviewMode::Unstaged => {}
+                GitReviewMode::Range { before, after } => {
+                    args.push(resolve_commit(&root, before)?.into());
+                    args.push(resolve_commit(&root, after)?.into());
+                }
+                GitReviewMode::Branch(branch) => {
+                    let branch = resolve_commit(&root, branch)?;
+                    let head = resolve_commit(&root, "HEAD")?;
+                    args.push(format!("{branch}...{head}").into());
+                }
+                GitReviewMode::Commit(_) => unreachable!("commit uses git show"),
+            }
+        }
+    }
+    args.extend(
+        [
+            "--raw",
+            "-z",
+            "--patch",
+            "-U3",
+            "--find-renames",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--no-color",
+            "--no-relative",
+            "--src-prefix=a/",
+            "--dst-prefix=b/",
+            "--",
+        ]
+        .map(OsString::from),
+    );
+    if let GitReviewMode::Paths(paths) = mode {
+        args.extend(paths.iter().map(|path| path.as_os_str().to_owned()));
+    }
+
+    let output = checked_git(&root, &args)?;
+    let (mut changes, mut patch) = parse_diff(output.stdout)?;
+    if matches!(mode, GitReviewMode::WorkingTree | GitReviewMode::Paths(_)) {
+        let filters = match mode {
+            GitReviewMode::Paths(paths) => paths,
+            _ => &[],
+        };
+        append_untracked(&root, filters, &mut changes, &mut patch)?;
+    }
+    Ok(GitReview {
+        root,
+        changes,
+        patch,
+    })
+}
+
+fn git(directory: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> io::Result<Output> {
+    let mut command = Command::new("git");
+    command
+        .current_dir(directory)
+        .args(args)
+        .stdin(Stdio::null());
+    for (name, _) in std::env::vars_os() {
+        let key = name.to_string_lossy();
+        if key.starts_with("GIT_")
+            && !matches!(key.as_ref(), "GIT_EXEC_PATH" | "GIT_CONFIG_NOSYSTEM")
+        {
+            command.env_remove(name);
+        }
+    }
+    command.output()
+}
+
+fn checked_git(
+    directory: &Path,
+    args: impl IntoIterator<Item = impl AsRef<OsStr>>,
+) -> io::Result<Output> {
+    let output = git(directory, args)?;
+    if output.status.success() {
+        Ok(output)
+    } else {
+        Err(git_error(&output))
+    }
+}
+
+fn git_error(output: &Output) -> io::Error {
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    io::Error::other(format!(
+        "Git exited with {}: {}",
+        output.status,
+        stderr.trim()
+    ))
+}
+
+fn resolve_commit(root: &Path, revision: &str) -> io::Result<String> {
+    let expression = format!("{revision}^{{commit}}");
+    let output = checked_git(
+        root,
+        ["rev-parse", "--verify", "--end-of-options", &expression],
+    )?;
+    object_name(&output)
+}
+
+fn head_or_empty_tree(root: &Path) -> io::Result<String> {
+    let output = git(root, ["rev-parse", "--verify", "--quiet", "HEAD"])?;
+    match output.status.code() {
+        Some(0) => object_name(&output),
+        Some(1) => object_name(&checked_git(
+            root,
+            ["hash-object", "-t", "tree", "--stdin"],
+        )?),
+        _ => Err(git_error(&output)),
+    }
+}
+
+fn object_name(output: &Output) -> io::Result<String> {
+    let name = strip_line_ending(&output.stdout);
+    if matches!(name.len(), 40 | 64) && name.iter().all(u8::is_ascii_hexdigit) {
+        Ok(String::from_utf8_lossy(name).into_owned())
+    } else {
+        Err(invalid_output("invalid Git object name"))
+    }
+}
+
+fn strip_line_ending(bytes: &[u8]) -> &[u8] {
+    bytes.strip_suffix(b"\n").unwrap_or(bytes)
+}
+
+fn parse_diff(mut output: Vec<u8>) -> io::Result<(Vec<GitFileChange>, Vec<u8>)> {
+    if output.is_empty() {
+        return Ok((Vec::new(), output));
+    }
+    let boundary = output
+        .windows(2)
+        .position(|pair| pair == b"\0\0")
+        .ok_or_else(|| invalid_output("missing Git raw/patch separator"))?;
+    let patch = output.split_off(boundary + 2);
+    let raw = &output[..boundary];
+    let mut fields = raw.split(|byte| *byte == 0);
+    let mut changes = Vec::new();
+    while let Some(header) = fields.next() {
+        let status = header
+            .strip_prefix(b":")
+            .and_then(|header| header.rsplit(|byte| *byte == b' ').next())
+            .and_then(|status| status.first())
+            .ok_or_else(|| invalid_output("invalid Git raw status header"))?;
+        let first = git_path(
+            fields
+                .next()
+                .ok_or_else(|| invalid_output("missing Git path"))?,
+        )?;
+        let (change, before, after) = match status {
+            b'A' => (GitChange::Added, None, Some(first)),
+            b'D' => (GitChange::Deleted, Some(first), None),
+            b'M' => (GitChange::Modified, Some(first.clone()), Some(first)),
+            b'T' => (GitChange::TypeChanged, Some(first.clone()), Some(first)),
+            b'U' => (GitChange::Unmerged, Some(first.clone()), Some(first)),
+            b'R' | b'C' => {
+                let second = git_path(
+                    fields
+                        .next()
+                        .ok_or_else(|| invalid_output("missing Git renamed or copied path"))?,
+                )?;
+                let change = if *status == b'R' {
+                    GitChange::Renamed
+                } else {
+                    GitChange::Copied
+                };
+                (change, Some(first), Some(second))
+            }
+            _ => return Err(invalid_output("unknown Git file status")),
+        };
+        changes.push(GitFileChange {
+            change,
+            before_path: before,
+            after_path: after,
+        });
+    }
+    Ok((changes, patch))
+}
+
+fn append_untracked(
+    root: &Path,
+    filters: &[&Path],
+    changes: &mut Vec<GitFileChange>,
+    patch: &mut Vec<u8>,
+) -> io::Result<()> {
+    let mut args = vec!["ls-files", "--others", "--exclude-standard", "-z", "--"]
+        .into_iter()
+        .map(OsString::from)
+        .collect::<Vec<_>>();
+    args.extend(filters.iter().map(|path| path.as_os_str().to_owned()));
+    let untracked = checked_git(root, &args)?;
+
+    for path in untracked
+        .stdout
+        .split(|byte| *byte == 0)
+        .filter(|name| !name.is_empty())
+    {
+        let relative = git_path(path)?;
+        if changes
+            .iter()
+            .any(|change| change.after_path.as_ref() == Some(&relative))
+        {
+            continue;
+        }
+        let args = [
+            OsStr::new("diff"),
+            OsStr::new("--no-index"),
+            OsStr::new("--no-ext-diff"),
+            OsStr::new("--no-textconv"),
+            OsStr::new("--no-color"),
+            OsStr::new("-U3"),
+            OsStr::new("--"),
+            OsStr::new("/dev/null"),
+            relative.as_os_str(),
+        ];
+        let output = git(root, args)?;
+        if !matches!(output.status.code(), Some(0 | 1)) {
+            return Err(git_error(&output));
+        }
+        patch.extend_from_slice(&output.stdout);
+        changes.push(GitFileChange {
+            change: GitChange::Added,
+            before_path: None,
+            after_path: Some(relative),
+        });
+    }
+    Ok(())
+}
+
+fn git_path(bytes: &[u8]) -> io::Result<PathBuf> {
+    if bytes.is_empty() {
+        return Err(invalid_output("empty Git path"));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStringExt;
+        Ok(OsString::from_vec(bytes.to_vec()).into())
+    }
+    #[cfg(not(unix))]
+    {
+        let path =
+            std::str::from_utf8(bytes).map_err(|_| invalid_output("invalid Git path encoding"))?;
+        Ok(path.into())
+    }
+}
+
+fn invalid_output(message: &str) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidData, message)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn raw_parser_preserves_rename_sides_and_patch_bytes() {
+        let source = b":100644 100644 abc def R100\0old name\0new name\0\0patch\xff";
+        let (changes, patch) = parse_diff(source.to_vec()).unwrap();
+        assert_eq!(patch, b"patch\xff");
+        assert_eq!(changes[0].change, GitChange::Renamed);
+        assert_eq!(
+            changes[0].before_path.as_deref(),
+            Some(Path::new("old name"))
+        );
+        assert_eq!(
+            changes[0].after_path.as_deref(),
+            Some(Path::new("new name"))
+        );
+    }
+
+    #[test]
+    fn raw_parser_rejects_an_incomplete_rename() {
+        assert_eq!(
+            parse_diff(b":100644 100644 abc def R100\0old name\0\0".to_vec())
+                .unwrap_err()
+                .kind(),
+            io::ErrorKind::InvalidData
+        );
+    }
+}
