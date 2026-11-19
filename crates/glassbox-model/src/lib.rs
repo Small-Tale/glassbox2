@@ -25,7 +25,10 @@ impl ServiceHealth {
     }
 }
 
+mod comparison;
 mod settings;
+
+pub use comparison::{Change, ComparisonEntry, ContentKind, EntrySide};
 pub use settings::{Appearance, ApplicationSettings};
 
 #[cfg(test)]

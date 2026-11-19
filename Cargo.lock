@@ -148,6 +148,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "glassbox-comparison"
+version = "0.1.0"
+dependencies = [
+ "glassbox-model",
+ "tempfile",
+]
+
+[[package]]
 name = "glassbox-model"
 version = "0.1.0"
 dependencies = [
