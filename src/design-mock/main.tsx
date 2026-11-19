@@ -17,6 +17,8 @@ import { Workbench } from '@kerfjs/ui/workbench';
 import { mount, signal } from 'kerfjs';
 import { Columns2, Compass, Rows2, Share2, ShieldAlert, WrapText } from 'lucide';
 
+import { SourceContext } from '../components/review/source-context.js';
+
 const files = {
   'src/bundle.ts': [
     'export async function writeBundle(review: Review) {',
@@ -534,8 +536,7 @@ mount(root, () => (
         content: (
           <div>
             <div class="branch-context">
-              <strong>feature/review-bundles</strong>
-              <span class="muted">Working tree</span>
+              <SourceContext identity="feature/review-bundles" comparison="Working tree" />
             </div>
             <TreeList
               id="review-files"

@@ -1,6 +1,72 @@
 {
   "$schema": "./node_modules/create-kerf-component/component-metadata.schema.json",
   "schemaVersion": 1,
-  "componentCatalog": "not-applicable",
-  "components": []
+  "components": [
+    {
+      "id": "source-context",
+      "name": "Review Source Context",
+      "kind": "component",
+      "purpose": "Show the branch or path pair and comparison type for the active review.",
+      "source": "src/components/review/source-context.tsx",
+      "publicExports": [
+        {
+          "name": "SourceContext"
+        }
+      ],
+      "sourceLinks": ["src/components/review/source-context.tsx"],
+      "composition": {
+        "parents": {
+          "mode": "any",
+          "entries": []
+        },
+        "contexts": ["application-ui"],
+        "zones": [],
+        "children": {
+          "mode": "any",
+          "concepts": [],
+          "requiredConcepts": []
+        },
+        "state": [],
+        "wiring": {
+          "required": false,
+          "helpers": [],
+          "obligations": []
+        },
+        "responsive": {
+          "owner": "component",
+          "behaviors": ["wrap-long-source-names"]
+        },
+        "layout": {
+          "roles": ["content"],
+          "geometry": {
+            "margin": "none",
+            "border": "none",
+            "padding": "none"
+          }
+        }
+      },
+      "boundaries": {
+        "rootClass": "source-context",
+        "publicClasses": ["source-context"],
+        "publicTokens": [],
+        "placeableClasses": ["source-context"]
+      },
+      "accessibility": {
+        "obligations": ["Present source identity and comparison type as text."]
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/review/source-context.tsx",
+        "composition": "src/components/review/source-context.tsx"
+      },
+      "selection": {
+        "useWhen": ["Show the identity and comparison type of the active review."],
+        "avoidWhen": ["Offer a source selection action."],
+        "styleSources": ["src/components/review/source-context.css"],
+        "demoSource": "src/ux-demo/demos/review/source-context.tsx",
+        "documentation": "docs/ui-conventions.md"
+      }
+    }
+  ],
+  "description": "Glassbox components for reviewing changes and sharing feedback."
 }

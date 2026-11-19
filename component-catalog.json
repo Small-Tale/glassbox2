@@ -1,0 +1,35 @@
+{
+  "$schema": "https://raw.githubusercontent.com/brianwestphal/kerf/main/ui/ai/component-catalog-extension.schema.json",
+  "schemaVersion": 1,
+  "package": "glassbox2",
+  "description": "Glassbox components for reviewing changes and sharing feedback.",
+  "entries": [
+    {
+      "id": "source-context",
+      "name": "Review Source Context",
+      "kind": "component",
+      "purpose": "Show the branch or path pair and comparison type for the active review.",
+      "useWhen": [
+        "Show the identity and comparison type of the active review."
+      ],
+      "avoidWhen": [
+        "Offer a source selection action."
+      ],
+      "publicClasses": [
+        "source-context"
+      ],
+      "publicTokens": [],
+      "source": "src/components/review/source-context.tsx",
+      "styleSources": [
+        "src/components/review/source-context.css"
+      ],
+      "demoSource": "src/ux-demo/demos/review/source-context.tsx",
+      "geometry": {
+        "margin": "none",
+        "border": "none",
+        "padding": "none"
+      },
+      "documentation": "docs/ui-conventions.md"
+    }
+  ]
+}

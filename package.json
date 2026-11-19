@@ -33,7 +33,7 @@
   },
   "kerfComponentCatalog": {
     "source": "./kerf.components.json",
-    "output": "./component-composition.json"
-  },
-  "dependencies": {}
+    "output": "./component-composition.json",
+    "selectionOutput": "component-catalog.json"
+  }
 }

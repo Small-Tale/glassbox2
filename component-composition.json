@@ -3,8 +3,81 @@
   "schemaVersion": 1,
   "package": "glassbox2",
   "compatibility": {
-    "componentCatalog": "not-applicable",
+    "componentCatalog": "./component-catalog.json",
     "identity": "package:id"
   },
-  "entries": []
+  "entries": [
+    {
+      "key": "glassbox2:source-context",
+      "package": "glassbox2",
+      "id": "source-context",
+      "name": "Review Source Context",
+      "kind": "component",
+      "purpose": "Show the branch or path pair and comparison type for the active review.",
+      "publicExports": [
+        {
+          "name": "SourceContext"
+        }
+      ],
+      "sourceLinks": [
+        "src/components/review/source-context.tsx"
+      ],
+      "source": "src/components/review/source-context.tsx",
+      "parents": {
+        "mode": "any",
+        "entries": []
+      },
+      "contexts": [
+        "application-ui"
+      ],
+      "zones": [],
+      "children": {
+        "mode": "any",
+        "concepts": [],
+        "requiredConcepts": []
+      },
+      "state": [],
+      "wiring": {
+        "required": false,
+        "helpers": [],
+        "obligations": []
+      },
+      "responsive": {
+        "owner": "component",
+        "behaviors": [
+          "wrap-long-source-names"
+        ]
+      },
+      "layout": {
+        "roles": [
+          "content"
+        ],
+        "geometry": {
+          "margin": "none",
+          "border": "none",
+          "padding": "none"
+        }
+      },
+      "accessibility": {
+        "obligations": [
+          "Present source identity and comparison type as text."
+        ]
+      },
+      "boundaries": {
+        "rootClass": "source-context",
+        "publicClasses": [
+          "source-context"
+        ],
+        "publicTokens": [],
+        "placeableClasses": [
+          "source-context"
+        ]
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/review/source-context.tsx",
+        "composition": "src/components/review/source-context.tsx"
+      }
+    }
+  ]
 }

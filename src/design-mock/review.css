@@ -30,13 +30,9 @@
   font-size: 0.8125rem;
 }
 .branch-context {
-  display: grid;
-  gap: var(--kui-space-2xs);
   margin: var(--kui-space-2xs) var(--kui-space-m) var(--kui-space-m);
   padding-block-end: var(--kui-space-m);
   border-block-end: 1px solid light-dark(#dce1e7, #41474f);
-  overflow-wrap: anywhere;
-  font-size: 0.875rem;
 }
 .diff-surface {
   font:

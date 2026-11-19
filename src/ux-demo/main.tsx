@@ -3,35 +3,29 @@ import '@kerfjs/ui/layout.css';
 import '@kerfjs/ui/catalog.css';
 import './style.css';
 
-import { Catalog, type CatalogSection } from '@kerfjs/ui/catalog';
+import { Catalog } from '@kerfjs/ui/catalog';
 import { wireCatalog } from '@kerfjs/ui/wire-catalog';
 import { mount, signal } from 'kerfjs';
 
-import { ButtonDemo } from './demos/button.js';
+import { catalogSections, componentDemos, type DemoId, isDemoId } from './catalog.js';
 
-const sections: CatalogSection[] = [
-  {
-    category: 'Components',
-    entries: [{ id: 'button', name: 'Button', description: 'A pressable action.' }],
-  },
-];
-const active = signal('button');
+const active = signal<DemoId>('source-context');
 const collapsed = signal(false);
 const root = document.getElementById('app');
 if (!root) throw new Error('Missing #app root.');
 
 mount(root, () => (
   <Catalog
-    brand={{ title: 'Your app', subtitle: 'UX demo' }}
-    sections={sections}
+    brand={{ title: 'Glassbox', subtitle: 'Component Catalog' }}
+    sections={catalogSections}
     active={active.value}
-    content={<ButtonDemo />}
+    content={componentDemos[active.value]()}
     collapsed={collapsed.value}
   />
 ));
-wireCatalog(root, {
+void wireCatalog(root, {
   onSelect: (id) => {
-    active.value = id;
+    if (isDemoId(id)) active.value = id;
   },
   onToggleSidebar: () => {
     collapsed.value = !collapsed.value;

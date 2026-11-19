@@ -23,3 +23,16 @@ test('HS2-8QJ9NY keeps one Lucide comparison toolbar across viewport sizes', asy
     assert.match(controls[0][0], /icon=\{<LucideIcon/);
   }
 });
+
+test('the Glassbox catalog publishes a grouped demo for every custom component', async () => {
+  const catalog = JSON.parse(await readFile(new URL('../component-catalog.json', import.meta.url), 'utf8'));
+  const registry = await readFile(new URL('../src/ux-demo/catalog.ts', import.meta.url), 'utf8');
+  assert.ok(catalog.entries.length > 0);
+  for (const { id, source, demoSource } of catalog.entries) {
+    assert.match(source, /^src\/components\/[^/]+\/[^/]+\.tsx$/);
+    assert.match(demoSource, /^src\/ux-demo\/demos\/[^/]+\/[^/]+\.tsx$/);
+    const demo = await readFile(new URL(`../${demoSource}`, import.meta.url), 'utf8');
+    assert.ok(demo.includes(`'data-demo': '${id}'`), id);
+    assert.ok(registry.includes(`'${id}':`), id);
+  }
+});

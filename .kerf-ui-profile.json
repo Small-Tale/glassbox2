@@ -8,6 +8,10 @@
       "composition": {
         "path": "./component-composition.json",
         "schemaVersion": 1
+      },
+      "selection": {
+        "path": "./component-catalog.json",
+        "schemaVersion": 1
       }
     }
   ]
