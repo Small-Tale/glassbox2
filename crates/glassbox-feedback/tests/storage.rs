@@ -111,6 +111,32 @@ fn concurrent_cleanups_remove_each_idle_bundle_exactly_once() {
     assert_eq!(store.usage().unwrap().bundles, 0);
 }
 
+#[test]
+fn project_cleanup_resumes_retirement_after_the_copied_path_is_invalidated() {
+    let fixture = tempdir().unwrap();
+    let root = fixture.path().join("feedback");
+    let project = fixture.path().join("project");
+    fs::create_dir(&project).unwrap();
+    let store = BundleStore::in_directory(root);
+    let bundle = store
+        .create(context(Some(&project)), &ReviewFeedback::default())
+        .unwrap();
+    let path = bundle.path();
+    let directory = path.parent().unwrap();
+    let attachments = directory.join("attachments");
+    fs::write(attachments.join("remaining-evidence"), [1, 2, 3]).unwrap();
+    drop(bundle);
+
+    fs::rename(&path, directory.join(".deleting-review.md")).unwrap();
+    assert!(!path.exists());
+    assert_eq!(store.usage().unwrap().bundles, 1);
+    let report = store.cleanup(CleanupScope::Project(project)).unwrap();
+    assert_eq!(report.removed_bundles, 1);
+    assert!(report.problems.is_empty());
+    assert!(!directory.exists());
+    assert_eq!(store.usage().unwrap().bundles, 0);
+}
+
 #[cfg(unix)]
 #[test]
 fn usage_and_cleanup_never_follow_unrelated_symlinks() {

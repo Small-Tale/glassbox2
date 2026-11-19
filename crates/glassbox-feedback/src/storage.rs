@@ -10,6 +10,7 @@ use super::{BUNDLE_HEADER, BUNDLE_PREFIX, BundleContext, BundleStore, CONTEXT, H
 
 const LEASE: &str = ".active.lock";
 const CLEANUP_LOCK: &str = ".cleanup.lock";
+const RETIRING: &str = ".deleting-review.md";
 
 #[derive(Debug, Default, PartialEq, Eq, Serialize)]
 pub struct StorageUsage {
@@ -137,8 +138,33 @@ fn remove_idle_bundle(path: &Path) -> io::Result<Option<u64>> {
     // Only creation takes a writer lease. A published idle bundle cannot gain
     // another writer, and the store's cleanup lock excludes other removals.
     drop(lease);
-    fs::remove_dir_all(path)?;
+    retire_bundle(path)?;
     Ok(Some(bytes))
+}
+
+fn retire_bundle(path: &Path) -> io::Result<()> {
+    let marker = path.join(RETIRING);
+    if !has_header(&marker)? {
+        fs::rename(path.join(HANDOFF), &marker)?;
+    }
+    for entry in fs::read_dir(path)? {
+        let entry = entry?;
+        if entry.file_name() == RETIRING || entry.file_name() == CONTEXT {
+            continue;
+        }
+        if entry.file_type()?.is_dir() {
+            fs::remove_dir_all(entry.path())?;
+        } else {
+            fs::remove_file(entry.path())?;
+        }
+    }
+    match fs::remove_file(path.join(CONTEXT)) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
+    }
+    fs::remove_file(marker)?;
+    fs::remove_dir(path)
 }
 
 fn bundle_directories(root: &Path) -> io::Result<Vec<BundleDirectory>> {
@@ -159,7 +185,7 @@ fn bundle_directories(root: &Path) -> io::Result<Vec<BundleDirectory>> {
             continue;
         }
         let path = entry.path();
-        if !has_header(&path.join(HANDOFF))? {
+        if !has_header(&path.join(HANDOFF))? && !has_header(&path.join(RETIRING))? {
             continue;
         }
         let context = path.join(CONTEXT);

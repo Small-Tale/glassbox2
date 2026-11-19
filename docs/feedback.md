@@ -94,7 +94,7 @@ instructions stop working as they aged. Explicit cleanup can clear one
 project or the entire store. Cleanup skips open bundles, including a
 bundle being edited by another Glassbox process. Each removed bundle
 releases its Markdown and evidence, and copied instructions for it stop
-resolving. Cleanup can resume after an individual removal error.
+resolving. A deletion marker keeps partially removed bundles visible to the next cleanup attempt.
 
 A filesystem lease protects each live bundle and is released when the
 writer exits. Only directories identified as Glassbox bundles are
