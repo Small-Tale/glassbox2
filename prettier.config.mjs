@@ -1,1 +1,6 @@
-export default { printWidth: 120, singleQuote: true };
+export default {
+  printWidth: 120,
+  singleQuote: true,
+  trailingComma: 'all',
+  overrides: [{ files: '*.md', options: { proseWrap: 'preserve' } }],
+};

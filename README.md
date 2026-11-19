@@ -9,3 +9,11 @@ Run `npm run dev` to serve the scaffold and open `/ux-demo/` for the sample
 component. The design-mock skill is installed at
 `node_modules/@kerfjs/ui/ai/design-mock/SKILL.md`. The template index is
 `node_modules/@kerfjs/ui/docs/design/templates.md`.
+
+## Web coding conventions
+
+Use the Hot Sheet 2 web client as the reference for Glassbox TypeScript and Kerf
+code. Run `npm run lint` and `npm run typecheck` locally. Use strict typed ESLint,
+sorted imports with type-only imports where applicable, Prettier for formatting,
+and Kerf's composition rules. Use public Kerf controls, Lucide icons, accessible
+names for icon-only actions, and the Workbench's responsive toolbar layout.

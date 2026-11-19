@@ -1,5 +1,6 @@
 import js from '@eslint/js';
 import stylistic from '@stylistic/eslint-plugin';
+import importX from 'eslint-plugin-import-x';
 import simpleImportSort from 'eslint-plugin-simple-import-sort';
 import kerfjs from 'eslint-plugin-kerfjs';
 import tseslint from 'typescript-eslint';
@@ -28,8 +29,38 @@ const config = tseslint.config(
     extends: [js.configs.recommended, ...tseslint.configs.strictTypeChecked, kerfjs.configs['recommended-ui']],
     languageOptions: { parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname } },
     linterOptions: { reportUnusedDisableDirectives: 'error' },
-    plugins: { '@stylistic': stylistic, 'simple-import-sort': simpleImportSort, local: noPrettierIgnore },
+    plugins: {
+      '@stylistic': stylistic,
+      import: importX,
+      'simple-import-sort': simpleImportSort,
+      local: noPrettierIgnore,
+    },
     rules: {
+      '@typescript-eslint/restrict-template-expressions': [
+        'error',
+        {
+          allowNumber: true,
+          allowBoolean: true,
+          allow: [
+            { from: 'file', name: 'SafeHtml' },
+            { from: 'lib', name: 'URLSearchParams' },
+          ],
+        },
+      ],
+      'import/first': 'error',
+      'import/newline-after-import': 'error',
+      'import/no-duplicates': 'error',
+      '@stylistic/max-len': [
+        'error',
+        {
+          code: 200,
+          ignoreComments: true,
+          ignoreStrings: true,
+          ignoreTemplateLiterals: true,
+          ignoreRegExpLiterals: true,
+          ignoreUrls: true,
+        },
+      ],
       '@typescript-eslint/strict-boolean-expressions': 'error',
       '@typescript-eslint/switch-exhaustiveness-check': 'error',
       '@typescript-eslint/consistent-type-imports': 'error',
