@@ -13,8 +13,9 @@ use axum::{
     routing::{get, post},
 };
 pub use glassbox_model::DifftoolInput;
-use glassbox_model::ServiceHealth;
+use glassbox_model::{Appearance, ApplicationSettings, ServiceHealth};
 use glassbox_settings::SettingsStore;
+use serde::Deserialize;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 use tower_http::services::ServeDir;
@@ -106,7 +107,7 @@ fn router(address: SocketAddr, assets: Option<&Path>, difftool: Option<DifftoolI
             "/api/v1/health",
             get(|| async { Json(ServiceHealth::ready()) }),
         )
-        .route("/api/v1/settings", get(settings))
+        .route("/api/v1/settings", get(settings).put(save_appearance))
         .route(
             "/api/v1/review/files",
             post(move |Json(source)| review_files::list(source, source_launch)),
@@ -134,6 +135,27 @@ async fn settings() -> Response {
         _ => (
             StatusCode::INTERNAL_SERVER_ERROR,
             "Could not read Glassbox settings",
+        )
+            .into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+struct AppearanceUpdate {
+    appearance: Appearance,
+}
+
+async fn save_appearance(Json(update): Json<AppearanceUpdate>) -> Response {
+    let settings = ApplicationSettings {
+        appearance: update.appearance,
+    };
+    match tokio::task::spawn_blocking(move || SettingsStore::for_current_user()?.save(settings))
+        .await
+    {
+        Ok(Ok(())) => Json(settings).into_response(),
+        _ => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Could not save Glassbox appearance",
         )
             .into_response(),
     }

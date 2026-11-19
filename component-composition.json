@@ -8,6 +8,81 @@
   },
   "entries": [
     {
+      "key": "glassbox2:appearance-menu",
+      "package": "glassbox2",
+      "id": "appearance-menu",
+      "name": "Appearance Menu",
+      "kind": "component",
+      "purpose": "Choose System, Light, or Dark appearance.",
+      "publicExports": [
+        {
+          "name": "AppearanceMenu"
+        },
+        {
+          "name": "wireAppearanceMenu"
+        }
+      ],
+      "sourceLinks": [
+        "src/components/settings/appearance-menu.tsx"
+      ],
+      "source": "src/components/settings/appearance-menu.tsx",
+      "parents": {
+        "mode": "any",
+        "entries": []
+      },
+      "contexts": [
+        "application-ui"
+      ],
+      "zones": [],
+      "children": {
+        "mode": "any",
+        "concepts": [],
+        "requiredConcepts": []
+      },
+      "state": [],
+      "wiring": {
+        "required": false,
+        "helpers": [],
+        "obligations": []
+      },
+      "responsive": {
+        "owner": "component",
+        "behaviors": [
+          "open-within-viewport"
+        ]
+      },
+      "layout": {
+        "roles": [
+          "content"
+        ],
+        "geometry": {
+          "margin": "none",
+          "border": "none",
+          "padding": "none"
+        }
+      },
+      "accessibility": {
+        "obligations": [
+          "Provide an accessible name for the icon trigger and expose the selected appearance."
+        ]
+      },
+      "boundaries": {
+        "rootClass": "appearance-menu",
+        "publicClasses": [
+          "appearance-menu"
+        ],
+        "publicTokens": [],
+        "placeableClasses": [
+          "appearance-menu"
+        ]
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/settings/appearance-menu.tsx",
+        "composition": "src/components/settings/appearance-menu.tsx"
+      }
+    },
+    {
       "key": "glassbox2:review-navigator",
       "package": "glassbox2",
       "id": "review-navigator",

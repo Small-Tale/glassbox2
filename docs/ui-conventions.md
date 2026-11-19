@@ -44,3 +44,9 @@ Side by Side and Inline share one normal-size Lucide toolbar group.
 Wrap has its own group and keeps its state when switching layouts or
 resizing (`HS2-RVP90A`). Both layouts annotate their before and after
 line numbers for downstream review threads.
+
+## Appearance
+
+The center footer has one icon-only Appearance menu with System,
+Light, and Dark choices. Its selected state reflects the shared
+setting (`HS2-9T7RCB`).

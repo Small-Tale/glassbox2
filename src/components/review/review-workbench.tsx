@@ -24,6 +24,7 @@ interface ReviewWorkbenchProps {
   navigator: SafeHtml;
   comparison: SafeHtml;
   comparisonToolbar?: SafeHtml;
+  footerSettings?: SafeHtml;
   inspector: SafeHtml;
 }
 
@@ -36,6 +37,7 @@ export function ReviewWorkbench({
   navigator,
   comparison,
   comparisonToolbar,
+  footerSettings,
   inspector,
 }: ReviewWorkbenchProps) {
   return (
@@ -54,6 +56,8 @@ export function ReviewWorkbench({
         }}
         mainBottomToolbar={{
           label: 'Review Actions',
+          responsive: 'wrap',
+          trailing: footerSettings,
           leading: (
             <ToolbarControlGroup label="Component Catalog" appearance="borderless" single content="text">
               <ToolbarActionLink href="/ux-demo/" label="Component Catalog" />

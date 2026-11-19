@@ -3,7 +3,7 @@
 For the browser client, run `npm ci`, `npm run build`, then
 `cargo run -p glassbox-server -- --assets dist`. Open the loopback address
 printed by the service. The same origin serves the app, `/ux-demo/`, the
-versioned readiness response, and read-only application settings.
+versioned readiness response, and read/write application settings.
 
 For a local Tauri smoke run, build the frontend first, then run
 `cargo run --manifest-path src-tauri/Cargo.toml --locked`. The desktop shell

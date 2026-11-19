@@ -284,6 +284,74 @@
         "documentation": "docs/ui-conventions.md",
         "uses": ["toolbar-control-group", "lucide-icon"]
       }
+    },
+    {
+      "id": "appearance-menu",
+      "name": "Appearance Menu",
+      "kind": "component",
+      "purpose": "Choose System, Light, or Dark appearance.",
+      "source": "src/components/settings/appearance-menu.tsx",
+      "publicExports": [
+        {
+          "name": "AppearanceMenu"
+        },
+        {
+          "name": "wireAppearanceMenu"
+        }
+      ],
+      "sourceLinks": ["src/components/settings/appearance-menu.tsx"],
+      "composition": {
+        "parents": {
+          "mode": "any",
+          "entries": []
+        },
+        "contexts": ["application-ui"],
+        "zones": [],
+        "children": {
+          "mode": "any",
+          "concepts": [],
+          "requiredConcepts": []
+        },
+        "state": [],
+        "wiring": {
+          "required": false,
+          "helpers": [],
+          "obligations": []
+        },
+        "responsive": {
+          "owner": "component",
+          "behaviors": ["open-within-viewport"]
+        },
+        "layout": {
+          "roles": ["content"],
+          "geometry": {
+            "margin": "none",
+            "border": "none",
+            "padding": "none"
+          }
+        }
+      },
+      "boundaries": {
+        "rootClass": "appearance-menu",
+        "publicClasses": ["appearance-menu"],
+        "publicTokens": [],
+        "placeableClasses": ["appearance-menu"]
+      },
+      "accessibility": {
+        "obligations": ["Provide an accessible name for the icon trigger and expose the selected appearance."]
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/settings/appearance-menu.tsx",
+        "composition": "src/components/settings/appearance-menu.tsx"
+      },
+      "selection": {
+        "useWhen": ["Choose the appearance of the shared workbench."],
+        "avoidWhen": ["Choose a setting unrelated to appearance."],
+        "demoSource": "src/ux-demo/demos/settings/appearance-menu.tsx",
+        "documentation": "docs/ui-conventions.md",
+        "uses": ["toolbar-control-group", "lucide-icon", "popup-menu"]
+      }
     }
   ],
   "description": "Glassbox components for reviewing changes and sharing feedback."

@@ -11,6 +11,7 @@ import { catalogSections, componentDemos, type DemoId, isDemoId } from './catalo
 import { wireTextDiffDemo } from './demos/diff/text-diff.js';
 import { wireReviewNavigatorDemo } from './demos/review/review-navigator.js';
 import { wireReviewWorkbenchDemo } from './demos/review/review-workbench.js';
+import { wireAppearanceMenuDemo } from './demos/settings/appearance-menu.js';
 
 const active = signal<DemoId>('source-context');
 const collapsed = signal(false);
@@ -41,3 +42,5 @@ void wireReviewWorkbenchDemo(root);
 void wireReviewNavigatorDemo(root);
 
 void wireTextDiffDemo(root);
+
+void wireAppearanceMenuDemo(root);

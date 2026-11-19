@@ -4,7 +4,7 @@ import './style.css';
 
 import { EmptyState } from '@kerfjs/ui/empty-state';
 import { LucideIcon } from '@kerfjs/ui/lucide-icon';
-import { mount } from 'kerfjs';
+import { effect, mount } from 'kerfjs';
 import { GitCompareArrows } from 'lucide';
 
 import { selectedDiff } from '../components/diff/selected-diff.js';
@@ -16,6 +16,8 @@ import {
   ReviewWorkbench,
   wireReviewWorkbench,
 } from '../components/review/review-workbench.js';
+import { AppearanceMenu, wireAppearanceMenu } from '../components/settings/appearance-menu.js';
+import { createAppearanceState } from '../components/settings/appearance-state.js';
 
 const root = document.getElementById('app');
 if (!root) throw new Error('Missing #app root.');
@@ -25,6 +27,13 @@ const source = createReviewSourceState();
 const textDiff = createTextDiffState();
 const diff = selectedDiff(source);
 const diffToolbarId = 'glassbox-text-diff';
+const appearance = createAppearanceState();
+const appearanceId = 'glassbox-appearance';
+void effect(() => {
+  const preference = appearance.appearance.value;
+  if (preference === 'system') delete document.documentElement.dataset.kuiScheme;
+  else document.documentElement.dataset.kuiScheme = preference;
+});
 mount(root, () => {
   const review = source.review.value;
   const index = source.selected.value;
@@ -73,6 +82,7 @@ mount(root, () => {
       navigator={<ReviewNavigator id="glassbox-review-navigator" state={source} />}
       comparison={comparison}
       comparisonToolbar={comparisonToolbar}
+      footerSettings={<AppearanceMenu id={appearanceId} state={appearance} />}
       inspector={<EmptyState title="No Discussion Selected" />}
     />
   );
@@ -80,4 +90,6 @@ mount(root, () => {
 void wireReviewWorkbench(root, 'glassbox-workbench', workbench);
 void wireReviewNavigator(root, 'glassbox-review-navigator', source);
 void wireTextDiffToolbar(root, diffToolbarId, textDiff);
+void wireAppearanceMenu(root, appearanceId, appearance);
+void appearance.load();
 void source.openDifftool();

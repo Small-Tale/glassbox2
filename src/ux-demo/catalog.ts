@@ -6,9 +6,11 @@ import { TextDiffDemo } from './demos/diff/text-diff.js';
 import { ReviewNavigatorDemo } from './demos/review/review-navigator.js';
 import { ReviewWorkbenchDemo } from './demos/review/review-workbench.js';
 import { SourceContextDemo } from './demos/review/source-context.js';
+import { AppearanceMenuDemo } from './demos/settings/appearance-menu.js';
 
 export const componentDemos = {
   'source-context': SourceContextDemo,
+  'appearance-menu': AppearanceMenuDemo,
   'text-diff': TextDiffDemo,
   'review-navigator': ReviewNavigatorDemo,
   'review-workbench': ReviewWorkbenchDemo,
@@ -23,6 +25,7 @@ export function isDemoId(value: string): value is DemoId {
 const groups = [
   { category: 'Review Workbench', folder: 'review' },
   { category: 'Comparison', folder: 'diff' },
+  { category: 'Settings', folder: 'settings' },
 ];
 
 export const catalogSections: CatalogSection[] = groups.map(({ category, folder }) => ({

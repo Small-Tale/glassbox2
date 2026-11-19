@@ -71,6 +71,11 @@ pub struct SettingsStore {
 
 impl SettingsStore {
     pub fn for_current_user() -> Result<Self, SettingsError> {
+        if let Some(directory) = std::env::var_os("GLASSBOX_SETTINGS_DIRECTORY")
+            .filter(|directory| !directory.is_empty())
+        {
+            return Ok(Self::in_directory(directory));
+        }
         let home = std::env::home_dir().ok_or(SettingsError::MissingHome)?;
         Ok(Self::in_directory(home.join(".glassbox2")))
     }

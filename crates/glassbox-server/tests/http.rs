@@ -19,13 +19,24 @@ impl Drop for RunningServer {
 
 impl RunningServer {
     fn start(assets: Option<&Path>) -> (Self, SocketAddr) {
-        Self::start_with_args(assets, &[])
+        Self::start_configured(assets, &[], None)
     }
 
     fn start_with_args(assets: Option<&Path>, args: &[&OsStr]) -> (Self, SocketAddr) {
+        Self::start_configured(assets, args, None)
+    }
+
+    fn start_configured(
+        assets: Option<&Path>,
+        args: &[&OsStr],
+        settings_directory: Option<&Path>,
+    ) -> (Self, SocketAddr) {
         let mut command = Command::new(env!("CARGO_BIN_EXE_glassbox-server"));
         if let Some(path) = assets {
             command.arg("--assets").arg(path);
+        }
+        if let Some(directory) = settings_directory {
+            command.env("GLASSBOX_SETTINGS_DIRECTORY", directory);
         }
         let child = command
             .args(args)
@@ -56,13 +67,25 @@ fn get(address: SocketAddr, path: &str) -> String {
 }
 
 fn request(address: SocketAddr, path: &str, host: &str, extra_headers: &str) -> String {
+    exchange(address, "GET", path, host, extra_headers, "")
+}
+
+fn exchange(
+    address: SocketAddr,
+    method: &str,
+    path: &str,
+    host: &str,
+    extra_headers: &str,
+    body: &str,
+) -> String {
     let timeout = Duration::from_secs(5);
     let mut connection = TcpStream::connect_timeout(&address, timeout).unwrap();
     connection.set_read_timeout(Some(timeout)).unwrap();
     connection.set_write_timeout(Some(timeout)).unwrap();
     write!(
         connection,
-        "GET {path} HTTP/1.1\r\nHost: {host}\r\n{extra_headers}Connection: close\r\n\r\n"
+        "{method} {path} HTTP/1.1\r\nHost: {host}\r\n{extra_headers}Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
     )
     .unwrap();
     let mut response = String::new();
@@ -149,4 +172,36 @@ fn difftool_input_is_only_published_for_a_difftool_launch() {
         )
         .starts_with("HTTP/1.1 403 Forbidden")
     );
+}
+
+#[test]
+fn appearance_round_trips_through_the_host_and_survives_restart() {
+    let directory = tempfile::tempdir().unwrap();
+    let file = directory.path().join("settings.json");
+    let (server, address) = RunningServer::start_configured(None, &[], Some(directory.path()));
+    let path = "/api/v1/settings";
+    let json = "Content-Type: application/json\r\n";
+    let put = |body| exchange(address, "PUT", path, &address.to_string(), json, body);
+
+    assert!(get(address, path).ends_with(r#"{"appearance":"system"}"#));
+    assert!(put(r#"{"appearance":"light"}"#).ends_with(r#"{"appearance":"light"}"#));
+    assert!(put(r#"{"appearance":"dark"}"#).ends_with(r#"{"appearance":"dark"}"#));
+    assert!(put("{}").starts_with("HTTP/1.1 422"));
+    let foreign = format!("{json}Origin: https://foreign.example\r\n");
+    assert!(
+        exchange(
+            address,
+            "PUT",
+            path,
+            &address.to_string(),
+            &foreign,
+            r#"{"appearance":"system"}"#
+        )
+        .starts_with("HTTP/1.1 403")
+    );
+    assert!(std::fs::read_to_string(&file).unwrap().contains("dark"));
+    drop(server);
+
+    let (_server, address) = RunningServer::start_configured(None, &[], Some(directory.path()));
+    assert!(get(address, path).ends_with(r#"{"appearance":"dark"}"#));
 }
