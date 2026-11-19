@@ -5,7 +5,7 @@ use glassbox_server::{DifftoolInput, LocalHost};
 use serde_json::{Value, json};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-async fn post(host: &LocalHost, input: Value) -> (String, Value) {
+async fn post(host: &LocalHost, endpoint: &str, input: Value) -> (String, Value) {
     let body = input.to_string();
     let mut stream = tokio::net::TcpStream::connect(host.address())
         .await
@@ -13,7 +13,7 @@ async fn post(host: &LocalHost, input: Value) -> (String, Value) {
     stream
         .write_all(
             format!(
-                "POST /api/v1/review/files HTTP/1.1\r\nHost: {}\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}",
+                "POST /api/v1/review/{endpoint} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}",
                 host.address(),
                 body.len()
             ).as_bytes(),
@@ -56,6 +56,7 @@ async fn reads_git_path_and_difftool_sources_through_the_real_host() -> io::Resu
 
     let (status, git) = post(
         &host,
+        "files",
         json!({"kind":"git", "directory":repo, "mode":{"kind":"working_tree"}}),
     )
     .await;
@@ -66,24 +67,46 @@ async fn reads_git_path_and_difftool_sources_through_the_real_host() -> io::Resu
 
     let (_, direct) = post(
         &host,
+        "files",
         json!({"kind":"paths", "before":before, "after":after}),
     )
     .await;
     assert_eq!(direct["files"][0]["status"], "added");
     assert_eq!(direct["files"][0]["path"], "one & two.txt");
-    let (_, difftool) = post(&host, json!({"kind":"difftool"})).await;
+    let (_, difftool) = post(&host, "files", json!({"kind":"difftool"})).await;
     assert_eq!(difftool["identity"], "Git difftool");
     assert_eq!(difftool["files"], direct["files"]);
 
     let (_, empty) = post(
         &host,
+        "files",
         json!({"kind":"paths", "before":after, "after":after}),
     )
     .await;
     assert_eq!(empty["files"], json!([]));
     let (status, _) = post(
         &host,
+        "files",
         json!({"kind":"paths", "before":after.join("missing"), "after":after}),
+    )
+    .await;
+    assert_eq!(status, "HTTP/1.1 400 Bad Request");
+    let source = json!({"kind":"difftool"});
+    let (status, content) = post(
+        &host,
+        "file",
+        json!({"source":source, "index":0, "path":"one & two.txt"}),
+    )
+    .await;
+    assert_eq!(status, "HTTP/1.1 200 OK");
+    assert_eq!(content["kind"], "text");
+    assert_eq!(content["hunks"][0]["lines"][0]["after_line"], 1);
+    assert_eq!(content["hunks"][0]["lines"][0]["before_line"], Value::Null);
+    assert_eq!(content["hunks"][0]["lines"][0]["text"], "new");
+    let (status, _) = post(
+        &host,
+        "file",
+        json!({"source":source, "index":0, "path":"stale.txt"}),
     )
     .await;
     assert_eq!(status, "HTTP/1.1 400 Bad Request");

@@ -100,6 +100,7 @@ struct LocalOrigin {
 
 fn router(address: SocketAddr, assets: Option<&Path>, difftool: Option<DifftoolInput>) -> Router {
     let source_launch = difftool.clone();
+    let selected_launch = difftool.clone();
     let mut router = Router::new()
         .route(
             "/api/v1/health",
@@ -109,6 +110,10 @@ fn router(address: SocketAddr, assets: Option<&Path>, difftool: Option<DifftoolI
         .route(
             "/api/v1/review/files",
             post(move |Json(source)| review_files::list(source, source_launch)),
+        )
+        .route(
+            "/api/v1/review/file",
+            post(move |Json(file)| review_files::selected(file, selected_launch)),
         );
     if let Some(difftool) = difftool {
         router = router.route("/api/v1/difftool", get(move || async { Json(difftool) }));

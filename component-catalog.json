@@ -97,6 +97,37 @@
         "padding": "none"
       },
       "documentation": "docs/ui-conventions.md"
+    },
+    {
+      "id": "text-diff",
+      "name": "Text Diff",
+      "kind": "composition",
+      "purpose": "Review changed text in two independently wrappable layouts.",
+      "useWhen": [
+        "Review text changes with original and updated line mappings."
+      ],
+      "avoidWhen": [
+        "Compare image or binary content."
+      ],
+      "publicClasses": [
+        "text-diff"
+      ],
+      "publicTokens": [],
+      "uses": [
+        "toolbar-control-group",
+        "lucide-icon"
+      ],
+      "source": "src/components/diff/text-diff.tsx",
+      "styleSources": [
+        "src/components/diff/text-diff.css"
+      ],
+      "demoSource": "src/ux-demo/demos/diff/text-diff.tsx",
+      "geometry": {
+        "margin": "none",
+        "border": "none",
+        "padding": "none"
+      },
+      "documentation": "docs/ui-conventions.md"
     }
   ]
 }

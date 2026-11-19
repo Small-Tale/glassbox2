@@ -37,3 +37,10 @@ The left rail accepts a Git repository or a pair of files or folders
 until the next source loads. The navigator shows the source context,
 path hierarchy, file statuses, and a path filter. Keyboard navigation
 follows Kerf Tree List. Selection drives the central filename heading.
+
+## Text diff toolbar
+
+Side by Side and Inline share one normal-size Lucide toolbar group.
+Wrap has its own group and keeps its state when switching layouts or
+resizing (`HS2-RVP90A`). Both layouts annotate their before and after
+line numbers for downstream review threads.

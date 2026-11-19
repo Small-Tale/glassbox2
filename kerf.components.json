@@ -207,6 +207,83 @@
         "documentation": "docs/ui-conventions.md",
         "uses": ["badge", "button", "empty-state", "select", "text-field", "tree-list"]
       }
+    },
+    {
+      "id": "text-diff",
+      "name": "Text Diff",
+      "kind": "composition",
+      "purpose": "Review changed text in two independently wrappable layouts.",
+      "source": "src/components/diff/text-diff.tsx",
+      "publicExports": [
+        {
+          "name": "TextDiff"
+        },
+        {
+          "name": "TextDiffToolbar"
+        },
+        {
+          "name": "createTextDiffState"
+        },
+        {
+          "name": "wireTextDiffToolbar"
+        }
+      ],
+      "sourceLinks": ["src/components/diff/text-diff.tsx"],
+      "composition": {
+        "parents": {
+          "mode": "any",
+          "entries": []
+        },
+        "contexts": ["application-ui"],
+        "zones": [],
+        "children": {
+          "mode": "any",
+          "concepts": [],
+          "requiredConcepts": []
+        },
+        "state": [],
+        "wiring": {
+          "required": false,
+          "helpers": [],
+          "obligations": []
+        },
+        "responsive": {
+          "owner": "component",
+          "behaviors": ["wrap-code", "scroll-long-lines", "preserve-layout"]
+        },
+        "layout": {
+          "roles": ["content"],
+          "geometry": {
+            "margin": "none",
+            "border": "none",
+            "padding": "none"
+          }
+        }
+      },
+      "boundaries": {
+        "rootClass": "text-diff",
+        "publicClasses": ["text-diff"],
+        "publicTokens": [],
+        "placeableClasses": ["text-diff"]
+      },
+      "accessibility": {
+        "obligations": [
+          "Name each icon action and announce its pressed state. Keep before and after line anchors available in both layouts."
+        ]
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/diff/text-diff.tsx",
+        "composition": "src/components/diff/text-diff.tsx"
+      },
+      "selection": {
+        "useWhen": ["Review text changes with original and updated line mappings."],
+        "avoidWhen": ["Compare image or binary content."],
+        "styleSources": ["src/components/diff/text-diff.css"],
+        "demoSource": "src/ux-demo/demos/diff/text-diff.tsx",
+        "documentation": "docs/ui-conventions.md",
+        "uses": ["toolbar-control-group", "lucide-icon"]
+      }
     }
   ],
   "description": "Glassbox components for reviewing changes and sharing feedback."

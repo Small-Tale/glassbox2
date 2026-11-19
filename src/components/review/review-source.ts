@@ -45,6 +45,7 @@ export function createReviewSourceState(initial?: ReviewFiles, load = loadFiles)
   const sourceKind = signal<SourceKind>('git');
   const gitMode = signal<GitMode>('working_tree');
   const formOpen = signal(initial === undefined);
+  const activeSource = signal<ReviewSource | null>(null);
   const pending = signal(false);
   const error = signal('');
   const filter = signal('');
@@ -61,6 +62,7 @@ export function createReviewSourceState(initial?: ReviewFiles, load = loadFiles)
       const result = await load(source);
       if (request !== requestNumber) return;
       review.value = result;
+      activeSource.value = source;
       selected.value = undefined;
       collapsed.value = new Set();
       filter.value = '';
@@ -91,6 +93,7 @@ export function createReviewSourceState(initial?: ReviewFiles, load = loadFiles)
 
   return {
     review,
+    activeSource,
     sourceKind,
     gitMode,
     formOpen,

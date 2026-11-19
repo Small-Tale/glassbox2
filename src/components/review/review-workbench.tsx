@@ -23,6 +23,7 @@ interface ReviewWorkbenchProps {
   inspectorTitle: string;
   navigator: SafeHtml;
   comparison: SafeHtml;
+  comparisonToolbar?: SafeHtml;
   inspector: SafeHtml;
 }
 
@@ -34,6 +35,7 @@ export function ReviewWorkbench({
   inspectorTitle,
   navigator,
   comparison,
+  comparisonToolbar,
   inspector,
 }: ReviewWorkbenchProps) {
   return (
@@ -47,6 +49,7 @@ export function ReviewWorkbench({
         mainToolbar={{
           label: 'Comparison',
           responsive: 'wrap',
+          trailing: comparisonToolbar,
           title: <ToolbarText text={comparisonTitle} size="xlarge-fixed" headingLevel={1} />,
         }}
         mainBottomToolbar={{

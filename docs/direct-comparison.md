@@ -18,5 +18,5 @@ An unreadable entry or unsupported file type produces an error. The result
 includes each side's display path, original source path, and content kind.
 
 Use Files or Folders in the left rail to open a direct comparison
-(`HS2-KGVXT8`). Select a changed file from the tree. The text and media
-viewers are tracked in `HS2-RVP90A` and `HS2-B9NHFE`.
+(`HS2-KGVXT8`). Select a changed file from the tree. Text files open in the text diff viewer (`HS2-RVP90A`). Media
+rendering is tracked in `HS2-B9NHFE`.

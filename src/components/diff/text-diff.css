@@ -1,0 +1,96 @@
+.text-diff {
+  max-inline-size: 100%;
+  overflow: auto;
+  font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+
+.text-diff__lines {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.text-diff[data-layout='split'] .text-diff__lines {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.text-diff[data-wrap='false'] .text-diff__lines {
+  grid-template-columns: minmax(max-content, 1fr);
+}
+
+.text-diff[data-layout='split'][data-wrap='false'] .text-diff__lines {
+  grid-template-columns: repeat(2, minmax(max-content, 1fr));
+}
+
+.text-diff__side,
+.text-diff__range {
+  padding: 0.5rem 1rem;
+  background: var(--kui-color-neutral-fill-quiet);
+}
+
+.text-diff__range {
+  grid-column: 1 / -1;
+  background: var(--kui-color-brand-fill-quiet);
+}
+
+.text-diff__cell {
+  display: grid;
+  grid-template-columns: var(--glassbox-diff-gutter, 4ch) 2ch minmax(0, 1fr);
+  min-block-size: 1.75rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.text-diff__cell[data-side='both'] {
+  grid-template-columns: var(--glassbox-diff-gutter, 4ch) var(--glassbox-diff-gutter, 4ch) 2ch minmax(0, 1fr);
+}
+
+.text-diff__cell[data-side='after'],
+.text-diff__side + .text-diff__side {
+  border-inline-start: 1px solid var(--kui-color-neutral-border-quiet);
+}
+
+.text-diff__cell[data-change='added'] {
+  background: var(--kui-color-success-fill-quiet);
+}
+
+.text-diff__cell[data-change='removed'] {
+  background: var(--kui-color-danger-fill-quiet);
+}
+
+.text-diff__cell[data-change='blank'] {
+  background: var(--kui-color-neutral-fill-quiet);
+}
+
+.text-diff__cell code {
+  font: inherit;
+  white-space: pre;
+}
+
+.text-diff[data-wrap='true'] .text-diff__cell code {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.text-diff__number,
+.text-diff__marker {
+  color: var(--kui-color-neutral-on-quiet);
+}
+
+.text-diff [data-token='comment'] {
+  color: var(--kui-color-neutral-on-quiet);
+  font-style: italic;
+}
+
+.text-diff [data-token='keyword'] {
+  color: var(--kui-color-brand-on-fill);
+  font-weight: 600;
+}
+
+.text-diff [data-token='string'] {
+  color: var(--kui-color-success-on-fill);
+}
+
+.text-diff [data-token='number'] {
+  color: var(--kui-color-warning-on-fill);
+}
