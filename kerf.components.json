@@ -66,6 +66,78 @@
         "demoSource": "src/ux-demo/demos/review/source-context.tsx",
         "documentation": "docs/ui-conventions.md"
       }
+    },
+    {
+      "id": "review-workbench",
+      "name": "Review Workbench",
+      "kind": "composition",
+      "purpose": "Arrange source files, a comparison, and a contextual inspector in a responsive review shell.",
+      "source": "src/components/review/review-workbench.tsx",
+      "publicExports": [
+        {
+          "name": "ReviewWorkbench"
+        },
+        {
+          "name": "createReviewWorkbenchState"
+        },
+        {
+          "name": "wireReviewWorkbench"
+        }
+      ],
+      "sourceLinks": ["src/components/review/review-workbench.tsx"],
+      "composition": {
+        "parents": {
+          "mode": "any",
+          "entries": []
+        },
+        "contexts": ["application-ui"],
+        "zones": [],
+        "children": {
+          "mode": "any",
+          "concepts": [],
+          "requiredConcepts": []
+        },
+        "state": [],
+        "wiring": {
+          "required": false,
+          "helpers": [],
+          "obligations": []
+        },
+        "responsive": {
+          "owner": "component",
+          "behaviors": ["dock-rails", "overlay-rails", "resize-inline-rails"]
+        },
+        "layout": {
+          "roles": ["structure"],
+          "geometry": {
+            "margin": "none",
+            "border": "none",
+            "padding": "none"
+          }
+        }
+      },
+      "boundaries": {
+        "rootClass": "review-workbench",
+        "publicClasses": ["review-workbench"],
+        "publicTokens": [],
+        "placeableClasses": ["review-workbench"]
+      },
+      "accessibility": {
+        "obligations": ["Name the workbench regions and keep panel restore controls keyboard accessible."]
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/review/review-workbench.tsx",
+        "composition": "src/components/review/review-workbench.tsx"
+      },
+      "selection": {
+        "useWhen": ["Display the Glassbox review shell."],
+        "avoidWhen": ["Display one standalone component without app chrome."],
+        "uses": ["workbench", "toolbar-text", "toolbar-control-group"],
+        "styleSources": ["src/components/review/review-workbench.css"],
+        "demoSource": "src/ux-demo/demos/review/review-workbench.tsx",
+        "documentation": "docs/ui-conventions.md"
+      }
     }
   ],
   "description": "Glassbox components for reviewing changes and sharing feedback."

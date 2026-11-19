@@ -23,7 +23,7 @@ const noPrettierIgnore = {
 };
 
 const config = tseslint.config(
-  { ignores: ['dist/**', 'node_modules/**', 'component-composition.json'] },
+  { ignores: ['dist/**', 'node_modules/**', 'src-tauri/target/**', 'src-tauri/gen/**', 'component-composition.json'] },
   {
     files: ['**/*.{ts,tsx}'],
     extends: [js.configs.recommended, ...tseslint.configs.strictTypeChecked, kerfjs.configs['recommended-ui']],

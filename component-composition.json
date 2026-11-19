@@ -8,6 +8,86 @@
   },
   "entries": [
     {
+      "key": "glassbox2:review-workbench",
+      "package": "glassbox2",
+      "id": "review-workbench",
+      "name": "Review Workbench",
+      "kind": "composition",
+      "purpose": "Arrange source files, a comparison, and a contextual inspector in a responsive review shell.",
+      "publicExports": [
+        {
+          "name": "ReviewWorkbench"
+        },
+        {
+          "name": "createReviewWorkbenchState"
+        },
+        {
+          "name": "wireReviewWorkbench"
+        }
+      ],
+      "sourceLinks": [
+        "src/components/review/review-workbench.tsx"
+      ],
+      "source": "src/components/review/review-workbench.tsx",
+      "parents": {
+        "mode": "any",
+        "entries": []
+      },
+      "contexts": [
+        "application-ui"
+      ],
+      "zones": [],
+      "children": {
+        "mode": "any",
+        "concepts": [],
+        "requiredConcepts": []
+      },
+      "state": [],
+      "wiring": {
+        "required": false,
+        "helpers": [],
+        "obligations": []
+      },
+      "responsive": {
+        "owner": "component",
+        "behaviors": [
+          "dock-rails",
+          "overlay-rails",
+          "resize-inline-rails"
+        ]
+      },
+      "layout": {
+        "roles": [
+          "structure"
+        ],
+        "geometry": {
+          "margin": "none",
+          "border": "none",
+          "padding": "none"
+        }
+      },
+      "accessibility": {
+        "obligations": [
+          "Name the workbench regions and keep panel restore controls keyboard accessible."
+        ]
+      },
+      "boundaries": {
+        "rootClass": "review-workbench",
+        "publicClasses": [
+          "review-workbench"
+        ],
+        "publicTokens": [],
+        "placeableClasses": [
+          "review-workbench"
+        ]
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/review/review-workbench.tsx",
+        "composition": "src/components/review/review-workbench.tsx"
+      }
+    },
+    {
       "key": "glassbox2:source-context",
       "package": "glassbox2",
       "id": "source-context",

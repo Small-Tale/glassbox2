@@ -8,6 +8,7 @@ import { wireCatalog } from '@kerfjs/ui/wire-catalog';
 import { mount, signal } from 'kerfjs';
 
 import { catalogSections, componentDemos, type DemoId, isDemoId } from './catalog.js';
+import { wireReviewWorkbenchDemo } from './demos/review/review-workbench.js';
 
 const active = signal<DemoId>('source-context');
 const collapsed = signal(false);
@@ -32,3 +33,5 @@ void wireCatalog(root, {
   },
   collapsed,
 });
+
+void wireReviewWorkbenchDemo(root);

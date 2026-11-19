@@ -5,6 +5,38 @@
   "description": "Glassbox components for reviewing changes and sharing feedback.",
   "entries": [
     {
+      "id": "review-workbench",
+      "name": "Review Workbench",
+      "kind": "composition",
+      "purpose": "Arrange source files, a comparison, and a contextual inspector in a responsive review shell.",
+      "useWhen": [
+        "Display the Glassbox review shell."
+      ],
+      "avoidWhen": [
+        "Display one standalone component without app chrome."
+      ],
+      "publicClasses": [
+        "review-workbench"
+      ],
+      "publicTokens": [],
+      "uses": [
+        "workbench",
+        "toolbar-text",
+        "toolbar-control-group"
+      ],
+      "source": "src/components/review/review-workbench.tsx",
+      "styleSources": [
+        "src/components/review/review-workbench.css"
+      ],
+      "demoSource": "src/ux-demo/demos/review/review-workbench.tsx",
+      "geometry": {
+        "margin": "none",
+        "border": "none",
+        "padding": "none"
+      },
+      "documentation": "docs/ui-conventions.md"
+    },
+    {
       "id": "source-context",
       "name": "Review Source Context",
       "kind": "component",

@@ -15,3 +15,17 @@ use Kerf's `CatalogExample` for each meaningful variant or state.
 Both builds and the dev server expose the catalog at `/ux-demo/`. Run
 `npm run check` to verify catalog metadata, lint, types, Kerf UI Doctor, tests,
 and the build. Inspect wide, medium, and compact browser layouts where UI changes.
+
+## Review workbench
+
+The browser and Tauri app share the Review Workbench composition
+(`HS2-28VEG4`). The project and file navigator use the left rail, and a
+single contextual inspector uses the right rail. The comparison owns the
+central toolbar and footer. The browser and window title identify Glassbox.
+
+The inspector becomes an overlay below 1080px of workbench width. The
+file navigator becomes an overlay below 730px. Inline panels can be
+resized by drag or keyboard. The same rail actions restore collapsed
+panels, and overlay panels dismiss with Escape or an outside click.
+The catalog's Review Workbench entry shows the shared composition with
+a sample source context.
