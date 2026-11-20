@@ -216,7 +216,17 @@
         "styleSources": ["src/components/review/review-navigator.css"],
         "demoSource": "src/ux-demo/demos/review/review-navigator.tsx",
         "documentation": "docs/ui-conventions.md",
-        "uses": ["badge", "button", "empty-state", "select", "text-field", "tree-list", "source-context"]
+        "uses": [
+          "badge",
+          "button",
+          "empty-state",
+          "select",
+          "text-field",
+          "tree-list",
+          "source-context",
+          "lucide-icon",
+          "toolbar-control-group"
+        ]
       }
     },
     {

@@ -141,16 +141,7 @@ pub(crate) async fn list(input: ReviewSource, difftool: Option<DifftoolInput>) -
 pub(crate) async fn selected(input: SelectedFile, difftool: Option<DifftoolInput>) -> Response {
     blocking(move || {
         let result = load(input.source, difftool)?;
-        if !result
-            .entries
-            .metadata(input.index)
-            .is_some_and(|file| file.path == input.path)
-        {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "The changed-file list has changed. Open the comparison again.",
-            ));
-        }
+        validate_selection(&result, input.index, &input.path)?;
         Ok(match result.entries.content(input.index)? {
             ComparisonData::Text(hunks) => FileContent::Text { hunks },
             ComparisonData::Media { .. } => FileContent::Media,
@@ -161,6 +152,135 @@ pub(crate) async fn selected(input: SelectedFile, difftool: Option<DifftoolInput
         })
     })
     .await
+}
+
+fn validate_selection(result: &Comparison, index: usize, path: &str) -> io::Result<()> {
+    if result
+        .entries
+        .metadata(index)
+        .is_some_and(|file| file.path == path)
+    {
+        Ok(())
+    } else {
+        Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "The changed-file list has changed. Open the comparison again.",
+        ))
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum FileAction {
+    CopyAbsolute,
+    Reveal,
+    Open,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct FileActionInput {
+    #[serde(flatten)]
+    selection: SelectedFile,
+    action: FileAction,
+}
+
+pub(crate) async fn file_action(
+    input: FileActionInput,
+    difftool: Option<DifftoolInput>,
+) -> Response {
+    blocking(move || {
+        let SelectedFile {
+            source,
+            index,
+            path,
+        } = input.selection;
+        if matches!(source, ReviewSource::Difftool) {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "Git difftool supplies temporary comparison inputs without a verified live path.",
+            ));
+        }
+        let result = load(source, difftool)?;
+        validate_selection(&result, index, &path)?;
+        let candidate = match &result.entries {
+            Entries::Git(review) => {
+                let entry = &review.changes[index];
+                review.root.join(
+                    entry
+                        .after_path
+                        .as_ref()
+                        .or(entry.before_path.as_ref())
+                        .expect("validated Git entry"),
+                )
+            }
+            Entries::Direct(entries) => {
+                let entry = &entries[index];
+                entry
+                    .after
+                    .as_ref()
+                    .or(entry.before.as_ref())
+                    .expect("validated direct entry")
+                    .source_path
+                    .clone()
+            }
+        };
+        let absolute = std::path::absolute(candidate)?;
+        match input.action {
+            FileAction::CopyAbsolute => Ok(Some(absolute)),
+            FileAction::Reveal | FileAction::Open => {
+                if !absolute.is_file() {
+                    return Err(io::Error::new(
+                        io::ErrorKind::NotFound,
+                        "There is no live file at the comparison path.",
+                    ));
+                }
+                launch_desktop(&absolute, matches!(input.action, FileAction::Reveal))?;
+                Ok(None)
+            }
+        }
+    })
+    .await
+}
+
+fn launch_desktop(path: &Path, reveal: bool) -> io::Result<()> {
+    use std::process::{Command, Stdio};
+
+    let mut command = if cfg!(target_os = "macos") {
+        let mut command = Command::new("/usr/bin/open");
+        if reveal {
+            command.arg("-R");
+        }
+        command.arg(path);
+        command
+    } else if cfg!(target_os = "windows") {
+        let mut command = Command::new("explorer.exe");
+        if reveal {
+            let mut argument = std::ffi::OsString::from("/select,");
+            argument.push(path);
+            command.arg(argument);
+        } else {
+            command.arg(path);
+        }
+        command
+    } else {
+        let mut command = Command::new("xdg-open");
+        command.arg(if reveal {
+            path.parent().unwrap_or(path)
+        } else {
+            path
+        });
+        command
+    };
+
+    let mut child = command
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()?;
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+    Ok(())
 }
 
 async fn blocking<T: Serialize + Send + 'static>(

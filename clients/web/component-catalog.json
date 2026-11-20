@@ -55,7 +55,9 @@
         "select",
         "text-field",
         "tree-list",
-        "source-context"
+        "source-context",
+        "lucide-icon",
+        "toolbar-control-group"
       ],
       "source": "src/components/review/review-navigator.tsx",
       "styleSources": [

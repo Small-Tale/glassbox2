@@ -46,3 +46,35 @@ test('a failed source preserves the active review and allows another attempt', a
   assert.equal(state.error.value, '');
   assert.equal(state.selected.value, undefined);
 });
+
+test('file action status follows the latest action for the current selection', async () => {
+  const first = Promise.withResolvers();
+  const second = Promise.withResolvers();
+  const actions = [first.promise, second.promise];
+  const calls = [];
+  const file = { path: 'src/a.ts', previous_path: null, status: 'modified' };
+  const loaded = { ...review, files: [file] };
+  const state = createReviewSourceState(
+    loaded,
+    async () => loaded,
+    (...args) => {
+      calls.push(args);
+      return actions.shift();
+    },
+  );
+  await state.open(source);
+  state.selected.value = 0;
+  const old = state.runFileAction('copy_relative');
+  const latest = state.runFileAction('copy_absolute');
+  assert.deepEqual(calls, [
+    ['copy_relative', source, 0, file.path],
+    ['copy_absolute', source, 0, file.path],
+  ]);
+  second.resolve('Absolute path copied.');
+  await latest;
+  first.reject(new Error('Clipboard denied.'));
+  await old;
+  assert.equal(state.fileActionStatus.value, 'Absolute path copied.');
+  await state.open({ ...source });
+  assert.equal(state.fileActionStatus.value, '');
+});

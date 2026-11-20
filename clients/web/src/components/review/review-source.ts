@@ -30,6 +30,27 @@ export type ReviewFiles = {
   files: ReviewFile[];
 };
 
+export type FileAction = 'copy_relative' | 'copy_absolute' | 'reveal' | 'open';
+
+export async function performFileAction(action: FileAction, source: ReviewSource, index: number, path: string) {
+  if (action === 'copy_relative') {
+    await navigator.clipboard.writeText(path);
+    return 'Relative path copied.';
+  }
+  const response = await fetch('/api/v1/review/file/action', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, source, index, path }),
+  });
+  if (!response.ok) throw new Error(await response.text());
+  if (action === 'copy_absolute') {
+    const absolute = (await response.json()) as string;
+    await navigator.clipboard.writeText(absolute);
+    return 'Absolute path copied.';
+  }
+  return '';
+}
+
 async function loadFiles(source: ReviewSource): Promise<ReviewFiles> {
   const response = await fetch('/api/v1/review/files', {
     method: 'POST',
@@ -40,7 +61,7 @@ async function loadFiles(source: ReviewSource): Promise<ReviewFiles> {
   return (await response.json()) as ReviewFiles;
 }
 
-export function createReviewSourceState(initial?: ReviewFiles, load = loadFiles) {
+export function createReviewSourceState(initial?: ReviewFiles, load = loadFiles, runAction = performFileAction) {
   const review = signal<ReviewFiles | null>(initial ?? null);
   const sourceKind = signal<SourceKind>('git');
   const gitMode = signal<GitMode>('working_tree');
@@ -49,10 +70,12 @@ export function createReviewSourceState(initial?: ReviewFiles, load = loadFiles)
   const pending = signal(false);
   const error = signal('');
   const filter = signal('');
+  const fileActionStatus = signal('');
   const selected = signal<number | undefined>(undefined);
   const collapsed = signal<ReadonlySet<string>>(new Set());
   const fields = signal<Record<string, string>>({});
   let requestNumber = 0;
+  let actionNumber = 0;
 
   async function open(source: ReviewSource) {
     const request = ++requestNumber;
@@ -64,6 +87,7 @@ export function createReviewSourceState(initial?: ReviewFiles, load = loadFiles)
       review.value = result;
       activeSource.value = source;
       selected.value = undefined;
+      fileActionStatus.value = '';
       collapsed.value = new Set();
       filter.value = '';
       formOpen.value = false;
@@ -91,6 +115,24 @@ export function createReviewSourceState(initial?: ReviewFiles, load = loadFiles)
     }
   }
 
+  async function runFileAction(action: FileAction) {
+    const index = selected.value;
+    const source = activeSource.value;
+    const file = index === undefined ? undefined : review.value?.files[index];
+    if (source === null || index === undefined || file === undefined) return;
+    const request = ++actionNumber;
+    fileActionStatus.value = '';
+    const isCurrent = () => request === actionNumber && source === activeSource.value && index === selected.value;
+    try {
+      const message = await runAction(action, source, index, file.path);
+      if (isCurrent()) fileActionStatus.value = message;
+    } catch (failure) {
+      if (isCurrent()) {
+        fileActionStatus.value = failure instanceof Error ? failure.message : 'Could not perform the file action.';
+      }
+    }
+  }
+
   return {
     review,
     activeSource,
@@ -100,6 +142,8 @@ export function createReviewSourceState(initial?: ReviewFiles, load = loadFiles)
     pending,
     error,
     filter,
+    fileActionStatus,
+    runFileAction,
     selected,
     collapsed,
     fields,

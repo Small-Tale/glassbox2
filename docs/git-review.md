@@ -50,3 +50,16 @@ entry in the desired Git config scope. The wrapper needs no persistent config.
 The shared host exposes the current launch paths through
 `GET /api/v1/difftool`, available only when started by difftool.
 The workbench opens that source automatically and lists the changed files (HS2-KGVXT8).
+
+
+## Changed-file actions
+
+Selecting a changed file exposes actions to copy its relative or absolute
+path, reveal it in the file manager, or open it in the system’s default
+application. The web and Tauri clients resolve absolute paths and desktop
+actions through the shared local host. Git comparisons resolve the selected
+path under the repository’s working tree. Direct comparisons use the selected
+entry’s after side, falling back to the before side for deletions. The host
+reports when a comparison path has no live file for a desktop action. Git
+difftool inputs represent comparison snapshots, so that mode offers the
+display path only.

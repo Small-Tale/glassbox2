@@ -34,7 +34,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: rustup toolchain install stable --profile minimal
-      - run: cargo +stable test --locked -p glassbox-cli --quiet
+      - run: cargo +stable test --locked -p glassbox-cli -p glassbox-server --quiet
 
   native:
     defaults:

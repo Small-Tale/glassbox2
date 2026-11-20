@@ -208,3 +208,49 @@ fn appearance_round_trips_through_the_host_and_survives_restart() {
     let (_server, address) = RunningServer::start_configured(None, &[], Some(directory.path()));
     assert!(get(address, path).ends_with(r#"{"appearance":"dark"}"#));
 }
+
+#[test]
+fn desktop_file_actions_validate_comparison_path_and_reject_snapshots() {
+    let root = tempfile::tempdir().unwrap();
+    let before = root.path().join("before.txt");
+    let after = root.path().join("after with spaces.txt");
+    std::fs::write(&before, "before").unwrap();
+    std::fs::write(&after, "after").unwrap();
+    let (_server, address) = RunningServer::start_with_args(
+        None,
+        &[
+            OsStr::new("--difftool"),
+            before.as_os_str(),
+            after.as_os_str(),
+        ],
+    );
+    let request = |source: serde_json::Value, path: &str, action: &str| {
+        exchange(
+            address,
+            "POST",
+            "/api/v1/review/file/action",
+            &address.to_string(),
+            "Content-Type: application/json\r\n",
+            &serde_json::json!({"source": source, "index": 0, "path": path, "action": action})
+                .to_string(),
+        )
+    };
+    let direct = serde_json::json!({"kind": "paths", "before": before, "after": after});
+    let response = request(direct.clone(), "after with spaces.txt", "copy_absolute");
+    assert!(response.starts_with("HTTP/1.1 200"), "{response}");
+    let (_, body) = response.split_once("\r\n\r\n").unwrap();
+    assert_eq!(
+        serde_json::from_str::<std::path::PathBuf>(body).unwrap(),
+        after
+    );
+    let stale = request(direct, "other.txt", "open");
+    assert!(stale.starts_with("HTTP/1.1 400"), "{stale}");
+    assert!(stale.contains("changed-file list has changed"));
+    let snapshot = request(
+        serde_json::json!({"kind": "difftool"}),
+        "after with spaces.txt",
+        "reveal",
+    );
+    assert!(snapshot.starts_with("HTTP/1.1 400"), "{snapshot}");
+    assert!(snapshot.contains("without a verified live path"));
+}

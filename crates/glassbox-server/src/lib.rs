@@ -115,6 +115,10 @@ fn router(address: SocketAddr, assets: Option<&Path>, difftool: Option<DifftoolI
         .route(
             "/api/v1/review/file",
             post(move |Json(file)| review_files::selected(file, selected_launch)),
+        )
+        .route(
+            "/api/v1/review/file/action",
+            post(move |Json(input)| review_files::file_action(input, None)),
         );
     if let Some(difftool) = difftool {
         router = router.route("/api/v1/difftool", get(move || async { Json(difftool) }));

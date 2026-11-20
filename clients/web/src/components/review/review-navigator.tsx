@@ -5,12 +5,21 @@ import './review-navigator.css';
 import { Badge } from '@kerfjs/ui/badge';
 import { Button } from '@kerfjs/ui/button';
 import { EmptyState } from '@kerfjs/ui/empty-state';
+import { LucideIcon } from '@kerfjs/ui/lucide-icon';
 import { Select } from '@kerfjs/ui/select';
 import { TextField } from '@kerfjs/ui/text-field';
+import { ToolbarButton, ToolbarControlGroup } from '@kerfjs/ui/toolbar-control-group';
 import { TreeList, type TreeListNode } from '@kerfjs/ui/tree-list';
 import { wireTreeList } from '@kerfjs/ui/wire-tree-list';
+import { Copy, ExternalLink, FolderOpen, Link } from 'lucide';
 
-import { gitModes, type ReviewFile, type ReviewSource, type ReviewSourceState } from './review-source.js';
+import {
+  type FileAction,
+  gitModes,
+  type ReviewFile,
+  type ReviewSource,
+  type ReviewSourceState,
+} from './review-source.js';
 import { SourceContext } from './source-context.js';
 
 const sourceOptions = [
@@ -27,6 +36,13 @@ const statuses = {
   type_changed: { letter: 'T', label: 'Type Changed', tone: 'neutral' },
   unmerged: { letter: 'U', label: 'Unmerged', tone: 'warning' },
 } as const;
+
+const fileActions = [
+  { action: 'copy_relative', label: 'Copy Relative Path', icon: Link, name: 'link' },
+  { action: 'copy_absolute', label: 'Copy Absolute Path', icon: Copy, name: 'copy' },
+  { action: 'reveal', label: 'Reveal in File Manager', icon: FolderOpen, name: 'folder-open' },
+  { action: 'open', label: 'Open in Default Editor', icon: ExternalLink, name: 'external-link' },
+] satisfies readonly { action: FileAction; label: string; icon: typeof Link; name: string }[];
 
 type Folder = { folders: Map<string, Folder>; files: TreeListNode[] };
 
@@ -150,6 +166,28 @@ export function ReviewNavigator({ id, state }: { id: string; state: ReviewSource
               value={filter}
             />
           ) : null}
+          {selection === undefined ? null : (
+            <>
+              <ToolbarControlGroup label="Selected File Actions" content="icon">
+                {fileActions.map(({ action, label, icon, name }) => (
+                  <ToolbarButton
+                    action={`review-file-action:${action}`}
+                    ariaLabel={label}
+                    title={label}
+                    disabled={
+                      state.activeSource.value === null ||
+                      (state.activeSource.value.kind === 'difftool' && action !== 'copy_relative')
+                    }
+                    icon={<LucideIcon icon={icon} name={name} />}
+                  />
+                ))}
+              </ToolbarControlGroup>
+              {state.activeSource.value?.kind === 'difftool' ? (
+                <p>Git difftool inputs do not identify a live file.</p>
+              ) : null}
+              <div role="status">{state.fileActionStatus.value}</div>
+            </>
+          )}
           {tree.nodes.length === 0 ? (
             <EmptyState title={review.files.length === 0 ? 'No Changed Files' : 'No Matching Files'} />
           ) : (
@@ -241,9 +279,12 @@ export function wireReviewNavigator(
       if (!scope(control)) return;
       const action = control.dataset.action;
       if (action === 'review-source-toggle') state.formOpen.value = !state.formOpen.value;
+      const fileAction = fileActions.find((item) => action === `review-file-action:${item.action}`);
+      if (fileAction !== undefined) void state.runFileAction(fileAction.action);
       const rowId = control.dataset.itemId ?? control.closest<HTMLElement>('[data-item-id]')?.dataset.itemId;
       if (rowId === undefined) return;
       if (action === 'review-file-select' && rowId.startsWith('file:')) {
+        state.fileActionStatus.value = '';
         state.selected.value = Number(rowId.slice('file:'.length));
       } else if (
         (action === 'review-folder-toggle' || action === 'review-file-select') &&
