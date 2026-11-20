@@ -61,3 +61,8 @@ The app supplies the Workbench's slot content. Demo fixture components and
 slot content do not create a Workbench dependency. Keep each production
 component source represented and declare its required wiring in
 `kerf.components.json` (`HS2-R1ZZ67`).
+
+The collapsed Kerf UI section lists the upstream components named by
+Glassbox's direct dependencies. Entries show guidance from the installed
+Kerf catalog, link to upstream documentation, and link back to the
+Glassbox components that use them (`HS2-RBX2HQ`).

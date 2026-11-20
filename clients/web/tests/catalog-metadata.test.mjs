@@ -48,3 +48,11 @@ test('HS2-R1ZZ67 catalogs every production component source and its direct depen
     }
   }
 });
+
+test('HS2-RBX2HQ resolves every declared dependency in the installed or local catalog', async () => {
+  const kerf = JSON.parse(await readFile('node_modules/@kerfjs/ui/ai/component-catalog.json', 'utf8'));
+  const known = new Set([...catalog.entries, ...kerf.entries].map(({ id }) => id));
+  for (const { uses = [] } of catalog.entries) {
+    for (const id of uses) assert.ok(known.has(id), id);
+  }
+});

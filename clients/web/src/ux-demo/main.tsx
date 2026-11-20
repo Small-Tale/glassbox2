@@ -4,11 +4,11 @@ import '@kerfjs/ui/catalog.css';
 import '@kerfjs/ui/popup-menu/register';
 import './style.css';
 
-import { Catalog, type CatalogBackgroundStyle } from '@kerfjs/ui/catalog';
+import { Catalog, type CatalogBackgroundStyle, CatalogExample } from '@kerfjs/ui/catalog';
 import { wireCatalog } from '@kerfjs/ui/wire-catalog';
 import { effect, mount, signal } from 'kerfjs';
 
-import { catalogSections, componentDemos, type DemoId, isDemoId } from './catalog.js';
+import { catalogSections, componentDemos, isCatalogId, isDemoId, kerfReferences, kerfSections } from './catalog.js';
 import { wireTextDiffDemo } from './demos/diff/text-diff.js';
 import { wireReviewNavigatorDemo } from './demos/review/review-navigator.js';
 import { wireReviewWorkbenchDemo } from './demos/review/review-workbench.js';
@@ -16,7 +16,8 @@ import { wireAppearanceMenuDemo } from './demos/settings/appearance-menu.js';
 
 const urlParam = 'component';
 const initial = new URLSearchParams(location.search).get(urlParam);
-const active = signal<DemoId>(initial !== null && isDemoId(initial) ? initial : 'source-context');
+const active = signal(initial !== null && isCatalogId(initial) ? initial : 'source-context');
+const kerfExpanded = signal(initial !== null && kerfReferences.has(initial));
 const theme = signal<'light' | 'dark'>(matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 const contrast = signal(false);
 const reducedMotion = signal(false);
@@ -32,23 +33,45 @@ void effect(() => {
   page.classList.toggle('catalog-reduced-motion', reducedMotion.value);
 });
 
-mount(root, () => (
-  <Catalog
-    brand={{ title: 'Glassbox', subtitle: 'Component Catalog' }}
-    sections={catalogSections}
-    active={active.value}
-    content={componentDemos[active.value]()}
-    collapsed={collapsed.value}
-    theme={theme.value}
-    increasedContrast={contrast.value}
-    reducedMotion={reducedMotion.value}
-    backgroundControl
-    backgroundStyle={background.value}
-  />
-));
+mount(root, () => {
+  const id = active.value;
+  const reference = kerfReferences.get(id);
+  return (
+    <Catalog
+      brand={{ title: 'Glassbox', subtitle: 'Component Catalog' }}
+      sections={catalogSections}
+      active={id}
+      secondarySections={{ label: 'Kerf UI', sections: kerfSections, collapsible: true, expanded: kerfExpanded.value }}
+      content={
+        isDemoId(id) ? (
+          componentDemos[id]()
+        ) : (
+          <CatalogExample label="Kerf UI Reference">
+            <ul>
+              {reference?.useWhen.map((guidance) => (
+                <li>{guidance}</li>
+              ))}
+            </ul>
+          </CatalogExample>
+        )
+      }
+      collapsed={collapsed.value}
+      theme={theme.value}
+      increasedContrast={contrast.value}
+      reducedMotion={reducedMotion.value}
+      backgroundControl
+      backgroundStyle={background.value}
+    />
+  );
+});
 void wireCatalog(root, {
   onSelect: (id) => {
-    if (isDemoId(id)) active.value = id;
+    if (!isCatalogId(id)) return;
+    if (kerfReferences.has(id)) kerfExpanded.value = true;
+    active.value = id;
+  },
+  onToggleSecondary: () => {
+    kerfExpanded.value = !kerfExpanded.value;
   },
   onToggleSidebar: () => {
     collapsed.value = !collapsed.value;
