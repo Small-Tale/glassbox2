@@ -11,6 +11,15 @@ type Result =
   | ({ kind: 'media' } & MediaSides<MediaImage>);
 type Selection = { source: ReviewSource; index: number; path: string };
 
+function svgDataUrl(bytes: Uint8Array): string {
+  const chunkSize = 32_768;
+  let binary = '';
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+  }
+  return `data:image/svg+xml;base64,${btoa(binary)}`;
+}
+
 async function fetchContent(selection: Selection, abort: AbortSignal): Promise<FileContent> {
   const response = await fetch('/api/v1/review/file', {
     method: 'POST',
@@ -90,11 +99,15 @@ export function selectedDiff(state: ReviewSourceState, load = fetchContent) {
       });
       if (!response.ok) throw new Error(await response.text());
       const blob = await response.blob();
-      const source = metadata.content_type === 'image/svg+xml' ? await blob.text() : undefined;
-      if (abort.aborted) return null;
+      abort.throwIfAborted();
+      if (metadata.content_type === 'image/svg+xml') {
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        abort.throwIfAborted();
+        return { ...metadata, url: svgDataUrl(bytes), source: new TextDecoder().decode(bytes) };
+      }
       const url = URL.createObjectURL(blob);
       urls.push(url);
-      return { ...metadata, url, source };
+      return { ...metadata, url };
     }
     void load(selection, abort)
       .then(async (content): Promise<Result> => {

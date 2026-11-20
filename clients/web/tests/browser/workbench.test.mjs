@@ -15,7 +15,7 @@ const executable = join(root, 'target', 'debug', `glassbox-server${process.platf
 const captures = process.env.GLASSBOX_BROWSER_CAPTURES;
 
 function svg(color) {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="#e7eaef"/><circle cx="160" cy="90" r="62" fill="${color}"/></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="#e7eaef"/><circle cx="160" cy="90" r="62" fill="${color}"/><script>window.mediaScriptRan = true</script></svg>`;
 }
 
 async function seedReview(scratch) {
@@ -82,6 +82,8 @@ async function exerciseWorkbench(page, url, paths, settings) {
   await role('treeitem', /mark\.svg/).click();
   await role('img', 'After image').waitFor();
   await page.waitForFunction(() => document.querySelector('img[data-media-side="after"]')?.naturalWidth > 0);
+  assert.match(await role('img', 'After image').getAttribute('src'), /^data:image\/svg\+xml;base64,/u);
+  assert.equal(await page.evaluate(() => Reflect.has(window, 'mediaScriptRan')), false);
   await button('SVG Source').click();
   assert.equal(await page.locator('.media-diff pre').count(), 2);
   await button('Side by Side').click();

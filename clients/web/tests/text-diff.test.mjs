@@ -80,11 +80,14 @@ test('HS2-RVP90A keeps normal-size Lucide layout actions and Wrap in separate gr
   assert.equal([...source.matchAll(/icon=\{<LucideIcon/g)].length, 3);
 });
 
-test('media selection fetches the exact side revision and releases its object URL on navigation', async (context) => {
+test('media selection preserves opaque SVG bytes and releases the raster object URL on navigation', async (context) => {
   const requests = [];
   context.mock.method(globalThis, 'fetch', async (url, options) => {
-    requests.push({ url, selection: JSON.parse(options.body), signal: options.signal });
-    return new Response('<svg/>', { headers: { 'Content-Type': 'image/svg+xml' } });
+    const selection = JSON.parse(options.body);
+    requests.push({ url, selection, signal: options.signal });
+    return selection.side === 'before'
+      ? new Response(new Uint8Array([1, 2, 3]), { headers: { 'Content-Type': 'image/png' } })
+      : new Response('<svg>é</svg>', { headers: { 'Content-Type': 'image/svg+xml' } });
   });
   const state = createReviewSourceState(undefined, async () => ({
     identity: 'working',
@@ -99,20 +102,27 @@ test('media selection fetches the exact side revision and releases its object UR
   await state.open(source);
   const reader = selectedDiff(state, async ({ index }) =>
     index === 0
-      ? { kind: 'media', before: null, after: { content_type: 'image/svg+xml', size: 6, revision: 'abc' } }
+      ? {
+          kind: 'media',
+          before: { content_type: 'image/png', size: 3, revision: 'png' },
+          after: { content_type: 'image/svg+xml', size: 13, revision: 'abc' },
+        }
       : { kind: 'text', hunks: [] },
   );
   try {
     state.selected.value = 0;
     await turn();
     assert.equal(reader.result.value.kind, 'media');
-    assert.equal(reader.result.value.before, null);
-    assert.equal(reader.result.value.after.source, '<svg/>');
-    const url = reader.result.value.after.url;
+    const svg = reader.result.value.after;
+    assert.equal(svg.source, '<svg>é</svg>');
+    assert.match(svg.url, /^data:image\/svg\+xml;base64,/);
+    assert.equal(new URL(svg.url).origin, 'null');
+    assert.equal(Buffer.from(svg.url.split(',')[1], 'base64').toString('utf8'), svg.source);
+    const url = reader.result.value.before.url;
     assert(resolveObjectURL(url) instanceof Blob);
-    assert.equal(requests.length, 1);
-    assert.equal(requests[0].url, '/api/v1/review/media');
-    assert.deepEqual(requests[0].selection, { source, index: 0, path: 'mark.svg', side: 'after', revision: 'abc' });
+    assert.equal(requests.length, 2);
+    assert.equal(requests[1].url, '/api/v1/review/media');
+    assert.deepEqual(requests[1].selection, { source, index: 0, path: 'mark.svg', side: 'after', revision: 'abc' });
     state.selected.value = 1;
     await turn();
     assert(requests[0].signal.aborted);
