@@ -35,6 +35,22 @@ difftool arguments. It verifies the built index page, readiness, and the
 decoded launch inputs. Linux native builds use the distribution
 dependencies listed in the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/).
 
+Each native matrix job also runs the built web workbench in Chromium on
+an isolated Glassbox host. It exercises Git and direct path comparisons,
+text layout and comments, keyboard SVG regions, saved appearance, and
+wide-to-narrow-to-wide resizing. CI uploads the responsive captures as
+workbench artifacts (`HS2-DYXD3G`). To run the browser check locally:
+
+```sh
+npm --prefix clients/web ci
+npm --prefix clients/web exec -- playwright install chromium
+npm --prefix clients/web run build
+cargo build --locked -p glassbox-server
+npm --prefix clients/web run test:browser
+```
+
+Point `GLASSBOX_BROWSER_CAPTURES` at a writable directory to retain screenshots.
+
 To run the same native check from a checkout:
 
 ```sh

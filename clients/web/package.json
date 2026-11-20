@@ -11,6 +11,7 @@
     "eslint-plugin-simple-import-sort": "^12.1.1",
     "kerfjs": "5.0.0-beta.134",
     "lucide": "^1.75.0",
+    "playwright": "1.65.1",
     "prettier": "^3.0.0",
     "typescript": "^5.0.0 || ^6.0.0",
     "typescript-eslint": "^8.65.0",
@@ -30,6 +31,7 @@
     "catalog:check": "kerf-component-catalog --check",
     "dev": "vite",
     "build": "vite build",
+    "test:browser": "node --test tests/browser/*.test.mjs",
     "test:structure": "node --test tests/structure.test.mjs"
   },
   "kerfComponentCatalog": {

@@ -58,3 +58,17 @@ jobs:
       - run: cargo +stable fmt --manifest-path src-tauri/Cargo.toml --check
       - run: cargo +stable clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
       - run: cargo +stable test --locked --manifest-path src-tauri/Cargo.toml --quiet
+      - if: runner.os == 'Linux'
+        run: npm exec -- playwright install --with-deps chromium
+      - if: runner.os != 'Linux'
+        run: npm exec -- playwright install chromium
+      - run: cargo +stable build --locked -p glassbox-server
+      - run: npm run test:browser
+        env:
+          GLASSBOX_BROWSER_CAPTURES: browser-captures
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: workbench-${{ matrix.os }}
+          path: clients/web/browser-captures
+          if-no-files-found: ignore
