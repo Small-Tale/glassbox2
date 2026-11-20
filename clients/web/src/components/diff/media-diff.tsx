@@ -6,6 +6,7 @@ import { signal } from 'kerfjs';
 import { Blend, Code, Columns2, Info, PanelLeft, PanelRight, Rows2, Scan, Split, ZoomIn, ZoomOut } from 'lucide';
 
 import type { ImageRegion, Side } from '../discussion/discussion-state.js';
+import { changeRegion, initialRegion, regionAnchor, type RegionBounds } from './media-region.js';
 import type { MediaImage } from './selected-diff.js';
 import type { MediaSides } from './text-diff-model.js';
 
@@ -26,10 +27,20 @@ const sides = ['before', 'after'] as const;
 const labels = { before: 'Before', after: 'After' };
 
 export function createMediaDiffState() {
-  return { mode: signal<Mode>('split'), zoom: signal(100), slice: signal(50), drawing: signal(false) };
+  return {
+    mode: signal<Mode>('split'),
+    zoom: signal(100),
+    slice: signal(50),
+    drawing: signal(false),
+    keyboardRegion: signal<{ side: Side; bounds: RegionBounds } | null>(null),
+  };
 }
 
 type State = ReturnType<typeof createMediaDiffState>;
+
+function regionStyle({ left, top, width, height }: ImageRegion) {
+  return `left:${left * 100}%;top:${top * 100}%;width:${width * 100}%;height:${height * 100}%`;
+}
 
 export function MediaDiffToolbar({ id, images, state }: { id: string; images: Images; state: State }) {
   const both = images.before !== null && images.after !== null;
@@ -94,8 +105,21 @@ export function MediaDiff({
   regions?: { side: Side; id: number; target: ImageRegion }[];
 }) {
   const mode = state.mode.value;
+  const drawing = state.drawing.value;
+  const keyboardRegion = drawing ? state.keyboardRegion.value : null;
   return (
-    <div class="media-diff" data-media-diff={id} data-mode={mode} data-drawing={String(state.drawing.value)}>
+    <div class="media-diff" data-media-diff={id} data-mode={mode} data-drawing={String(drawing)}>
+      {drawing ? (
+        <div class="media-diff__instructions" id={`${id}-region-help`}>
+          Drag on an image, or focus it and use arrow keys to move the region. Hold Shift to resize. Press Enter to add
+          a comment or Escape to cancel.
+          <div role="status">
+            {keyboardRegion === null
+              ? null
+              : `${labels[keyboardRegion.side]} region at ${keyboardRegion.bounds.left}% from the left and ${keyboardRegion.bounds.top}% from the top, ${keyboardRegion.bounds.width}% wide by ${keyboardRegion.bounds.height}% high.`}
+          </div>
+        </div>
+      ) : null}
       {mode === 'difference' || mode === 'slice' ? (
         <>
           {mode === 'slice' ? (
@@ -134,9 +158,22 @@ export function MediaDiff({
                   ) : mode === 'source' ? (
                     <pre>{image.source ?? 'SVG source is unavailable for this side.'}</pre>
                   ) : (
-                    <div class="media-diff__viewport" tabindex="0" aria-label={`Pan ${labels[side]} Image`}>
+                    <div
+                      class="media-diff__viewport"
+                      tabindex="0"
+                      data-media-region-side={side}
+                      aria-label={drawing ? `Select ${labels[side]} Image Region` : `Pan ${labels[side]} Image`}
+                      aria-describedby={drawing ? `${id}-region-help` : undefined}
+                    >
                       <div class="media-diff__image" style={`width: ${state.zoom.value}%`}>
                         <img src={image.url} alt={`${labels[side]} image`} data-media-side={side} draggable="false" />
+                        {keyboardRegion?.side === side ? (
+                          <div
+                            class="media-diff__region media-diff__region--draft"
+                            aria-hidden="true"
+                            style={regionStyle(regionAnchor(keyboardRegion.bounds))}
+                          />
+                        ) : null}
                         {regions
                           .filter((region) => region.side === side)
                           .map(({ id, target }) => (
@@ -145,7 +182,7 @@ export function MediaDiff({
                               type="button"
                               data-action={`discussion-show:${id}`}
                               aria-label={`Open Region Comment ${id}`}
-                              style={`left:${target.left * 100}%;top:${target.top * 100}%;width:${target.width * 100}%;height:${target.height * 100}%`}
+                              style={regionStyle(target)}
                             />
                           ))}
                       </div>
@@ -169,6 +206,16 @@ export function wireMediaDiff(
   const controller = new AbortController();
   const options = { signal: controller.signal };
   let drag: { image: HTMLImageElement; pointer: number; side: Side; x: number; y: number } | undefined;
+  function endRegion() {
+    state.drawing.value = false;
+    state.keyboardRegion.value = null;
+  }
+  function regionSide(target: EventTarget | null) {
+    if (!(target instanceof HTMLElement)) return undefined;
+    if (target.closest<HTMLElement>('[data-media-diff]')?.dataset.mediaDiff !== id) return undefined;
+    const side = target.dataset.mediaRegionSide;
+    return side === 'before' || side === 'after' ? side : undefined;
+  }
   root.addEventListener(
     'click',
     (event) => {
@@ -179,11 +226,47 @@ export function wireMediaDiff(
       const mode = modes.find((entry) => entry.key === key);
       if (mode !== undefined) {
         state.mode.value = mode.key;
-        state.drawing.value = false;
+        endRegion();
       }
       if (key === 'in') state.zoom.value = Math.min(400, state.zoom.value + 25);
       if (key === 'out') state.zoom.value = Math.max(100, state.zoom.value - 25);
-      if (key === 'region') state.drawing.value = !state.drawing.value;
+      if (key === 'region') {
+        if (state.drawing.value) endRegion();
+        else state.drawing.value = true;
+      }
+    },
+    options,
+  );
+  root.addEventListener(
+    'focusin',
+    (event) => {
+      const side = regionSide(event.target);
+      if (state.drawing.value && side !== undefined && state.keyboardRegion.value?.side !== side) {
+        state.keyboardRegion.value = { side, bounds: initialRegion };
+      }
+    },
+    options,
+  );
+  root.addEventListener(
+    'keydown',
+    (event) => {
+      const side = regionSide(event.target);
+      if (!state.drawing.value || side === undefined) return;
+      const current = state.keyboardRegion.value;
+      const bounds = current?.side === side ? current.bounds : initialRegion;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        endRegion();
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        endRegion();
+        onRegion?.(side, regionAnchor(bounds));
+      } else {
+        const next = changeRegion(bounds, event.key, event.shiftKey);
+        if (next === undefined) return;
+        event.preventDefault();
+        state.keyboardRegion.value = { side, bounds: next };
+      }
     },
     options,
   );
@@ -234,7 +317,7 @@ export function wireMediaDiff(
       const width = Math.abs(startX - endX);
       const height = Math.abs(startY - endY);
       if (width * bounds.width < 4 || height * bounds.height < 4) return;
-      state.drawing.value = false;
+      endRegion();
       onRegion?.(side, {
         kind: 'image_region',
         left: Math.min(startX, endX),

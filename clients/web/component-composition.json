@@ -335,7 +335,7 @@
       },
       "accessibility": {
         "obligations": [
-          "Name each icon action and announce its pressed state. Identify both image sides and saved region comments."
+          "Name each icon action and announce its pressed state. Identify both image sides and saved region comments. Announce the selection bounds and provide keyboard movement, resizing, submission and cancellation."
         ]
       },
       "boundaries": {

@@ -51,6 +51,7 @@ void effect(() => {
     mediaDiff.zoom.value = 100;
     mediaDiff.slice.value = 50;
     mediaDiff.drawing.value = false;
+    mediaDiff.keyboardRegion.value = null;
   }
 });
 const discussion = createDiscussionState(source);

@@ -67,6 +67,11 @@
   cursor: pointer;
 }
 
+.media-diff__region--draft {
+  border-style: dashed;
+  pointer-events: none;
+}
+
 .media-diff[data-drawing='true'] img[data-media-side] {
   cursor: crosshair;
   touch-action: none;

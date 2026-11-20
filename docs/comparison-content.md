@@ -51,5 +51,8 @@ Raster and SVG comparisons open side by side. The toolbar offers stacked,
 single-side, difference, slice, and metadata views. SVGs can also be read
 as source. Rendered SVGs load as images. Zoomed views can be panned with
 scrolling. Select Add Region Comment and drag on a before or after image
-to open a region discussion in the shared inspector. Saved rectangles
+to open a region discussion in the shared inspector. With the tool active,
+focus either image and use the arrow keys to move the selection or Shift
+with the arrow keys to resize it. Enter opens the comment, and Escape
+cancels. Saved rectangles
 reopen their discussions on the matching image revision (`HS2-B9NHFE`).
