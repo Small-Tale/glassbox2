@@ -10,7 +10,9 @@ fn main() {
         return;
     }
     std::thread::sleep(Duration::from_millis(400));
-    let result = if input.contains("INVALID_FIXTURE") {
+    let result = if input.contains("INVALID_FIXTURE")
+        || (input.contains("INVALID_ONCE") && !input.contains("Return a minimal object"))
+    {
         "not JSON"
     } else if input.contains("Assess this diff") {
         r#"{\"scores\":{\"security\":0.1,\"correctness\":0.6,\"error_handling\":0.2,\"maintainability\":0.1,\"architecture\":0.1,\"performance\":0.1},\"rationale\":\"Check the changed behavior.\",\"observations\":[{\"side\":\"after\",\"line\":1,\"text\":\"Check the new value.\"},{\"side\":\"after\",\"line\":200,\"text\":\"Unmapped line.\"}]}"#

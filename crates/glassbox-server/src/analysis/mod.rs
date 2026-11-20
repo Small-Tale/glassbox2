@@ -8,7 +8,9 @@ use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use glassbox_model::DifftoolInput;
-use glassbox_model::analysis::{AnalysisJob, AnalysisMode, AnalysisResult, AnalysisStatus};
+use glassbox_model::analysis::{
+    AnalysisJob, AnalysisMode, AnalysisResult, AnalysisStatus, FileAnalysisFailure,
+};
 use serde::Deserialize;
 use tokio::task::AbortHandle;
 
@@ -168,6 +170,7 @@ impl Analysis {
             files: Vec::new(),
             narrative: Vec::new(),
             skipped: snapshot.skipped.clone(),
+            failures: Vec::new(),
         };
         if request.mode == AnalysisMode::Narrative && total > 0 {
             match provider.narrative(&snapshot.files).await {
@@ -178,7 +181,10 @@ impl Analysis {
             for (index, file) in snapshot.files.iter().enumerate() {
                 match provider.analyze_file(request.mode, file).await {
                     Ok(file) => result.files.push(file),
-                    Err(error) => return failed(error),
+                    Err(message) => result.failures.push(FileAnalysisFailure {
+                        path: file.path.clone(),
+                        message,
+                    }),
                 }
                 self.update(
                     id,
@@ -187,6 +193,11 @@ impl Analysis {
                         total,
                     },
                 );
+            }
+        }
+        if result.files.is_empty() {
+            if let Some(first) = result.failures.first() {
+                return failed(format!("{}: {}", first.path, first.message));
             }
         }
         match capture(request.source.clone(), self.difftool.clone()).await {
@@ -217,7 +228,8 @@ impl Analysis {
             .discussion
             .publish_analysis(&source, self.difftool.clone(), &result)
         {
-            Ok(()) => AnalysisStatus::Complete { result },
+            Ok(()) if result.failures.is_empty() => AnalysisStatus::Complete { result },
+            Ok(()) => AnalysisStatus::Partial { result },
             Err((_, message)) => failed(message),
         };
         job.state = state.clone();

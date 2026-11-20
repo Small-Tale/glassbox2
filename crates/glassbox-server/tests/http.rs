@@ -581,6 +581,34 @@ fn analysis_uses_provider_jobs_with_progress_results_cancellation_stale_and_unav
     let malformed = start(address, "risk");
     assert_eq!(wait_for(address, &malformed, done)["status"], "failed");
 
+    let before_folder = root.path().join("before-folder");
+    let after_folder = root.path().join("after-folder");
+    std::fs::create_dir(&before_folder).unwrap();
+    std::fs::create_dir(&after_folder).unwrap();
+    for path in ["healthy.ts", "unreliable.ts"] {
+        std::fs::write(before_folder.join(path), "old\n").unwrap();
+    }
+    std::fs::write(after_folder.join("healthy.ts"), "new\n").unwrap();
+    std::fs::write(after_folder.join("unreliable.ts"), "INVALID_FIXTURE\n").unwrap();
+    let folder = json!({"kind":"paths","before":before_folder,"after":after_folder});
+    let start_folder = || {
+        let accepted = call(
+            address,
+            "POST",
+            "/api/v1/review/analysis",
+            json!({"source":folder,"mode":"guidance"}),
+        );
+        format!("/api/v1/review/analysis/{}", accepted["id"])
+    };
+    let partial = wait_for(address, &start_folder(), done);
+    assert_eq!(partial["status"], "partial", "{partial}");
+    assert_eq!(partial["result"]["files"][0]["path"], "healthy.ts");
+    assert_eq!(partial["result"]["failures"][0]["path"], "unreliable.ts");
+    std::fs::write(after_folder.join("unreliable.ts"), "INVALID_ONCE\n").unwrap();
+    let recovered = wait_for(address, &start_folder(), done);
+    assert_eq!(recovered["status"], "complete", "{recovered}");
+    assert_eq!(recovered["result"]["files"].as_array().unwrap().len(), 2);
+
     let unavailable = start(disabled_address, "risk");
     assert_eq!(
         wait_for(disabled_address, &unavailable, done)["status"],

@@ -42,6 +42,10 @@ function statusText(state: AnalysisState, mode: Mode): string {
     return 'Starting analysis…';
   }
   if (job?.status === 'unavailable' || job?.status === 'failed') return job.message;
+  if (job?.status === 'partial') {
+    const failed = job.result.failures?.length ?? 0;
+    return `Analysis unavailable for ${failed} ${failed === 1 ? 'file' : 'files'}. Showing available results.`;
+  }
   if (job?.status === 'stale') return 'The comparison changed during analysis. Toggle again to retry.';
   return '';
 }
@@ -50,7 +54,7 @@ function guidanceFor(state: AnalysisState, selection: Selection) {
   const model = state.modes.guidance;
   if (!model.enabled.value) return undefined;
   const status = model.status.value;
-  if (status?.status !== 'complete') return undefined;
+  if (status?.status !== 'complete' && status?.status !== 'partial') return undefined;
   const candidate = status.result.files.find(
     ({ path, revision }) => path === selection.path && revision === selection.revision,
   );

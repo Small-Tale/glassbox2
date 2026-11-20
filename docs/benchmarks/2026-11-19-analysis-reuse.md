@@ -31,6 +31,16 @@ into its structured replies, sometimes with malformed delimiters or
 escaped strings. A malformed file prevented publication of valid
 results from other files. Repair is tracked in `HS2-KNJX2P`.
 
+## Structured output retest
+
+After the repair in `HS2-KNJX2P`, the same atomic writer fixture
+completed all four risk and all four guidance jobs. Risk took 7,704 ms
+on the first request and 7,072 ms median across repeats. Guidance took
+6,047 ms on the first request and 5,966 ms median across repeats. These
+are completed inference timings with the repaired Apple adapter, rather
+than the prior time-to-failure measurements. The exact-input cache target
+is unchanged.
+
 ## Reuse decision
 
 Implement exact-input reuse first in `HS2-04RMB6`. Target a median of

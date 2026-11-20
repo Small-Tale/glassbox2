@@ -72,12 +72,20 @@ pub struct NarrativeStep {
     pub reason: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FileAnalysisFailure {
+    pub path: String,
+    pub message: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AnalysisResult {
     pub mode: AnalysisMode,
     pub files: Vec<AnalyzedFile>,
     pub narrative: Vec<NarrativeStep>,
     pub skipped: Vec<String>,
+    #[serde(default)]
+    pub failures: Vec<FileAnalysisFailure>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -85,6 +93,7 @@ pub struct AnalysisResult {
 pub enum AnalysisStatus {
     Running { completed: usize, total: usize },
     Complete { result: AnalysisResult },
+    Partial { result: AnalysisResult },
     Cancelled,
     Stale,
     Unavailable { message: String },

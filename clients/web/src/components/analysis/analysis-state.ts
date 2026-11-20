@@ -10,12 +10,12 @@ type FileResult = {
   revision: string;
   analysis: { kind: 'risk'; rationale: string } | { kind: 'guidance'; overview: string; steps: Step[] };
 };
-type Result = { files: FileResult[]; skipped: string[] };
+type Result = { files: FileResult[]; skipped: string[]; failures?: { path: string; message: string }[] };
 export type Selection = { path: string; revision: string };
 
 type Job = { id: number } & (
   | { status: 'running'; completed: number; total: number }
-  | { status: 'complete'; result: Result }
+  | { status: 'complete' | 'partial'; result: Result }
   | { status: 'failed' | 'unavailable'; message: string }
   | { status: 'cancelled' | 'stale' }
 );
@@ -107,7 +107,7 @@ export function createAnalysisState(onComplete: () => void, api = transport) {
       }
       if (!cancelled()) {
         job.status.value = latest;
-        if (latest.status === 'complete') onComplete();
+        if (latest.status === 'complete' || latest.status === 'partial') onComplete();
       }
     } catch (error) {
       if (!cancelled()) {

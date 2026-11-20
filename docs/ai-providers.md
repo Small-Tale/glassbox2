@@ -83,7 +83,10 @@ Send the active comparison source and `mode` (`risk`, `narrative`, or
 analysis job. `GET /api/v1/review/analysis/{id}` reports progress and results,
 and DELETE on the same path cancels an active job. The job distinguishes
 unavailable providers, invalid responses, cancellation, and a comparison
-changed during generation.
+changed during generation. If some files succeed, partial results keep the
+valid findings and identify the failed paths. The host retries a malformed
+structured response once. The Apple adapter uses the model’s native
+structured generation for risk and guidance.
 
 Risk scores cover security, correctness, error handling, maintainability,
 architecture, and performance. The aggregate is the highest dimension.

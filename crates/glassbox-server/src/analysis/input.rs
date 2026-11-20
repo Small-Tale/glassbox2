@@ -1,7 +1,6 @@
 use std::io;
 
-use glassbox_model::{DifftoolInput, TextHunk};
-use serde::Serialize;
+use glassbox_model::{DiffLineKind, DifftoolInput, TextHunk};
 
 use crate::review_files::{self, ReviewSource};
 
@@ -20,14 +19,6 @@ pub(super) struct InputFile {
     pub(super) revision: String,
     pub(super) hunks: Vec<TextHunk>,
     pub(super) prompt: String,
-}
-
-#[derive(Serialize)]
-struct PromptLine<'a> {
-    line: u32,
-    side: &'static str,
-    change: glassbox_model::DiffLineKind,
-    text: &'a str,
 }
 
 pub(super) async fn capture(
@@ -58,13 +49,12 @@ pub(super) async fn capture(
                 else {
                     continue;
                 };
-                let entry = PromptLine {
-                    line: number,
-                    side,
-                    change: line.kind,
-                    text: &line.text,
+                let change = match line.kind {
+                    DiffLineKind::Added => "added",
+                    DiffLineKind::Removed => "removed",
+                    DiffLineKind::Context => "context",
                 };
-                let formatted = serde_json::to_string(&entry).map_err(io::Error::other)?;
+                let formatted = format!("{side} {number} {change} | {}", line.text);
                 if prompt.len() + formatted.len() + 1 > MAX_FILE_PROMPT_BYTES {
                     prompt.clear();
                     break;
