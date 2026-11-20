@@ -6,6 +6,24 @@ import { createReviewSourceState } from '../src/components/review/review-source.
 const source = { kind: 'paths', before: '/before', after: '/after' };
 const review = { identity: 'project', branch: null, comparison: 'Direct comparison', files: [] };
 
+test('only single-file difftool launches automatically select the changed file', async () => {
+  const first = { path: 'a.ts', previous_path: null, status: 'modified' };
+  const second = { path: 'b.ts', previous_path: null, status: 'modified' };
+  let files = [first];
+  const state = createReviewSourceState(review, async () => ({ ...review, files }));
+  const difftool = { kind: 'difftool' };
+  await state.open(difftool);
+  assert.equal(state.selected.value, 0);
+  await state.open(source);
+  assert.equal(state.selected.value, undefined);
+  files = [first, second];
+  await state.open(difftool);
+  assert.equal(state.selected.value, undefined);
+  files = [];
+  await state.open(difftool);
+  assert.equal(state.selected.value, undefined);
+});
+
 test('a later source request wins and resets selection, filter and collapsed folders', async () => {
   const first = Promise.withResolvers();
   const second = Promise.withResolvers();

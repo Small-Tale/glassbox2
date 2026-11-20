@@ -86,7 +86,7 @@ export function createReviewSourceState(initial?: ReviewFiles, load = loadFiles,
       if (request !== requestNumber) return;
       review.value = result;
       activeSource.value = source;
-      selected.value = undefined;
+      selected.value = source.kind === 'difftool' && result.files.length === 1 ? 0 : undefined;
       fileActionStatus.value = '';
       collapsed.value = new Set();
       filter.value = '';

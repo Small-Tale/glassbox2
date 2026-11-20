@@ -118,7 +118,7 @@ async function exerciseWorkbench(page, url, paths, settings) {
   await page.locator('.text-diff').getByText('after', { exact: true }).waitFor();
 }
 
-test('built workbench reviews Git and direct files with persistent preferences', { timeout: 60_000 }, async () => {
+async function withWorkbench(exercise, launchArgs = () => []) {
   const scratch = await mkdtemp(join(tmpdir(), 'glassbox-browser-'));
   const settings = join(scratch, 'settings');
   let host;
@@ -127,7 +127,7 @@ test('built workbench reviews Git and direct files with persistent preferences',
   let browser;
   try {
     const paths = await seedReview(scratch);
-    host = spawn(executable, ['--assets', join(root, 'clients', 'web', 'dist')], {
+    host = spawn(executable, ['--assets', join(root, 'clients', 'web', 'dist'), ...launchArgs(paths)], {
       cwd: root,
       env: {
         ...process.env,
@@ -154,17 +154,36 @@ test('built workbench reviews Git and direct files with persistent preferences',
     const errors = [];
     page.on('pageerror', (error) => errors.push(error));
     try {
-      await exerciseWorkbench(page, `http://${address}`, paths, settings);
+      await exercise(page, `http://${address}`, paths, settings);
       assert.deepEqual(errors, []);
     } catch (error) {
       await capture(page, 'workbench-failure');
       throw error;
     }
   } finally {
-    await browser?.close();
-    reader?.close();
-    host?.kill();
-    await exited;
-    await rm(scratch, { recursive: true, force: true, maxRetries: 3 });
+    try {
+      await browser?.close();
+    } finally {
+      reader?.close();
+      host?.kill();
+      await exited;
+      await rm(scratch, { recursive: true, force: true, maxRetries: 3 });
+    }
   }
+}
+
+test('built workbench reviews Git and direct files with persistent preferences', { timeout: 60_000 }, async () => {
+  await withWorkbench(exerciseWorkbench);
+});
+
+test('built workbench opens the only file supplied by Git difftool', { timeout: 60_000 }, async () => {
+  await withWorkbench(
+    async (page, url) => {
+      await page.goto(url);
+      await page.getByRole('heading', { name: 'after.txt', exact: true }).waitFor();
+      await page.locator('.text-diff').getByText('after', { exact: true }).waitFor();
+      await capture(page, 'workbench-difftool');
+    },
+    ({ before, after }) => ['--difftool', before, after],
+  );
 });
