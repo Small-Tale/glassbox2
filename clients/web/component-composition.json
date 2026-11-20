@@ -91,6 +91,91 @@
       }
     },
     {
+      "key": "glassbox2:export-dialog",
+      "package": "glassbox2",
+      "id": "export-dialog",
+      "name": "Hot Sheet Export",
+      "kind": "composition",
+      "purpose": "Choose a Hot Sheet destination and deliver the whole feedback bundle.",
+      "publicExports": [
+        {
+          "name": "ExportDialog"
+        },
+        {
+          "name": "wireExportDialog"
+        }
+      ],
+      "sourceLinks": [
+        "src/components/handoff/export-dialog.tsx"
+      ],
+      "source": "src/components/handoff/export-dialog.tsx",
+      "parents": {
+        "mode": "any",
+        "entries": []
+      },
+      "contexts": [
+        "application-ui"
+      ],
+      "zones": [],
+      "children": {
+        "mode": "any",
+        "concepts": [],
+        "requiredConcepts": []
+      },
+      "state": [],
+      "wiring": {
+        "required": true,
+        "helpers": [
+          "wireExportDialog"
+        ],
+        "sources": [
+          {
+            "export": "wireExportDialog",
+            "source": "src/components/handoff/export-dialog.tsx",
+            "returnsDisposer": true
+          }
+        ],
+        "obligations": [
+          "Wire modal actions, project selection, and the two delivery targets."
+        ]
+      },
+      "responsive": {
+        "owner": "component",
+        "behaviors": [
+          "scroll-dialog-content",
+          "pin-delivery-actions",
+          "fit-compact-viewport"
+        ]
+      },
+      "layout": {
+        "roles": [
+          "content"
+        ],
+        "geometry": {
+          "margin": "none",
+          "border": "none",
+          "padding": "none"
+        }
+      },
+      "accessibility": {
+        "obligations": [
+          "Label the dialog and its fields. Keep the active delivery actions accessible in the pinned footer."
+        ]
+      },
+      "boundaries": {
+        "rootClass": "feedback-export",
+        "publicClasses": [
+          "feedback-export"
+        ],
+        "publicTokens": []
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/handoff/export-dialog.tsx",
+        "composition": "src/components/handoff/export-dialog.tsx"
+      }
+    },
+    {
       "key": "glassbox2:review-discussion",
       "package": "glassbox2",
       "id": "review-discussion",

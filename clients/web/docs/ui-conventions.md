@@ -76,3 +76,7 @@ layout changes and labels stale anchors. See HS2-XQBQCG.
 
 The center footer uses an icon-only Share Feedback action with labeled
 choices. Clipboard feedback is announced in the footer. See HS2-0Y326D.
+
+The Hot Sheet delivery dialog groups project, ticket, review summary, and
+included feedback. Change and Recent are borderless brand-colored actions.
+The delivery and cancel controls stay in the dialog footer. See HS2-6DE0XA.

@@ -6,7 +6,9 @@ use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use base64::prelude::*;
-use glassbox_feedback::{BundleContext, BundleStore, FeedbackBundle};
+use glassbox_feedback::{
+    BundleContext, BundleStore, ExportRequest, FeedbackBundle, HotSheetClient, PreparedExport,
+};
 use glassbox_model::DifftoolInput;
 use glassbox_model::feedback::{
     AnchorSide, AnchorTarget, FeedbackChange, FeedbackId, FeedbackMessage, MessageTarget,
@@ -74,18 +76,9 @@ pub(crate) async fn handoff(
     difftool: Option<DifftoolInput>,
 ) -> Response {
     let prepare = move || {
-        let key = serde_json::to_string(&source).map_err(bad_request)?;
-        let mut reviews = workspace.0.lock().map_err(storage_error)?;
-        if let Some(review) = reviews.get(&key) {
-            return review.bundle.instruction().map_err(storage_error);
-        }
-        let source_copy = serde_json::from_str(&key).map_err(bad_request)?;
-        let comparison = review_files::load(source_copy, difftool.clone()).map_err(bad_request)?;
-        let context = comparison.bundle_context(&source, difftool.as_ref());
-        let review = start_review(context, ReviewFeedback::default())?;
-        let instruction = review.bundle.instruction().map_err(storage_error)?;
-        reviews.insert(key, review);
-        Ok(instruction)
+        with_review(&workspace, &source, difftool, |review| {
+            review.bundle.instruction().map_err(storage_error)
+        })
     };
     match tokio::task::spawn_blocking(prepare).await {
         Ok(Ok(instruction)) => Json(instruction).into_response(),
@@ -95,6 +88,77 @@ pub(crate) async fn handoff(
             "Could not prepare the feedback handoff",
         )
             .into_response(),
+    }
+}
+
+fn with_review<T>(
+    workspace: &Discussion,
+    source: &ReviewSource,
+    difftool: Option<DifftoolInput>,
+    action: impl FnOnce(&Review) -> Result<T, ApiError>,
+) -> Result<T, ApiError> {
+    let key = serde_json::to_string(source).map_err(bad_request)?;
+    let mut reviews = workspace.0.lock().map_err(storage_error)?;
+    if let Some(review) = reviews.get(&key) {
+        return action(review);
+    }
+    let comparison = review_files::load(source.clone(), difftool.clone()).map_err(bad_request)?;
+    let context = comparison.bundle_context(source, difftool.as_ref());
+    let review = start_review(context, ReviewFeedback::default())?;
+    let result = action(&review);
+    reviews.insert(key, review);
+    result
+}
+
+#[derive(Serialize)]
+pub(crate) struct Preview {
+    pub(crate) threads: usize,
+    pub(crate) replies: usize,
+    pub(crate) attachments: usize,
+    pub(crate) paths: Vec<String>,
+}
+
+impl Discussion {
+    pub(crate) fn preview(&self, source: &ReviewSource) -> Result<Preview, ApiError> {
+        use std::collections::BTreeSet;
+        let key = serde_json::to_string(source).map_err(bad_request)?;
+        let reviews = self.0.lock().map_err(storage_error)?;
+        let threads = reviews
+            .get(&key)
+            .map_or(&[][..], |review| review.saved.threads());
+        let paths: BTreeSet<String> = threads
+            .iter()
+            .map(|thread| thread.anchor.path.clone())
+            .collect();
+        let attachments = threads
+            .iter()
+            .flat_map(|thread| {
+                std::iter::once(&thread.opening)
+                    .chain(thread.replies.iter().map(|reply| &reply.message))
+            })
+            .map(|message| message.attachments.len())
+            .sum();
+        Ok(Preview {
+            threads: threads.len(),
+            replies: threads.iter().map(|thread| thread.replies.len()).sum(),
+            attachments,
+            paths: paths.into_iter().collect(),
+        })
+    }
+
+    pub(crate) fn prepare_export(
+        &self,
+        source: &ReviewSource,
+        difftool: Option<DifftoolInput>,
+        client: HotSheetClient,
+        request: ExportRequest,
+    ) -> Result<PreparedExport, ApiError> {
+        with_review(self, source, difftool, |review| {
+            review
+                .bundle
+                .prepare_export(client, request)
+                .map_err(storage_error)
+        })
     }
 }
 
@@ -137,8 +201,7 @@ fn edit(
     let Some(operation) = input.operation else {
         return Ok(view(&next, &path));
     };
-    let source_copy = serde_json::from_str(&key).map_err(bad_request)?;
-    let comparison = review_files::load(source_copy, difftool.clone()).map_err(bad_request)?;
+    let comparison = review_files::load(source.clone(), difftool.clone()).map_err(bad_request)?;
     review_files::validate_selection(&comparison, index, &path).map_err(bad_request)?;
     match operation {
         Operation::Create {

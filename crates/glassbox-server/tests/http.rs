@@ -356,3 +356,69 @@ fn discussion_publishes_edits_replies_and_attachments_and_rejects_stale_anchors(
             && markdown.contains("evidence.txt")
     );
 }
+
+#[test]
+#[ignore = "requires a current local Hot Sheet CLI"]
+fn export_sends_to_a_new_and_an_existing_ticket_without_replaying_delivery() {
+    use serde_json::{Value, json};
+    let scratch = tempfile::tempdir().unwrap();
+    let store = scratch.path().join("export.hs2");
+    std::fs::create_dir(&store).unwrap();
+    let cli = |args: &[&str]| {
+        let output = Command::new("hotsheet-cli")
+            .arg("-C")
+            .arg(&store)
+            .args(args)
+            .args(["--actor-role=human", "--actor-id=glassbox-test"])
+            .env_remove("HOTSHEET_STORE")
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap()
+    };
+    cli(&["init", "--prefix=GBEXP"]);
+    let before = scratch.path().join("before.txt");
+    let after = scratch.path().join("after.txt");
+    std::fs::write(&before, "before\n").unwrap();
+    std::fs::write(&after, "after\n").unwrap();
+    let (_host, address) = RunningServer::start_configured(None, &[], Some(scratch.path()));
+    let source = json!({"kind":"paths","before":before,"after":after});
+    let route = |path: &str, input: Value| {
+        let response = exchange(
+            address,
+            "POST",
+            path,
+            &address.to_string(),
+            "Content-Type: application/json\r\n",
+            &input.to_string(),
+        );
+        let (head, body) = response.split_once("\r\n\r\n").unwrap();
+        assert!(head.starts_with("HTTP/1.1 200"), "{response}");
+        serde_json::from_str::<Value>(body).unwrap()
+    };
+    let created = json!({"id":"00000000-0000-0000-0000-000000000001","source":source,"destination":store,
+        "request":{"target":{"kind":"new"},"title":"Fixture review","summary":"First delivery"}});
+    let receipt = route("/api/v1/review/export/send", created.clone());
+    assert_eq!(route("/api/v1/review/export/send", created), receipt);
+    let ticket = receipt["ticket"].as_str().unwrap();
+    let preview = route(
+        "/api/v1/review/export/preview",
+        json!({"source":source,"destination":store,"recent":true}),
+    );
+    assert_eq!(preview["recent"][0]["slug"], ticket);
+    let appended = route(
+        "/api/v1/review/export/send",
+        json!({"id":"00000000-0000-0000-0000-000000000002","source":source,
+        "destination":store,"request":{"target":{"kind":"existing","reference":ticket},"summary":"Second delivery"}}),
+    );
+    assert_eq!(appended["ticket"], ticket);
+    assert_ne!(appended["batch_id"], receipt["batch_id"]);
+    let written = cli(&["show", ticket]);
+    assert_eq!(written.matches("First delivery").count(), 1);
+    assert_eq!(written.matches("Second delivery").count(), 1);
+    assert!(written.contains("status: not_started"));
+}

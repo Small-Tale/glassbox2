@@ -34,6 +34,40 @@
       "documentation": "docs/ui-conventions.md"
     },
     {
+      "id": "export-dialog",
+      "name": "Hot Sheet Export",
+      "kind": "composition",
+      "purpose": "Choose a Hot Sheet destination and deliver the whole feedback bundle.",
+      "useWhen": [
+        "Send a whole review bundle to a Hot Sheet ticket."
+      ],
+      "avoidWhen": [
+        "Copy instructions to the clipboard."
+      ],
+      "publicClasses": [
+        "feedback-export"
+      ],
+      "publicTokens": [],
+      "uses": [
+        "button",
+        "popup-menu",
+        "segmented-control",
+        "text-field",
+        "workbench-dialog"
+      ],
+      "source": "src/components/handoff/export-dialog.tsx",
+      "styleSources": [
+        "src/components/handoff/export-dialog.css"
+      ],
+      "demoSource": "src/ux-demo/demos/handoff/export-dialog.tsx",
+      "geometry": {
+        "margin": "none",
+        "border": "none",
+        "padding": "none"
+      },
+      "documentation": "docs/ui-conventions.md"
+    },
+    {
       "id": "review-discussion",
       "name": "Review Discussion",
       "kind": "composition",

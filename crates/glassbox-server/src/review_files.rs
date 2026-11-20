@@ -14,7 +14,7 @@ use glassbox_model::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub(crate) enum ReviewSource {
     Paths { before: PathBuf, after: PathBuf },
@@ -22,7 +22,7 @@ pub(crate) enum ReviewSource {
     Difftool,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub(crate) enum GitMode {
     WorkingTree,

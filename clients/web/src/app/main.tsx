@@ -16,6 +16,8 @@ import {
   wireDiscussion,
 } from '../components/discussion/discussion.js';
 import { createDiscussionState } from '../components/discussion/discussion-state.js';
+import { ExportDialog, wireExportDialog } from '../components/handoff/export-dialog.js';
+import { createExportState } from '../components/handoff/export-state.js';
 import { createHandoffState } from '../components/handoff/handoff-state.js';
 import { ShareMenu, ShareStatus, wireShareMenu } from '../components/handoff/share-menu.js';
 import { ReviewNavigator, wireReviewNavigator } from '../components/review/review-navigator.js';
@@ -41,6 +43,8 @@ const appearance = createAppearanceState();
 const appearanceId = 'glassbox-appearance';
 const handoff = createHandoffState();
 const shareId = 'glassbox-share';
+const exportId = 'glassbox-export';
+const delivery = createExportState();
 void effect(() => {
   const preference = appearance.appearance.value;
   if (preference === 'system') delete document.documentElement.dataset.kuiScheme;
@@ -117,45 +121,59 @@ mount(root, () => {
     }
   }
   return (
-    <ReviewWorkbench
-      id="glassbox-workbench"
-      state={workbench}
-      projectTitle={review?.identity ?? 'Changed Files'}
-      comparisonTitle={file?.path.split('/').at(-1) ?? 'Review'}
-      inspectorTitle={
-        discussion.adding.value !== null
-          ? 'New Comment'
-          : discussion.activeThread()?.origin.kind === 'ai'
-            ? 'AI Review Note'
-            : discussion.activeThread()
-              ? 'Line Comment'
-              : 'Inspector'
-      }
-      navigator={<ReviewNavigator id="glassbox-review-navigator" state={source} />}
-      comparison={comparison}
-      comparisonToolbar={comparisonToolbar}
-      footerStatus={handoff.status.value === '' ? undefined : <ShareStatus state={handoff} />}
-      footerSettings={
-        <>
-          <ShareMenu id={shareId} state={handoff} ready={source.activeSource.value !== null} />
-          <AppearanceMenu id={appearanceId} state={appearance} />
-        </>
-      }
-      inspector={
-        <DiscussionInspector
-          state={discussion}
-          path={file?.path}
-          revision={result?.kind === 'text' ? result.revision : undefined}
-        />
-      }
-    />
+    <>
+      <ReviewWorkbench
+        id="glassbox-workbench"
+        state={workbench}
+        projectTitle={review?.identity ?? 'Changed Files'}
+        comparisonTitle={file?.path.split('/').at(-1) ?? 'Review'}
+        inspectorTitle={
+          discussion.adding.value !== null
+            ? 'New Comment'
+            : discussion.activeThread()?.origin.kind === 'ai'
+              ? 'AI Review Note'
+              : discussion.activeThread()
+                ? 'Line Comment'
+                : 'Inspector'
+        }
+        navigator={<ReviewNavigator id="glassbox-review-navigator" state={source} />}
+        comparison={comparison}
+        comparisonToolbar={comparisonToolbar}
+        footerStatus={handoff.status.value === '' ? undefined : <ShareStatus state={handoff} />}
+        footerSettings={
+          <>
+            <ShareMenu id={shareId} state={handoff} ready={source.activeSource.value !== null} exportReady />
+            <AppearanceMenu id={appearanceId} state={appearance} />
+          </>
+        }
+        inspector={
+          <DiscussionInspector
+            state={discussion}
+            path={file?.path}
+            revision={result?.kind === 'text' ? result.revision : undefined}
+          />
+        }
+      />
+      <ExportDialog id={exportId} state={delivery} />
+    </>
   );
 });
 void wireReviewWorkbench(root, 'glassbox-workbench', workbench);
 void wireReviewNavigator(root, 'glassbox-review-navigator', source);
 void wireTextDiffToolbar(root, diffToolbarId, textDiff);
 void wireAppearanceMenu(root, appearanceId, appearance);
-void wireShareMenu(root, shareId, handoff, () => source.activeSource.value, discussion.saveEdit);
+const exportDialog = wireExportDialog(root, exportId, delivery);
+void wireShareMenu(
+  root,
+  shareId,
+  handoff,
+  () => source.activeSource.value,
+  discussion.saveEdit,
+  () => {
+    const active = source.activeSource.value;
+    if (active !== null) exportDialog.open(active, discussion.saveEdit);
+  },
+);
 void wireDiscussion(
   root,
   discussion,

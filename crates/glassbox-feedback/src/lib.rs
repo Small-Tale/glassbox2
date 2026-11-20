@@ -17,7 +17,9 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tempfile::{Builder, NamedTempFile};
 
-pub use hotsheet::{ExportReceipt, ExportRequest, ExportTarget, HotSheetClient, PreparedExport};
+pub use hotsheet::{
+    ExportReceipt, ExportRequest, ExportTarget, HotSheetClient, PreparedExport, RecentTicket,
+};
 pub use storage::{CleanupProblem, CleanupReport, CleanupScope, ProjectStorage, StorageUsage};
 
 const HANDOFF: &str = "review.md";

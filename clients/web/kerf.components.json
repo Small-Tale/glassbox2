@@ -394,6 +394,83 @@
       }
     },
     {
+      "id": "export-dialog",
+      "name": "Hot Sheet Export",
+      "kind": "composition",
+      "purpose": "Choose a Hot Sheet destination and deliver the whole feedback bundle.",
+      "source": "src/components/handoff/export-dialog.tsx",
+      "publicExports": [
+        {
+          "name": "ExportDialog"
+        },
+        {
+          "name": "wireExportDialog"
+        }
+      ],
+      "sourceLinks": ["src/components/handoff/export-dialog.tsx"],
+      "composition": {
+        "parents": {
+          "mode": "any",
+          "entries": []
+        },
+        "contexts": ["application-ui"],
+        "zones": [],
+        "children": {
+          "mode": "any",
+          "concepts": [],
+          "requiredConcepts": []
+        },
+        "state": [],
+        "wiring": {
+          "required": true,
+          "helpers": ["wireExportDialog"],
+          "sources": [
+            {
+              "export": "wireExportDialog",
+              "source": "src/components/handoff/export-dialog.tsx",
+              "returnsDisposer": true
+            }
+          ],
+          "obligations": ["Wire modal actions, project selection, and the two delivery targets."]
+        },
+        "responsive": {
+          "owner": "component",
+          "behaviors": ["scroll-dialog-content", "pin-delivery-actions", "fit-compact-viewport"]
+        },
+        "layout": {
+          "roles": ["content"],
+          "geometry": {
+            "margin": "none",
+            "border": "none",
+            "padding": "none"
+          }
+        }
+      },
+      "boundaries": {
+        "rootClass": "feedback-export",
+        "publicClasses": ["feedback-export"],
+        "publicTokens": []
+      },
+      "accessibility": {
+        "obligations": [
+          "Label the dialog and its fields. Keep the active delivery actions accessible in the pinned footer."
+        ]
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/handoff/export-dialog.tsx",
+        "composition": "src/components/handoff/export-dialog.tsx"
+      },
+      "selection": {
+        "useWhen": ["Send a whole review bundle to a Hot Sheet ticket."],
+        "avoidWhen": ["Copy instructions to the clipboard."],
+        "styleSources": ["src/components/handoff/export-dialog.css"],
+        "demoSource": "src/ux-demo/demos/handoff/export-dialog.tsx",
+        "documentation": "docs/ui-conventions.md",
+        "uses": ["button", "popup-menu", "segmented-control", "text-field", "workbench-dialog"]
+      }
+    },
+    {
       "id": "share-menu",
       "name": "Share Feedback",
       "kind": "component",

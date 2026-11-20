@@ -82,9 +82,7 @@ evidence, failed publication and retry, and concurrent reading.
 The center footer’s Share Feedback menu exposes Copy AI Instruction as
 soon as a comparison is open. The first copy publishes a bundle even
 when the review has no comments. Subsequent copies and edits use the
-same bundle path and leave the comparison available for editing. The
-Send to Hot Sheet 2 choice becomes available with the export flow
-tracked in `HS2-6DE0XA`.
+same bundle path and leave the comparison available for editing. Choose Send to Hot Sheet 2 from the same menu to open the delivery dialog.
 
 ## Hot Sheet 2 delivery
 
@@ -98,6 +96,13 @@ ticket and keeps its current status. Each deliberate delivery freezes
 the current feedback and its referenced evidence in one attachment
 batch. The Markdown refers to files by their Hot Sheet attachment names.
 Optional reviewer summary text is included in the delivery note.
+
+The dialog previews the whole review, including threads, replies, and
+attachments. It detects the destination from the current comparison
+when possible. Change accepts a project or store path. Recent lists
+newest-created tickets in the selected store. The existing ticket field
+also accepts a pasted Hot Sheet reference. The review remains available
+after delivery.
 
 Retrying the same prepared delivery reconciles the ticket, batch files,
 and note before writing. It preserves a partial batch and skips files and

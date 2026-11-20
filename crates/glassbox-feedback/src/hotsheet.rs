@@ -38,6 +38,13 @@ pub struct ExportReceipt {
     pub batch_id: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct RecentTicket {
+    pub slug: String,
+    pub title: String,
+    pub status: String,
+}
+
 pub struct HotSheetClient {
     cli: PathBuf,
     store: PathBuf,
@@ -54,6 +61,26 @@ impl HotSheetClient {
             )
         })?;
         Self::for_store(discover_cli(), store)
+    }
+
+    pub fn for_destination(path: &Path) -> io::Result<Self> {
+        let path = std::path::absolute(path)?;
+        let store = locate_store(&path, None).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                "No Hot Sheet 2 store found at this destination",
+            )
+        })?;
+        Self::for_store(discover_cli(), store)
+    }
+
+    pub fn store_path(&self) -> &Path {
+        &self.store
+    }
+
+    pub fn recent_tickets(&self) -> io::Result<Vec<RecentTicket>> {
+        let list = self.run("ls", ["--sort", "created"])?;
+        recent_rows(&list)
     }
 
     pub fn for_store(cli: impl Into<PathBuf>, store: impl Into<PathBuf>) -> io::Result<Self> {
@@ -376,6 +403,36 @@ impl Ticket {
     }
 }
 
+fn recent_rows(output: &str) -> io::Result<Vec<RecentTicket>> {
+    if output.trim() == "(no tickets)" {
+        return Ok(Vec::new());
+    }
+    let mut tickets = Vec::new();
+    for row in output.lines().filter(|line| !line.trim().is_empty()).rev() {
+        let mut fields = row.split_whitespace().skip(1);
+        let slug = fields.next().filter(|value| valid_slug(value));
+        let status = fields.next();
+        let title = fields.collect::<Vec<_>>().join(" ");
+        match (slug, status) {
+            (Some(_), Some("deleted" | "moved")) => continue,
+            (Some(slug), Some(status)) if !title.is_empty() => tickets.push(RecentTicket {
+                slug: slug.into(),
+                status: status.into(),
+                title,
+            }),
+            _ => {
+                return Err(io::Error::other(
+                    "Hot Sheet returned an invalid recent ticket list",
+                ));
+            }
+        }
+        if tickets.len() == 10 {
+            break;
+        }
+    }
+    Ok(tickets)
+}
+
 fn tagged_ticket(output: &str) -> io::Result<Option<&str>> {
     let mut rows = output.lines().filter(|line| !line.trim().is_empty());
     let first = rows.next();
@@ -411,6 +468,21 @@ mod tests {
 
     use super::*;
     use crate::{BundleContext, BundleStore};
+
+    #[test]
+    fn recent_tickets_are_newest_first_and_omit_tombstones() {
+        let input = " ● HS2-000001   started      First ticket\n ● HS2-000002   deleted      Deleted\n*● HS2-000003   completed    Third ticket\n";
+        let tickets = super::recent_rows(input).unwrap();
+        assert_eq!(
+            tickets
+                .iter()
+                .map(|ticket| ticket.slug.as_str())
+                .collect::<Vec<_>>(),
+            ["HS2-000003", "HS2-000001"]
+        );
+        assert!(super::recent_rows("(no tickets)").unwrap().is_empty());
+        assert!(super::recent_rows("invalid output").is_err());
+    }
 
     #[test]
     fn new_is_default_and_ticket_lookup_rejects_ambiguous_deliveries() {

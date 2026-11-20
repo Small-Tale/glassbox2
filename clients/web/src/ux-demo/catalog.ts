@@ -6,6 +6,7 @@ import upstreamReferences from 'virtual:glassbox-kerf-references';
 import metadata from '../../component-catalog.json';
 import { TextDiffDemo } from './demos/diff/text-diff.js';
 import { DiscussionDemo } from './demos/discussion/discussion.js';
+import { ExportDialogDemo } from './demos/handoff/export-dialog.js';
 import { ShareMenuDemo } from './demos/handoff/share-menu.js';
 import { ReviewNavigatorDemo } from './demos/review/review-navigator.js';
 import { ReviewWorkbenchDemo } from './demos/review/review-workbench.js';
@@ -18,6 +19,7 @@ export const componentDemos = {
   'text-diff': TextDiffDemo,
   'review-discussion': DiscussionDemo,
   'share-menu': ShareMenuDemo,
+  'export-dialog': ExportDialogDemo,
   'review-navigator': ReviewNavigatorDemo,
   'review-workbench': ReviewWorkbenchDemo,
 } satisfies Record<string, () => SafeHtml>;

@@ -21,6 +21,7 @@ use tokio::sync::oneshot;
 use tower_http::services::ServeDir;
 
 mod discussion;
+mod export;
 mod review_files;
 
 pub struct LocalHost {
@@ -107,6 +108,8 @@ fn router(address: SocketAddr, assets: Option<&Path>, difftool: Option<DifftoolI
     let handoff_launch = difftool.clone();
     let discussion = discussion::Discussion::default();
     let handoff = discussion.clone();
+    let delivery = export::Delivery::new(discussion.clone(), difftool.clone());
+    let preview_delivery = delivery.clone();
     let mut router = Router::new()
         .route(
             "/api/v1/health",
@@ -129,6 +132,14 @@ fn router(address: SocketAddr, assets: Option<&Path>, difftool: Option<DifftoolI
         .route(
             "/api/v1/review/handoff",
             post(move |Json(source)| discussion::handoff(handoff, source, handoff_launch)),
+        )
+        .route(
+            "/api/v1/review/export/preview",
+            post(move |Json(input)| export::preview(preview_delivery, input)),
+        )
+        .route(
+            "/api/v1/review/export/send",
+            post(move |Json(input)| export::send(delivery, input)),
         )
         .route(
             "/api/v1/review/file/action",
