@@ -12,6 +12,7 @@ import { ReviewNavigatorDemo } from './demos/review/review-navigator.js';
 import { ReviewWorkbenchDemo } from './demos/review/review-workbench.js';
 import { SourceContextDemo } from './demos/review/source-context.js';
 import { AppearanceMenuDemo } from './demos/settings/appearance-menu.js';
+import { StorageDialogDemo } from './demos/settings/storage-dialog.js';
 
 export const componentDemos = {
   'source-context': SourceContextDemo,
@@ -20,6 +21,7 @@ export const componentDemos = {
   'review-discussion': DiscussionDemo,
   'share-menu': ShareMenuDemo,
   'export-dialog': ExportDialogDemo,
+  'storage-dialog': StorageDialogDemo,
   'review-navigator': ReviewNavigatorDemo,
   'review-workbench': ReviewWorkbenchDemo,
 } satisfies Record<string, () => SafeHtml>;

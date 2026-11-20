@@ -594,6 +594,94 @@
       }
     },
     {
+      "key": "glassbox2:storage-dialog",
+      "package": "glassbox2",
+      "id": "storage-dialog",
+      "name": "Feedback Storage",
+      "kind": "composition",
+      "purpose": "Inspect durable feedback and confirm project or global cleanup.",
+      "publicExports": [
+        {
+          "name": "StorageAction"
+        },
+        {
+          "name": "StorageDialog"
+        },
+        {
+          "name": "wireStorageDialog"
+        }
+      ],
+      "sourceLinks": [
+        "src/components/settings/storage-dialog.tsx"
+      ],
+      "source": "src/components/settings/storage-dialog.tsx",
+      "parents": {
+        "mode": "any",
+        "entries": []
+      },
+      "contexts": [
+        "application-ui"
+      ],
+      "zones": [],
+      "children": {
+        "mode": "any",
+        "concepts": [],
+        "requiredConcepts": []
+      },
+      "state": [],
+      "wiring": {
+        "required": true,
+        "helpers": [
+          "wireStorageDialog"
+        ],
+        "sources": [
+          {
+            "export": "wireStorageDialog",
+            "source": "src/components/settings/storage-dialog.tsx",
+            "returnsDisposer": true
+          }
+        ],
+        "obligations": [
+          "Wire refresh, scope confirmation and storage cleanup."
+        ]
+      },
+      "responsive": {
+        "owner": "component",
+        "behaviors": [
+          "wrap-storage-paths",
+          "pin-cleanup-actions",
+          "fit-compact-viewport"
+        ]
+      },
+      "layout": {
+        "roles": [
+          "content"
+        ],
+        "geometry": {
+          "margin": "none",
+          "border": "none",
+          "padding": "none"
+        }
+      },
+      "accessibility": {
+        "obligations": [
+          "Label cleanup scope, state its effect and announce the result."
+        ]
+      },
+      "boundaries": {
+        "rootClass": "feedback-storage",
+        "publicClasses": [
+          "feedback-storage"
+        ],
+        "publicTokens": []
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/settings/storage-dialog.tsx",
+        "composition": "src/components/settings/storage-dialog.tsx"
+      }
+    },
+    {
       "key": "glassbox2:text-diff",
       "package": "glassbox2",
       "id": "text-diff",

@@ -16,6 +16,7 @@ import { wireShareMenuDemo } from './demos/handoff/share-menu.js';
 import { wireReviewNavigatorDemo } from './demos/review/review-navigator.js';
 import { wireReviewWorkbenchDemo } from './demos/review/review-workbench.js';
 import { wireAppearanceMenuDemo } from './demos/settings/appearance-menu.js';
+import { wireStorageDialogDemo } from './demos/settings/storage-dialog.js';
 
 const urlParam = 'component';
 const initial = new URLSearchParams(location.search).get(urlParam);
@@ -109,3 +110,5 @@ void wireShareMenuDemo(root);
 void wireExportDialogDemo(root);
 
 void wireAppearanceMenuDemo(root);
+
+void wireStorageDialogDemo(root);

@@ -234,6 +234,39 @@
       "documentation": "docs/ui-conventions.md"
     },
     {
+      "id": "storage-dialog",
+      "name": "Feedback Storage",
+      "kind": "composition",
+      "purpose": "Inspect durable feedback and confirm project or global cleanup.",
+      "useWhen": [
+        "Inspect usage or clear saved feedback bundles."
+      ],
+      "avoidWhen": [
+        "Change appearance."
+      ],
+      "publicClasses": [
+        "feedback-storage"
+      ],
+      "publicTokens": [],
+      "uses": [
+        "button",
+        "lucide-icon",
+        "toolbar-control-group",
+        "workbench-dialog"
+      ],
+      "source": "src/components/settings/storage-dialog.tsx",
+      "styleSources": [
+        "src/components/settings/storage-dialog.css"
+      ],
+      "demoSource": "src/ux-demo/demos/settings/storage-dialog.tsx",
+      "geometry": {
+        "margin": "none",
+        "border": "none",
+        "padding": "none"
+      },
+      "documentation": "docs/ui-conventions.md"
+    },
+    {
       "id": "text-diff",
       "name": "Text Diff",
       "kind": "composition",

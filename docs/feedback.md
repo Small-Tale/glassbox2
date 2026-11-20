@@ -130,5 +130,8 @@ resolving. A deletion marker keeps partially removed bundles visible to the next
 
 A filesystem lease protects each live bundle and is released when the
 writer exits. Only directories identified as Glassbox bundles are
-eligible for cleanup. The settings controls and confirmation are
-tracked in `HS2-5TN81D`.
+eligible for cleanup. Open the Feedback Storage action in the workbench footer to inspect total
+and per-project usage. Both cleanup actions show which scope will be removed
+and explain that affected copied instructions will stop working. Cleanup
+refreshes the totals and reports kept active bundles and any failed removals.
+Cancel leaves storage untouched.

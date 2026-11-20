@@ -29,6 +29,8 @@ import {
 } from '../components/review/review-workbench.js';
 import { AppearanceMenu, wireAppearanceMenu } from '../components/settings/appearance-menu.js';
 import { createAppearanceState } from '../components/settings/appearance-state.js';
+import { StorageAction, StorageDialog, wireStorageDialog } from '../components/settings/storage-dialog.js';
+import { createStorageState } from '../components/settings/storage-state.js';
 
 const root = document.getElementById('app');
 if (!root) throw new Error('Missing #app root.');
@@ -44,6 +46,8 @@ const appearanceId = 'glassbox-appearance';
 const handoff = createHandoffState();
 const shareId = 'glassbox-share';
 const exportId = 'glassbox-export';
+const storageId = 'glassbox-storage';
+const storage = createStorageState();
 const delivery = createExportState();
 void effect(() => {
   const preference = appearance.appearance.value;
@@ -144,6 +148,7 @@ mount(root, () => {
           <>
             <ShareMenu id={shareId} state={handoff} ready={source.activeSource.value !== null} exportReady />
             <AppearanceMenu id={appearanceId} state={appearance} />
+            <StorageAction id={storageId} />
           </>
         }
         inspector={
@@ -155,6 +160,7 @@ mount(root, () => {
         }
       />
       <ExportDialog id={exportId} state={delivery} />
+      <StorageDialog id={storageId} state={storage} />
     </>
   );
 });
@@ -162,6 +168,7 @@ void wireReviewWorkbench(root, 'glassbox-workbench', workbench);
 void wireReviewNavigator(root, 'glassbox-review-navigator', source);
 void wireTextDiffToolbar(root, diffToolbarId, textDiff);
 void wireAppearanceMenu(root, appearanceId, appearance);
+void wireStorageDialog(root, storageId, storage);
 const exportDialog = wireExportDialog(root, exportId, delivery);
 void wireShareMenu(
   root,

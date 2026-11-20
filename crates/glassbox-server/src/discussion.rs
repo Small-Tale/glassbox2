@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use axum::Json;
@@ -7,7 +6,7 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use base64::prelude::*;
 use glassbox_feedback::{
-    BundleContext, BundleStore, ExportRequest, FeedbackBundle, HotSheetClient, PreparedExport,
+    BundleContext, ExportRequest, FeedbackBundle, HotSheetClient, PreparedExport,
 };
 use glassbox_model::DifftoolInput;
 use glassbox_model::analysis::{AnalysisResult, FileAnalysis};
@@ -235,11 +234,7 @@ impl Discussion {
 }
 
 fn start_review(context: BundleContext, saved: ReviewFeedback) -> Result<Review, ApiError> {
-    let store = if let Some(directory) = std::env::var_os("GLASSBOX_FEEDBACK_DIRECTORY") {
-        BundleStore::in_directory(PathBuf::from(directory))
-    } else {
-        BundleStore::for_current_user().map_err(storage_error)?
-    };
+    let store = crate::storage::feedback_store().map_err(storage_error)?;
     let bundle = store.create(context, &saved).map_err(storage_error)?;
     Ok(Review { saved, bundle })
 }

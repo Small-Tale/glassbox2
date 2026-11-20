@@ -587,3 +587,65 @@ fn analysis_uses_provider_jobs_with_progress_results_cancellation_stale_and_unav
         "unavailable"
     );
 }
+
+#[test]
+fn feedback_cleanup_requires_confirmation_and_protects_active_bundles() {
+    use glassbox_feedback::{BundleContext, BundleStore};
+    use glassbox_model::feedback::ReviewFeedback;
+    use serde_json::{Value, json};
+
+    let root = tempfile::tempdir().unwrap();
+    let first = root.path().join("first");
+    let second = root.path().join("second");
+    std::fs::create_dir(&first).unwrap();
+    std::fs::create_dir(&second).unwrap();
+    let storage = BundleStore::in_directory(root.path().join("feedback"));
+    let make = |project| {
+        storage
+            .create(
+                BundleContext {
+                    project: Some(project),
+                    comparison: "Working tree".into(),
+                    before: None,
+                    after: None,
+                },
+                &ReviewFeedback::default(),
+            )
+            .unwrap()
+    };
+    let old = make(first.clone());
+    let old_path = old.path();
+    drop(old);
+    let active = make(second);
+    let (_host, address) = RunningServer::start_configured(None, &[], Some(root.path()));
+    let parse = |response: &str| {
+        serde_json::from_str::<Value>(response.split_once("\r\n\r\n").unwrap().1).unwrap()
+    };
+    let usage = || parse(&get(address, "/api/v1/feedback/storage"));
+    let cleanup = |scope, confirmed| {
+        exchange(
+            address,
+            "POST",
+            "/api/v1/feedback/storage/cleanup",
+            &address.to_string(),
+            "Content-Type: application/json\r\n",
+            &json!({"scope":scope,"confirmed":confirmed}).to_string(),
+        )
+    };
+    assert_eq!(usage()["bundles"], 2);
+    assert!(cleanup(json!({"kind":"all"}), false).starts_with("HTTP/1.1 400"));
+    assert!(old_path.exists());
+    let report = parse(&cleanup(json!({"kind":"project","project":first}), true));
+    assert_eq!(report["removed_bundles"], 1);
+    assert!(!old_path.exists());
+    let report = parse(&cleanup(json!({"kind":"all"}), true));
+    assert_eq!(report["active_bundles"], 1);
+    assert!(active.path().exists());
+    assert_eq!(usage()["bundles"], 1);
+    drop(active);
+    assert_eq!(
+        parse(&cleanup(json!({"kind":"all"}), true))["removed_bundles"],
+        1
+    );
+    assert_eq!(usage()["bundles"], 0);
+}

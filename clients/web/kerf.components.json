@@ -549,6 +549,84 @@
       }
     },
     {
+      "id": "storage-dialog",
+      "name": "Feedback Storage",
+      "kind": "composition",
+      "purpose": "Inspect durable feedback and confirm project or global cleanup.",
+      "source": "src/components/settings/storage-dialog.tsx",
+      "publicExports": [
+        {
+          "name": "StorageAction"
+        },
+        {
+          "name": "StorageDialog"
+        },
+        {
+          "name": "wireStorageDialog"
+        }
+      ],
+      "sourceLinks": ["src/components/settings/storage-dialog.tsx"],
+      "composition": {
+        "parents": {
+          "mode": "any",
+          "entries": []
+        },
+        "contexts": ["application-ui"],
+        "zones": [],
+        "children": {
+          "mode": "any",
+          "concepts": [],
+          "requiredConcepts": []
+        },
+        "state": [],
+        "wiring": {
+          "required": true,
+          "helpers": ["wireStorageDialog"],
+          "sources": [
+            {
+              "export": "wireStorageDialog",
+              "source": "src/components/settings/storage-dialog.tsx",
+              "returnsDisposer": true
+            }
+          ],
+          "obligations": ["Wire refresh, scope confirmation and storage cleanup."]
+        },
+        "responsive": {
+          "owner": "component",
+          "behaviors": ["wrap-storage-paths", "pin-cleanup-actions", "fit-compact-viewport"]
+        },
+        "layout": {
+          "roles": ["content"],
+          "geometry": {
+            "margin": "none",
+            "border": "none",
+            "padding": "none"
+          }
+        }
+      },
+      "boundaries": {
+        "rootClass": "feedback-storage",
+        "publicClasses": ["feedback-storage"],
+        "publicTokens": []
+      },
+      "accessibility": {
+        "obligations": ["Label cleanup scope, state its effect and announce the result."]
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/settings/storage-dialog.tsx",
+        "composition": "src/components/settings/storage-dialog.tsx"
+      },
+      "selection": {
+        "useWhen": ["Inspect usage or clear saved feedback bundles."],
+        "avoidWhen": ["Change appearance."],
+        "styleSources": ["src/components/settings/storage-dialog.css"],
+        "demoSource": "src/ux-demo/demos/settings/storage-dialog.tsx",
+        "documentation": "docs/ui-conventions.md",
+        "uses": ["button", "lucide-icon", "toolbar-control-group", "workbench-dialog"]
+      }
+    },
+    {
       "id": "appearance-menu",
       "name": "Appearance Menu",
       "kind": "component",
