@@ -90,5 +90,10 @@ fn concurrent_saves_publish_only_complete_snapshots() {
         store.load().unwrap().appearance,
         Appearance::Light | Appearance::Dark
     ));
-    assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);
+    let mut entries: Vec<_> = fs::read_dir(directory.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect();
+    entries.sort();
+    assert_eq!(entries, [".settings.lock", "settings.json"]);
 }

@@ -14,8 +14,10 @@ invalid appearance values, and unsupported future versions are reported
 and preserved.
 
 Saves create a private temporary file in the settings directory, sync its
-contents, then atomically replace the settings file. Readers see a complete
-snapshot. Concurrent saves of appearance use the last successful replacement.
+contents, then atomically replace the settings file. Clients coordinate reads
+and saves through a persistent `.settings.lock` file in the same directory.
+Readers see a complete snapshot. Concurrent saves of appearance use the last
+successful replacement.
 
 The host reads settings from `GET /api/v1/settings`. A `PUT` with an
 explicit `appearance` value persists it. The client applies changes

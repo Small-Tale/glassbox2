@@ -1186,6 +1186,7 @@ dependencies = [
 name = "glassbox-settings"
 version = "0.1.0"
 dependencies = [
+ "fs2",
  "glassbox-model",
  "serde",
  "serde_json",
