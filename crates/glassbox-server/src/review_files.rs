@@ -2,14 +2,16 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use axum::Json;
-use axum::http::StatusCode;
+use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use glassbox_comparison::{
     GitChange, GitFileChange, GitReview, GitReviewMode, compare_difftool_paths,
     compare_direct_content, compare_git_content, compare_paths, review_git,
 };
+use glassbox_model::feedback::AnchorSide;
 use glassbox_model::{
-    Change, ComparisonData, ComparisonEntry, DifftoolInput, TextHunk, UnavailableLfsObject,
+    Change, ComparisonData, ComparisonEntry, DifftoolInput, MediaAsset, TextHunk,
+    UnavailableLfsObject,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -81,12 +83,40 @@ enum FileContent {
         revision: String,
         hunks: Vec<TextHunk>,
     },
-    Media,
+    Media {
+        before: Option<MediaMetadata>,
+        after: Option<MediaMetadata>,
+    },
     UnavailableLfs {
         before: Option<UnavailableLfsObject>,
         after: Option<UnavailableLfsObject>,
     },
     Binary,
+}
+
+#[derive(Serialize)]
+struct MediaMetadata {
+    content_type: &'static str,
+    size: usize,
+    revision: String,
+}
+
+impl MediaMetadata {
+    fn from_asset(asset: &MediaAsset) -> Self {
+        Self {
+            content_type: asset.content_type,
+            size: asset.bytes.len(),
+            revision: media_revision(asset),
+        }
+    }
+}
+
+#[derive(Deserialize)]
+pub(crate) struct SelectedMedia {
+    #[serde(flatten)]
+    file: SelectedFile,
+    side: AnchorSide,
+    revision: String,
 }
 
 enum Entries {
@@ -149,7 +179,10 @@ pub(crate) async fn selected(input: SelectedFile, difftool: Option<DifftoolInput
                 revision: text_revision(&hunks)?,
                 hunks,
             },
-            ComparisonData::Media { .. } => FileContent::Media,
+            ComparisonData::Media { before, after } => FileContent::Media {
+                before: before.as_ref().map(MediaMetadata::from_asset),
+                after: after.as_ref().map(MediaMetadata::from_asset),
+            },
             ComparisonData::UnavailableLfs { before, after } => {
                 FileContent::UnavailableLfs { before, after }
             }
@@ -159,12 +192,68 @@ pub(crate) async fn selected(input: SelectedFile, difftool: Option<DifftoolInput
     .await
 }
 
+pub(crate) async fn media(input: SelectedMedia, difftool: Option<DifftoolInput>) -> Response {
+    let outcome = tokio::task::spawn_blocking(move || {
+        let result = load(input.file.source, difftool)?;
+        validate_selection(&result, input.file.index, &input.file.path)?;
+        let asset = result.media_asset(input.file.index, input.side)?;
+        Ok::<_, io::Error>(asset.filter(|asset| media_revision(asset) == input.revision))
+    })
+    .await;
+    match outcome {
+        Ok(Ok(Some(asset))) => (
+            [
+                (header::CONTENT_TYPE, asset.content_type),
+                (header::CACHE_CONTROL, "no-store"),
+                (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+                (
+                    header::CONTENT_SECURITY_POLICY,
+                    "sandbox; default-src 'none'",
+                ),
+            ],
+            asset.bytes,
+        )
+            .into_response(),
+        Ok(Ok(None)) => (
+            StatusCode::NOT_FOUND,
+            "The requested image revision is unavailable.",
+        )
+            .into_response(),
+        Ok(Err(error)) => (StatusCode::BAD_REQUEST, error.to_string()).into_response(),
+        Err(_) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Could not load the image",
+        )
+            .into_response(),
+    }
+}
+
+fn media_revision(asset: &MediaAsset) -> String {
+    format!("{:x}", Sha256::digest(&asset.bytes))
+}
+
 pub(crate) fn text_revision(hunks: &[TextHunk]) -> io::Result<String> {
     let bytes = serde_json::to_vec(hunks).map_err(io::Error::other)?;
     Ok(format!("{:x}", Sha256::digest(bytes)))
 }
 
 impl Comparison {
+    fn media_asset(&self, index: usize, side: AnchorSide) -> io::Result<Option<MediaAsset>> {
+        match (self.entries.content(index)?, side) {
+            (ComparisonData::Media { before, .. }, AnchorSide::Before) => Ok(before),
+            (ComparisonData::Media { after, .. }, AnchorSide::After) => Ok(after),
+            _ => Ok(None),
+        }
+    }
+
+    pub(crate) fn media_revision(
+        &self,
+        index: usize,
+        side: AnchorSide,
+    ) -> io::Result<Option<String>> {
+        Ok(self.media_asset(index, side)?.as_ref().map(media_revision))
+    }
+
     pub(crate) fn analysis_inputs(&self) -> impl Iterator<Item = (usize, String)> + '_ {
         (0..self.entries.len())
             .filter_map(|index| self.entries.metadata(index).map(|file| (index, file.path)))

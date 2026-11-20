@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { resolveObjectURL } from 'node:buffer';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { setImmediate } from 'node:timers/promises';
@@ -77,4 +78,47 @@ test('HS2-RVP90A keeps normal-size Lucide layout actions and Wrap in separate gr
   assert.doesNotMatch(groups[0][1], /ariaLabel="Wrap"/);
   assert.doesNotMatch(source, /size="compact"/);
   assert.equal([...source.matchAll(/icon=\{<LucideIcon/g)].length, 3);
+});
+
+test('media selection fetches the exact side revision and releases its object URL on navigation', async (context) => {
+  const requests = [];
+  context.mock.method(globalThis, 'fetch', async (url, options) => {
+    requests.push({ url, selection: JSON.parse(options.body), signal: options.signal });
+    return new Response('<svg/>', { headers: { 'Content-Type': 'image/svg+xml' } });
+  });
+  const state = createReviewSourceState(undefined, async () => ({
+    identity: 'working',
+    branch: null,
+    comparison: 'Direct comparison',
+    files: [
+      { path: 'mark.svg', status: 'added', previous_path: null },
+      { path: 'index.txt', status: 'modified', previous_path: null },
+    ],
+  }));
+  const source = { kind: 'paths', before: '/a', after: '/b' };
+  await state.open(source);
+  const reader = selectedDiff(state, async ({ index }) =>
+    index === 0
+      ? { kind: 'media', before: null, after: { content_type: 'image/svg+xml', size: 6, revision: 'abc' } }
+      : { kind: 'text', hunks: [] },
+  );
+  try {
+    state.selected.value = 0;
+    await turn();
+    assert.equal(reader.result.value.kind, 'media');
+    assert.equal(reader.result.value.before, null);
+    assert.equal(reader.result.value.after.source, '<svg/>');
+    const url = reader.result.value.after.url;
+    assert(resolveObjectURL(url) instanceof Blob);
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].url, '/api/v1/review/media');
+    assert.deepEqual(requests[0].selection, { source, index: 0, path: 'mark.svg', side: 'after', revision: 'abc' });
+    state.selected.value = 1;
+    await turn();
+    assert(requests[0].signal.aborted);
+    assert.equal(reader.result.value.kind, 'text');
+    assert.equal(resolveObjectURL(url), undefined);
+  } finally {
+    reader.stop();
+  }
 });

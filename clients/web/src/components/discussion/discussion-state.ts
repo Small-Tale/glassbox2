@@ -14,11 +14,12 @@ export const categories = [
 
 export type Category = (typeof categories)[number]['value'];
 export type Side = 'before' | 'after';
+export type ImageRegion = { kind: 'image_region'; left: number; top: number; width: number; height: number };
 export type Anchor = {
   path: string;
   side: Side;
   revision: string;
-  target: { kind: 'line'; start: number; end: number };
+  target: { kind: 'line'; start: number; end: number } | ImageRegion;
 };
 type Message = { author: string; markdown: string; attachments: { id: number; filename: string }[] };
 export type Thread = {

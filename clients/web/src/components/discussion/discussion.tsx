@@ -11,7 +11,7 @@ import { TextField } from '@kerfjs/ui/text-field';
 import { wireFilePickers } from '@kerfjs/ui/wire-file-pickers';
 import { MessageSquarePlus } from 'lucide';
 
-import { type Anchor, categories, type DiscussionState, type Thread } from './discussion-state.js';
+import { type Anchor, categories, type DiscussionState, type Side, type Thread } from './discussion-state.js';
 
 function ThreadLabels({ thread }: { thread: Thread }) {
   const origin = thread.origin;
@@ -97,16 +97,22 @@ export function DiscussionInspector({
   state,
   path,
   revision,
+  mediaRevisions,
 }: {
   state: DiscussionState;
   path?: string;
   revision?: string;
+  mediaRevisions?: Partial<Record<Side, string>>;
 }) {
   const thread = state.activeThread();
   const anchor = state.adding.value ?? thread?.anchor;
   const isDraft = state.adding.value !== null;
   const editable = isDraft || thread?.origin.kind === 'reviewer';
-  const stale = state.threads.value.filter((item) => item.anchor.path === path && item.anchor.revision !== revision);
+  const currentRevision = (anchor: Anchor) =>
+    anchor.target.kind === 'line' ? revision : mediaRevisions?.[anchor.side];
+  const stale = state.threads.value.filter(
+    ({ anchor }) => anchor.path === path && anchor.revision !== currentRevision(anchor),
+  );
   if (anchor === undefined) {
     if (stale.length === 0) return <EmptyState title="No Discussion Selected" />;
     return (
@@ -116,13 +122,14 @@ export function DiscussionInspector({
       </section>
     );
   }
-  const isStale = thread !== undefined && thread.anchor.revision !== revision;
+  const isStale = thread !== undefined && thread.anchor.revision !== currentRevision(thread.anchor);
   return (
     <section class="discussion-inspector" aria-label="Discussion">
       <div class="discussion-inline__meta">
         {thread === undefined ? null : <ThreadLabels thread={thread} />}
         <span>
-          {anchor.path} · {anchor.side === 'before' ? 'Before' : 'After'} line {anchor.target.start}
+          {anchor.path} · {anchor.side === 'before' ? 'Before' : 'After'}{' '}
+          {anchor.target.kind === 'line' ? `line ${anchor.target.start}` : 'image region'}
         </span>
       </div>
       {isStale ? <p role="status">This comment refers to an earlier version of the file.</p> : null}

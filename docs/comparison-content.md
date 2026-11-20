@@ -38,5 +38,18 @@ layout. With Wrap off, long lines can scroll within the comparison.
 The workbench requests selected content using
 `POST /api/v1/review/file`. The service checks the selected index and
 path against the comparison before loading content. It returns text
-hunks, a media or binary indicator, or the unavailable LFS sides. Media rendering is tracked in
-`HS2-B9NHFE`.
+hunks, media metadata, a binary indicator, or the unavailable LFS sides.
+Media metadata includes each available side's content type, byte count,
+and revision. The web host serves the original bytes through
+`POST /api/v1/review/media` after checking the selection, side, and
+revision. It accepts region feedback only when the anchor matches that
+side's current revision.
+
+## Image viewer
+
+Raster and SVG comparisons open side by side. The toolbar offers stacked,
+single-side, difference, slice, and metadata views. SVGs can also be read
+as source. Rendered SVGs load as images. Zoomed views can be panned with
+scrolling. Select Add Region Comment and drag on a before or after image
+to open a region discussion in the shared inspector. Saved rectangles
+reopen their discussions on the matching image revision (`HS2-B9NHFE`).

@@ -111,6 +111,7 @@ fn router(
 ) -> (Router, analysis::Analysis) {
     let source_launch = difftool.clone();
     let selected_launch = difftool.clone();
+    let media_launch = difftool.clone();
     let discussion_launch = difftool.clone();
     let handoff_launch = difftool.clone();
     let discussion = discussion::Discussion::default();
@@ -136,6 +137,10 @@ fn router(
         .route(
             "/api/v1/review/file",
             post(move |Json(file)| review_files::selected(file, selected_launch)),
+        )
+        .route(
+            "/api/v1/review/media",
+            post(move |Json(media)| review_files::media(media, media_launch)),
         )
         .route(
             "/api/v1/review/discussion",

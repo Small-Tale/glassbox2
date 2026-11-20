@@ -9,6 +9,7 @@ import { GitCompareArrows } from 'lucide';
 
 import { AnalysisContext, AnalysisControls, wireAnalysisControls } from '../components/analysis/analysis-controls.js';
 import { createAnalysisState } from '../components/analysis/analysis-state.js';
+import { createMediaDiffState, MediaDiff, MediaDiffToolbar, wireMediaDiff } from '../components/diff/media-diff.js';
 import { selectedDiff } from '../components/diff/selected-diff.js';
 import { createTextDiffState, TextDiff, TextDiffToolbar, wireTextDiffToolbar } from '../components/diff/text-diff.js';
 import {
@@ -41,6 +42,17 @@ const workbench = createReviewWorkbenchState();
 const source = createReviewSourceState();
 const textDiff = createTextDiffState();
 const diff = selectedDiff(source);
+const mediaDiff = createMediaDiffState();
+const mediaId = 'glassbox-media-diff';
+void effect(() => {
+  const result = diff.result.value;
+  if (result?.kind === 'loading') {
+    mediaDiff.mode.value = 'split';
+    mediaDiff.zoom.value = 100;
+    mediaDiff.slice.value = 50;
+    mediaDiff.drawing.value = false;
+  }
+});
 const discussion = createDiscussionState(source);
 const analysis = createAnalysisState(() => {
   void discussion.refreshCurrent();
@@ -84,6 +96,7 @@ mount(root, () => {
       : [];
   const threadMap = new Map<string, typeof threads>();
   for (const thread of threads) {
+    if (thread.anchor.target.kind !== 'line') continue;
     const key = `${thread.anchor.side}:${thread.anchor.target.start}`;
     const existing = threadMap.get(key);
     if (existing === undefined) threadMap.set(key, [thread]);
@@ -124,9 +137,18 @@ mount(root, () => {
           </>
         );
         break;
-      case 'media':
-        comparison = <EmptyState title="Media Comparison" />;
+      case 'media': {
+        const regions = discussion.threads.value.flatMap(({ anchor, id }) =>
+          anchor.target.kind === 'image_region' &&
+          anchor.path === file.path &&
+          anchor.revision === result[anchor.side]?.revision
+            ? [{ side: anchor.side, target: anchor.target, id }]
+            : [],
+        );
+        comparison = <MediaDiff id={mediaId} images={result} state={mediaDiff} regions={regions} />;
+        comparisonToolbar = <MediaDiffToolbar id={mediaId} images={result} state={mediaDiff} />;
         break;
+      }
       case 'unavailable_lfs':
         comparison = (
           <EmptyState
@@ -161,7 +183,9 @@ mount(root, () => {
             : discussion.activeThread()?.origin.kind === 'ai'
               ? 'AI Review Note'
               : discussion.activeThread()
-                ? 'Line Comment'
+                ? discussion.activeThread()?.anchor.target.kind === 'image_region'
+                  ? 'Region Comment'
+                  : 'Line Comment'
                 : 'Inspector'
         }
         navigator={<ReviewNavigator id="glassbox-review-navigator" state={source} />}
@@ -183,6 +207,9 @@ mount(root, () => {
             state={discussion}
             path={file?.path}
             revision={result?.kind === 'text' ? result.revision : undefined}
+            mediaRevisions={
+              result?.kind === 'media' ? { before: result.before?.revision, after: result.after?.revision } : undefined
+            }
           />
         }
       />
@@ -194,6 +221,16 @@ mount(root, () => {
 void wireReviewWorkbench(root, 'glassbox-workbench', workbench);
 void wireReviewNavigator(root, 'glassbox-review-navigator', source);
 void wireTextDiffToolbar(root, diffToolbarId, textDiff);
+void wireMediaDiff(root, mediaId, mediaDiff, (side, target) => {
+  const index = source.selected.value;
+  const file = index === undefined ? undefined : source.review.value?.files[index];
+  const content = diff.result.value;
+  if (file === undefined || content?.kind !== 'media') return;
+  const revision = content[side]?.revision;
+  if (revision === undefined) return;
+  void discussion.showAdd({ path: file.path, side, revision, target });
+  workbench.inspector.collapsed.value = false;
+});
 void wireAnalysisControls(root, analysisId, analysis, selectedAnalysis);
 void wireAppearanceMenu(root, appearanceId, appearance);
 void wireStorageDialog(root, storageId, storage);

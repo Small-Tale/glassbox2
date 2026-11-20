@@ -30,6 +30,79 @@ async fn post(host: &LocalHost, endpoint: &str, input: Value) -> (String, Value)
 }
 
 #[tokio::test]
+async fn serves_only_the_selected_media_revision() -> io::Result<()> {
+    let scratch = tempfile::tempdir()?;
+    let before = scratch.path().join("before.svg");
+    let after = scratch.path().join("after.svg");
+    let old_svg = r#"<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>"#;
+    let new_svg = r#"<svg xmlns="http://www.w3.org/2000/svg" width="2" height="2"/>"#;
+    fs::write(&before, old_svg)?;
+    fs::write(&after, new_svg)?;
+    let host = LocalHost::start(None).await?;
+    let mut selection = json!({
+        "source": {"kind": "paths", "before": before, "after": after},
+        "index": 0,
+        "path": "after.svg",
+    });
+    let (status, file) = post(&host, "file", selection.clone()).await;
+    assert_eq!(status, "HTTP/1.1 200 OK");
+    assert_eq!(file["kind"], "media");
+    assert_eq!(file["after"]["content_type"], "image/svg+xml");
+    assert_eq!(file["after"]["size"], new_svg.len());
+
+    let mut comment = json!({
+        "selection": selection,
+        "operation": {
+            "kind": "create",
+            "anchor": {
+                "path": "after.svg", "side": "after", "revision": file["before"]["revision"],
+                "target": {"kind": "image_region", "left": 0.25, "top": 0.25, "width": 0.5, "height": 0.5}
+            },
+            "category": "note", "author": "Reviewer", "markdown": "Check this region."
+        }
+    });
+    assert_eq!(
+        post(&host, "discussion", comment.clone()).await.0,
+        "HTTP/1.1 409 Conflict"
+    );
+    comment["operation"]["anchor"]["revision"] = file["after"]["revision"].clone();
+    let (status, discussion) = post(&host, "discussion", comment).await;
+    assert_eq!(status, "HTTP/1.1 200 OK");
+    assert_eq!(
+        discussion["threads"][0]["anchor"]["target"]["kind"],
+        "image_region"
+    );
+
+    selection["side"] = json!("before");
+    selection["revision"] = file["before"]["revision"].clone();
+    assert_eq!(
+        post(&host, "media", selection.clone()).await,
+        ("HTTP/1.1 200 OK".into(), json!(old_svg))
+    );
+    selection["side"] = json!("after");
+    assert_eq!(
+        post(&host, "media", selection.clone()).await.0,
+        "HTTP/1.1 404 Not Found"
+    );
+    selection["revision"] = file["after"]["revision"].clone();
+    assert_eq!(
+        post(&host, "media", selection.clone()).await,
+        ("HTTP/1.1 200 OK".into(), json!(new_svg))
+    );
+    fs::write(after, old_svg)?;
+    assert_ne!(
+        post(&host, "media", selection.clone()).await.0,
+        "HTTP/1.1 200 OK"
+    );
+    selection["path"] = json!("different.svg");
+    assert_eq!(
+        post(&host, "media", selection).await.0,
+        "HTTP/1.1 400 Bad Request"
+    );
+    Ok(())
+}
+
+#[tokio::test]
 async fn reads_git_path_and_difftool_sources_through_the_real_host() -> io::Result<()> {
     let scratch = tempfile::tempdir()?;
     let repo = scratch.path().join("repository");

@@ -101,6 +101,37 @@
       "documentation": "docs/ui-conventions.md"
     },
     {
+      "id": "media-diff",
+      "name": "Media Comparison",
+      "kind": "composition",
+      "purpose": "Inspect changed image revisions and select side-specific feedback regions.",
+      "useWhen": [
+        "Review raster and SVG revisions."
+      ],
+      "avoidWhen": [
+        "Compare plain text or unsupported binary content."
+      ],
+      "publicClasses": [
+        "media-diff"
+      ],
+      "publicTokens": [],
+      "uses": [
+        "toolbar-control-group",
+        "lucide-icon"
+      ],
+      "source": "src/components/diff/media-diff.tsx",
+      "styleSources": [
+        "src/components/diff/media-diff.css"
+      ],
+      "demoSource": "src/ux-demo/demos/diff/media-diff.tsx",
+      "geometry": {
+        "margin": "none",
+        "border": "none",
+        "padding": "none"
+      },
+      "documentation": "docs/ui-conventions.md"
+    },
+    {
       "id": "review-discussion",
       "name": "Review Discussion",
       "kind": "composition",

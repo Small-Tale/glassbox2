@@ -14,9 +14,12 @@ export type TextHunk = {
   lines: DiffLine[];
 };
 
+export type MediaMetadata = { content_type: string; size: number; revision: string };
+export type MediaSides<T> = { before: T | null; after: T | null };
+
 export type FileContent =
   | { kind: 'text'; revision: string; hunks: TextHunk[] }
-  | { kind: 'media' }
+  | ({ kind: 'media' } & MediaSides<MediaMetadata>)
   | { kind: 'unavailable_lfs' }
   | { kind: 'binary' };
 

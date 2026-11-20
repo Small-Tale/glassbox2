@@ -262,6 +262,96 @@
       }
     },
     {
+      "key": "glassbox2:media-diff",
+      "package": "glassbox2",
+      "id": "media-diff",
+      "name": "Media Comparison",
+      "kind": "composition",
+      "purpose": "Inspect changed image revisions and select side-specific feedback regions.",
+      "publicExports": [
+        {
+          "name": "MediaDiff"
+        },
+        {
+          "name": "MediaDiffToolbar"
+        },
+        {
+          "name": "createMediaDiffState"
+        },
+        {
+          "name": "wireMediaDiff"
+        }
+      ],
+      "sourceLinks": [
+        "src/components/diff/media-diff.tsx"
+      ],
+      "source": "src/components/diff/media-diff.tsx",
+      "parents": {
+        "mode": "any",
+        "entries": []
+      },
+      "contexts": [
+        "application-ui"
+      ],
+      "zones": [],
+      "children": {
+        "mode": "any",
+        "concepts": [],
+        "requiredConcepts": []
+      },
+      "state": [],
+      "wiring": {
+        "required": true,
+        "helpers": [
+          "wireMediaDiff"
+        ],
+        "sources": [
+          {
+            "export": "wireMediaDiff",
+            "source": "src/components/diff/media-diff.tsx",
+            "returnsDisposer": true
+          }
+        ],
+        "obligations": [
+          "Wire image comparison modes, zoom, slicing and region selection."
+        ]
+      },
+      "responsive": {
+        "owner": "component",
+        "behaviors": [
+          "stack-narrow-images",
+          "scroll-zoomed-content"
+        ]
+      },
+      "layout": {
+        "roles": [
+          "content"
+        ],
+        "geometry": {
+          "margin": "none",
+          "border": "none",
+          "padding": "none"
+        }
+      },
+      "accessibility": {
+        "obligations": [
+          "Name each icon action and announce its pressed state. Identify both image sides and saved region comments."
+        ]
+      },
+      "boundaries": {
+        "rootClass": "media-diff",
+        "publicClasses": [
+          "media-diff"
+        ],
+        "publicTokens": []
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/diff/media-diff.tsx",
+        "composition": "src/components/diff/media-diff.tsx"
+      }
+    },
+    {
       "key": "glassbox2:review-discussion",
       "package": "glassbox2",
       "id": "review-discussion",

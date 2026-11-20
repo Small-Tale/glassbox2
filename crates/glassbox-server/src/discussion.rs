@@ -277,27 +277,40 @@ fn edit(
             author,
             markdown,
         } => {
-            let hunks = comparison.text_hunks(index).map_err(bad_request)?;
-            let revision = review_files::text_revision(&hunks).map_err(storage_error)?;
-            let anchor_line = match anchor.target {
-                AnchorTarget::Line { start, end } if start == end => Some(start),
-                _ => None,
-            };
-            let has_line = anchor_line.is_some_and(|target| {
-                hunks.iter().flat_map(|hunk| &hunk.lines).any(|line| {
-                    let number = match anchor.side {
-                        AnchorSide::Before => line.before_line,
-                        AnchorSide::After => line.after_line,
-                    };
-                    number == Some(target)
-                })
-            });
-            if anchor.path != path || anchor.is_stale(Some(&revision)) || !has_line {
-                return Err((
-                    StatusCode::CONFLICT,
-                    "The selected line has changed. Reopen the file before adding a comment."
-                        .into(),
-                ));
+            if matches!(anchor.target, AnchorTarget::ImageRegion { .. }) {
+                let revision = comparison
+                    .media_revision(index, anchor.side)
+                    .map_err(bad_request)?;
+                if anchor.path != path || anchor.is_stale(revision.as_deref()) {
+                    return Err((
+                        StatusCode::CONFLICT,
+                        "The selected image has changed. Reopen the file before adding a comment."
+                            .into(),
+                    ));
+                }
+            } else {
+                let hunks = comparison.text_hunks(index).map_err(bad_request)?;
+                let revision = review_files::text_revision(&hunks).map_err(storage_error)?;
+                let anchor_line = match anchor.target {
+                    AnchorTarget::Line { start, end } if start == end => Some(start),
+                    _ => None,
+                };
+                let has_line = anchor_line.is_some_and(|target| {
+                    hunks.iter().flat_map(|hunk| &hunk.lines).any(|line| {
+                        let number = match anchor.side {
+                            AnchorSide::Before => line.before_line,
+                            AnchorSide::After => line.after_line,
+                        };
+                        number == Some(target)
+                    })
+                });
+                if anchor.path != path || anchor.is_stale(Some(&revision)) || !has_line {
+                    return Err((
+                        StatusCode::CONFLICT,
+                        "The selected line has changed. Reopen the file before adding a comment."
+                            .into(),
+                    ));
+                }
             }
             next.add(
                 anchor,

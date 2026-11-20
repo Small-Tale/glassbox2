@@ -5,6 +5,7 @@ import upstreamReferences from 'virtual:glassbox-kerf-references';
 
 import metadata from '../../component-catalog.json';
 import { AnalysisControlsDemo } from './demos/analysis/analysis-controls.js';
+import { MediaDiffDemo } from './demos/diff/media-diff.js';
 import { TextDiffDemo } from './demos/diff/text-diff.js';
 import { DiscussionDemo } from './demos/discussion/discussion.js';
 import { ExportDialogDemo } from './demos/handoff/export-dialog.js';
@@ -19,6 +20,7 @@ export const componentDemos = {
   'source-context': SourceContextDemo,
   'appearance-menu': AppearanceMenuDemo,
   'text-diff': TextDiffDemo,
+  'media-diff': MediaDiffDemo,
   'analysis-controls': AnalysisControlsDemo,
   'review-discussion': DiscussionDemo,
   'share-menu': ShareMenuDemo,
