@@ -23,6 +23,7 @@ async function seedReview(scratch) {
   await mkdir(repo);
   const [file, image] = ['bundle.ts', 'mark.svg'].map((name) => join(repo, name));
   const diagram = join(repo, 'flow.dot');
+  const long = join(repo, 'long.txt');
   const git = (...args) =>
     execFileSync('git', ['-c', 'commit.gpgsign=false', '-c', 'core.autocrlf=false', ...args], {
       cwd: repo,
@@ -32,11 +33,13 @@ async function seedReview(scratch) {
   await writeFile(file, 'export const revision = 1;\n');
   await writeFile(image, svg('#506b91'));
   await writeFile(diagram, 'digraph { a -> b }\n');
+  await writeFile(long, Array.from({ length: 100 }, (_, index) => `old ${index}\n`).join(''));
   git('add', '.');
   git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'initial');
   await writeFile(file, 'export const revision = 2;\n');
   await writeFile(image, svg('#3b7c68'));
   await writeFile(diagram, 'digraph { a -> c }\n');
+  await writeFile(long, Array.from({ length: 100 }, (_, index) => `new ${index}\n`).join(''));
   const before = join(scratch, 'before.txt');
   const after = join(scratch, 'after.txt');
   await writeFile(before, 'before\n');
@@ -223,3 +226,54 @@ test('diagram source toggle keeps adjacent review modes unchanged', { timeout: 6
     { renderer: true },
   );
 });
+
+test(
+  'changed-file history restores scroll and discards forward visits when branching',
+  { timeout: 60_000 },
+  async () => {
+    await withWorkbench(async (page, url, paths) => {
+      const button = (name) => page.getByRole('button', { name, exact: true });
+      const select = (name) => page.getByRole('treeitem', { name }).click();
+      const paneSelector = '[data-workbench-main][aria-label="Comparison"] .text-diff';
+      const scroller = page.locator(paneSelector);
+      const longContent = page.locator('.text-diff').getByText('new 0', { exact: true });
+      await page.goto(url);
+      await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(paths.repo);
+      await button('Open Comparison').click();
+      await select(/long\.txt/);
+      await longContent.waitFor();
+      assert(await button('Previous File Visit').isDisabled());
+      const previousTop = await scroller.evaluate(async (element) => {
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        element.scrollTo({ top: 420, behavior: 'instant' });
+        return element.scrollTop;
+      });
+      assert(previousTop > 300, `The comparison should scroll. Actual offset ${previousTop}`);
+      await select(/bundle\.ts/);
+      await page.getByRole('heading', { name: 'bundle.ts', exact: true }).waitFor();
+      await button('Previous File Visit').click();
+      await longContent.waitFor();
+      await page.waitForFunction(({ selector, top }) => document.querySelector(selector)?.scrollTop === top, {
+        selector: paneSelector,
+        top: previousTop,
+      });
+      await page.keyboard.press('Alt+ArrowRight');
+      await page.getByRole('heading', { name: 'bundle.ts', exact: true }).waitFor();
+      await page.keyboard.press('Alt+ArrowLeft');
+      await longContent.waitFor();
+      await select(/flow\.dot/);
+      assert(await button('Next File Visit').isDisabled());
+      await button('Inline').waitFor();
+      for (const width of [1440, 940, 390, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        await button('Previous File Visit').waitFor();
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
+        await capture(page, `history-${width}`);
+      }
+      await button('Change Source').click();
+      await button('Open Comparison').click();
+      await page.getByRole('heading', { name: 'Review', exact: true }).waitFor();
+      assert(await button('Previous File Visit').isDisabled());
+    });
+  },
+);

@@ -6,7 +6,7 @@ import { EmptyState } from '@kerfjs/ui/empty-state';
 import { LucideIcon } from '@kerfjs/ui/lucide-icon';
 import { ToolbarButton, ToolbarControlGroup } from '@kerfjs/ui/toolbar-control-group';
 import { effect, mount } from 'kerfjs';
-import { Code, GitCompareArrows, Workflow } from 'lucide';
+import { ChevronLeft, ChevronRight, Code, GitCompareArrows, Workflow } from 'lucide';
 
 import { AnalysisContext, AnalysisControls, wireAnalysisControls } from '../components/analysis/analysis-controls.js';
 import { createAnalysisState } from '../components/analysis/analysis-state.js';
@@ -24,6 +24,7 @@ import { ExportDialog, wireExportDialog } from '../components/handoff/export-dia
 import { createExportState } from '../components/handoff/export-state.js';
 import { createHandoffState } from '../components/handoff/handoff-state.js';
 import { ShareMenu, ShareStatus, wireShareMenu } from '../components/handoff/share-menu.js';
+import { createReviewHistory, wireReviewHistory } from '../components/review/review-history.js';
 import { ReviewNavigator, wireReviewNavigator } from '../components/review/review-navigator.js';
 import { createReviewSourceState } from '../components/review/review-source.js';
 import {
@@ -41,6 +42,7 @@ if (!root) throw new Error('Missing #app root.');
 
 const workbench = createReviewWorkbenchState();
 const source = createReviewSourceState();
+const history = createReviewHistory();
 const textDiff = createTextDiffState();
 const diff = selectedDiff(source);
 const mediaDiff = createMediaDiffState();
@@ -233,6 +235,26 @@ mount(root, () => {
         navigator={<ReviewNavigator id="glassbox-review-navigator" state={source} />}
         comparison={comparison}
         comparisonToolbar={comparisonToolbar}
+        comparisonNavigation={
+          review === null ? undefined : (
+            <ToolbarControlGroup label="Review History" content="icon">
+              <ToolbarButton
+                action="review-history-back"
+                disabled={!history.canMove(-1)}
+                ariaLabel="Previous File Visit"
+                title="Previous File Visit"
+                icon={<LucideIcon icon={ChevronLeft} name="chevron-left" />}
+              />
+              <ToolbarButton
+                action="review-history-forward"
+                disabled={!history.canMove(1)}
+                ariaLabel="Next File Visit"
+                title="Next File Visit"
+                icon={<LucideIcon icon={ChevronRight} name="chevron-right" />}
+              />
+            </ToolbarControlGroup>
+          )
+        }
         comparisonHeader={
           selected === undefined ? undefined : <AnalysisContext id={analysisId} state={analysis} selection={selected} />
         }
@@ -262,6 +284,16 @@ mount(root, () => {
 });
 void wireReviewWorkbench(root, 'glassbox-workbench', workbench);
 void wireReviewNavigator(root, 'glassbox-review-navigator', source);
+void wireReviewHistory(
+  root,
+  source,
+  history,
+  () => {
+    const content = diff.result.value;
+    return content !== null && content.kind !== 'loading';
+  },
+  discussion.saveEdit,
+);
 void wireTextDiffToolbar(root, diffToolbarId, textDiff);
 root.addEventListener('click', (event) => {
   if (event.target instanceof Element && event.target.closest('button[data-action="toggle-diagram"]') !== null) {

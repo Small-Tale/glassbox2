@@ -65,3 +65,12 @@ entry’s after side, falling back to the before side for deletions. The host
 reports when a comparison path has no live file for a desktop action. Git
 difftool inputs represent comparison snapshots, so that mode offers the
 display path only.
+
+## File navigation history
+
+The comparison toolbar offers Previous File Visit and Next File Visit.
+Use Command-`[` or Command-`]` on macOS, or Alt-Left and Alt-Right
+on Windows and Linux. Each visit remembers its vertical comparison
+scroll and horizontal text scroll. Visiting another file after moving
+back clears forward visits. Opening a comparison starts a new history
+(`HS2-2275EE`).
