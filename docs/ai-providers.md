@@ -97,5 +97,4 @@ reviewer replies. A changed comparison invalidates an in-flight result.
 Analysis passes only bounded text diff inputs to the selected provider.
 Results identify omitted media, oversized changes, and files beyond the
 job limit. The host reads the comparison again before publishing to catch
-working-tree changes while inference was running. Latency and reuse are
-tracked in `HS2-JZ6M27`.
+working-tree changes while inference was running. See the [latency baseline and reuse decision](benchmarks/2026-11-19-analysis-reuse.md).
