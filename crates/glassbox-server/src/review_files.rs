@@ -165,6 +165,20 @@ pub(crate) fn text_revision(hunks: &[TextHunk]) -> io::Result<String> {
 }
 
 impl Comparison {
+    pub(crate) fn analysis_inputs(&self) -> impl Iterator<Item = (usize, String)> + '_ {
+        (0..self.entries.len())
+            .filter_map(|index| self.entries.metadata(index).map(|file| (index, file.path)))
+    }
+
+    pub(crate) fn analysis_text(&self, index: usize) -> io::Result<Option<Vec<TextHunk>>> {
+        match self.entries.content(index)? {
+            ComparisonData::Text(hunks) if !hunks.is_empty() => Ok(Some(hunks)),
+            _ => Ok(None),
+        }
+    }
+}
+
+impl Comparison {
     pub(crate) fn text_hunks(&self, index: usize) -> io::Result<Vec<TextHunk>> {
         match self.entries.content(index)? {
             ComparisonData::Text(hunks) => Ok(hunks),

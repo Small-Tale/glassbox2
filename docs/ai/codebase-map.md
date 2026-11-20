@@ -4,7 +4,7 @@
 - `crates/glassbox-feedback` publishes the durable Markdown handoff, its attachments, Hot Sheet delivery, and feedback storage operations.
 - `crates/glassbox-model` owns client-neutral types, the readiness wire shape, and the versioned feedback model under `src/feedback`.
 - `crates/glassbox-ai` owns [provider discovery and the subprocess protocol](../ai-providers.md), plus the local HTTP adapter. The Apple adapter lives in `plugins/ai/apple-foundation`.
-- `crates/glassbox-server` owns the shared loopback HTTP host, frontend hosting, review source endpoints, and real-process tests.
+- `crates/glassbox-server` owns the shared loopback HTTP host, frontend hosting, review source endpoints, optional analysis job lifecycle, and real-process tests.
 - `clients/web/src-tauri` owns the native window and embedded host lifecycle.
 - `crates/glassbox-settings` owns versioned per-user JSON settings and atomic file replacement.
 - `crates/glassbox-comparison` owns Git and direct path comparisons, selected-file text/media data, and real-repository and filesystem fixtures.

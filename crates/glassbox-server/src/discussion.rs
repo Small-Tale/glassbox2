@@ -10,9 +10,10 @@ use glassbox_feedback::{
     BundleContext, BundleStore, ExportRequest, FeedbackBundle, HotSheetClient, PreparedExport,
 };
 use glassbox_model::DifftoolInput;
+use glassbox_model::analysis::{AnalysisResult, FileAnalysis};
 use glassbox_model::feedback::{
     AnchorSide, AnchorTarget, FeedbackChange, FeedbackId, FeedbackMessage, MessageTarget,
-    ReviewAnchor, ReviewFeedback, ReviewerCategory, ThreadOrigin,
+    ReviewAnchor, ReviewFeedback, ReviewerCategory, RiskLevel, ThreadOrigin,
 };
 use serde::{Deserialize, Serialize};
 
@@ -144,6 +145,77 @@ impl Discussion {
             attachments,
             paths: paths.into_iter().collect(),
         })
+    }
+
+    pub(crate) fn publish_analysis(
+        &self,
+        source: &ReviewSource,
+        difftool: Option<DifftoolInput>,
+        result: &AnalysisResult,
+    ) -> Result<(), ApiError> {
+        let key = serde_json::to_string(source).map_err(bad_request)?;
+        let mut reviews = self.0.lock().map_err(storage_error)?;
+        let mut next = reviews
+            .get(&key)
+            .map(|item| item.saved.clone())
+            .unwrap_or_default();
+        let mut changed = false;
+        for file in &result.files {
+            let (tag, risk, observations) = match &file.analysis {
+                FileAnalysis::Risk {
+                    aggregate,
+                    observations,
+                    ..
+                } => {
+                    let risk = if *aggregate >= 0.7 {
+                        RiskLevel::High
+                    } else if *aggregate >= 0.35 {
+                        RiskLevel::Medium
+                    } else {
+                        RiskLevel::Low
+                    };
+                    ("Risk Analysis", Some(risk), observations)
+                }
+                FileAnalysis::Guidance { steps, .. } => ("Code Guidance", None, steps),
+            };
+            for observation in observations {
+                let anchor = ReviewAnchor {
+                    path: file.path.clone(),
+                    side: observation.side,
+                    revision: file.revision.clone(),
+                    target: AnchorTarget::Line {
+                        start: observation.line,
+                        end: observation.line,
+                    },
+                };
+                let origin = ThreadOrigin::Ai {
+                    tags: vec![tag.into()],
+                    risk,
+                };
+                if next.threads().iter().any(|thread| {
+                    thread.anchor == anchor
+                        && thread.origin == origin
+                        && thread.opening.markdown == observation.text
+                }) {
+                    continue;
+                }
+                next.add(anchor, origin, "AI note".into(), observation.text.clone())
+                    .map_err(bad_request)?;
+                changed = true;
+            }
+        }
+        if changed {
+            if let Some(review) = reviews.get_mut(&key) {
+                review.bundle.publish(&next).map_err(storage_error)?;
+                review.saved = next;
+            } else {
+                let comparison =
+                    review_files::load(source.clone(), difftool.clone()).map_err(bad_request)?;
+                let context = comparison.bundle_context(source, difftool.as_ref());
+                reviews.insert(key, start_review(context, next)?);
+            }
+        }
+        Ok(())
     }
 
     pub(crate) fn prepare_export(

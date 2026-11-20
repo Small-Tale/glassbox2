@@ -7,6 +7,7 @@ rust-version.workspace = true
 [dependencies]
 axum.workspace = true
 base64 = "0.22"
+glassbox-ai = { path = "../glassbox-ai", default-features = false }
 glassbox-comparison = { path = "../glassbox-comparison" }
 glassbox-feedback = { path = "../glassbox-feedback" }
 glassbox-model.workspace = true

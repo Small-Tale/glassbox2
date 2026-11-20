@@ -25,6 +25,7 @@ impl ServiceHealth {
     }
 }
 
+pub mod analysis;
 mod comparison;
 mod content;
 mod difftool;

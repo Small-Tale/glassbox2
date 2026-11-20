@@ -3,8 +3,7 @@
 Glassbox uses a shared Rust provider registry and a versioned subprocess
 protocol. This follows the manifest and behavioral plugin boundary in Hot
 Sheet 2’s AI-tool plugin design. The protocol is available to the local host
-and headless callers. Analysis and provider selection in the workbench are
-tracked in `HS2-05B1PZ`.
+and headless callers. [Optional analysis](#optional-review-analysis) uses that contract for risk, reading order, and guided review. The workbench controls are tracked in `HS2-487RGX`.
 
 ## First-release coverage
 
@@ -62,3 +61,36 @@ swiftc -parse-as-library -target arm64-apple-macosx26.0 \
 GLASSBOX_AI_SMOKE_EXECUTABLE=/tmp/glassbox-provider-apple \
   cargo test --locked -p glassbox-ai real_provider_smoke -- --ignored
 ```
+
+
+## Optional review analysis
+
+Set `GLASSBOX_AI_PROVIDER_DIRECTORY` to the provider manifest directory and
+`GLASSBOX_AI_PROVIDER` to the ID of a trusted provider before starting the
+shared host. The host never chooses or runs a provider by discovery alone.
+`GLASSBOX_AI_MODEL` can select a specific advertised model. If omitted, the
+first advertised model is used. An optional `GLASSBOX_AI_PROVIDER_SETTINGS`
+JSON object supplies adapter options. For example, a local HTTP adapter can
+use `{"address":"127.0.0.1:1234"}`.
+
+Send the active comparison source and `mode` (`risk`, `narrative`, or
+`guidance`) to `POST /api/v1/review/analysis`. The response identifies the
+analysis job. `GET /api/v1/review/analysis/{id}` reports progress and results,
+and DELETE on the same path cancels an active job. The job distinguishes
+unavailable providers, invalid responses, cancellation, and a comparison
+changed during generation.
+
+Risk scores cover security, correctness, error handling, maintainability,
+architecture, and performance. The aggregate is the highest dimension.
+Guidance returns a file overview and line-specific teaching steps.
+Narrative analysis gives the reviewer an ordered file list with a rationale
+for each step. Anchored notes cite only a valid line and side in the
+analyzed diff. Relevant observations and teaching steps appear as AI
+discussion notes and publish into the feedback bundle without removing
+reviewer replies. A changed comparison invalidates an in-flight result.
+
+Analysis passes only bounded text diff inputs to the selected provider.
+Results identify omitted media, oversized changes, and files beyond the
+job limit. The host reads the comparison again before publishing to catch
+working-tree changes while inference was running. Latency and reuse are
+tracked in `HS2-JZ6M27`.

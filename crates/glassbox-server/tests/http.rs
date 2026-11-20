@@ -31,7 +31,24 @@ impl RunningServer {
         args: &[&OsStr],
         settings_directory: Option<&Path>,
     ) -> (Self, SocketAddr) {
+        Self::start_in_environment(assets, args, settings_directory, &[])
+    }
+
+    fn start_in_environment(
+        assets: Option<&Path>,
+        args: &[&OsStr],
+        settings_directory: Option<&Path>,
+        environment: &[(&str, &OsStr)],
+    ) -> (Self, SocketAddr) {
         let mut command = Command::new(env!("CARGO_BIN_EXE_glassbox-server"));
+        command
+            .env_remove("GLASSBOX_AI_PROVIDER_DIRECTORY")
+            .env_remove("GLASSBOX_AI_PROVIDER")
+            .env_remove("GLASSBOX_AI_MODEL")
+            .env_remove("GLASSBOX_AI_PROVIDER_SETTINGS");
+        for (key, value) in environment {
+            command.env(key, value);
+        }
         if let Some(path) = assets {
             command.arg("--assets").arg(path);
         }
@@ -421,4 +438,152 @@ fn export_sends_to_a_new_and_an_existing_ticket_without_replaying_delivery() {
     assert_eq!(written.matches("First delivery").count(), 1);
     assert_eq!(written.matches("Second delivery").count(), 1);
     assert!(written.contains("status: not_started"));
+}
+
+#[test]
+fn analysis_uses_provider_jobs_with_progress_results_cancellation_stale_and_unavailable_states() {
+    use serde_json::{Value, json};
+
+    let root = tempfile::tempdir().unwrap();
+    let registry = root.path().join("providers");
+    std::fs::create_dir(&registry).unwrap();
+    let program = root
+        .path()
+        .join(format!("fixture-provider{}", std::env::consts::EXE_SUFFIX));
+    let source_code =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/analysis_provider.rs");
+    let rustc = std::env::var_os("RUSTC").unwrap_or_else(|| "rustc".into());
+    let compile = Command::new(rustc)
+        .arg("--edition=2024")
+        .arg(source_code)
+        .arg("-o")
+        .arg(&program)
+        .output()
+        .unwrap();
+    assert!(
+        compile.status.success(),
+        "{}",
+        String::from_utf8_lossy(&compile.stderr)
+    );
+    let manifest = json!({"version":1,"id":"fixture","name":"Fixture","executable":program});
+    std::fs::write(registry.join("fixture.json"), manifest.to_string()).unwrap();
+
+    let before = root.path().join("before.txt");
+    let after = root.path().join("after.txt");
+    std::fs::write(&before, "before\n").unwrap();
+    std::fs::write(&after, "after\n").unwrap();
+    let source = json!({"kind":"paths","before":before,"after":after});
+    let (_host, address) = RunningServer::start_in_environment(
+        None,
+        &[],
+        Some(root.path()),
+        &[
+            ("GLASSBOX_AI_PROVIDER_DIRECTORY", registry.as_os_str()),
+            ("GLASSBOX_AI_PROVIDER", OsStr::new("fixture")),
+        ],
+    );
+    let (_disabled_host, disabled_address) =
+        RunningServer::start_configured(None, &[], Some(root.path()));
+    let call = |address: SocketAddr, method: &str, path: &str, input: Value| {
+        let body = if input.is_null() {
+            String::new()
+        } else {
+            input.to_string()
+        };
+        let response = exchange(
+            address,
+            method,
+            path,
+            &address.to_string(),
+            "Content-Type: application/json\r\n",
+            &body,
+        );
+        let (head, serialized) = response.split_once("\r\n\r\n").unwrap();
+        assert!(head.starts_with("HTTP/1.1 200"), "{response}");
+        serde_json::from_str::<Value>(serialized).unwrap()
+    };
+    let start = |address, mode| {
+        let accepted = call(
+            address,
+            "POST",
+            "/api/v1/review/analysis",
+            json!({"source":source,"mode":mode}),
+        );
+        assert_eq!(accepted["status"], "running");
+        format!("/api/v1/review/analysis/{}", accepted["id"])
+    };
+    let wait_for = |address, endpoint: &str, predicate: fn(&Value) -> bool| {
+        let deadline = std::time::Instant::now() + Duration::from_secs(8);
+        loop {
+            let state = call(address, "GET", endpoint, Value::Null);
+            if predicate(&state) {
+                break state;
+            }
+            assert!(std::time::Instant::now() < deadline, "{state}");
+            std::thread::sleep(Duration::from_millis(15));
+        }
+    };
+    let done = |state: &Value| state["status"] != "running";
+    let ready = |state: &Value| state["total"] == 1 || state["status"] != "running";
+
+    let risk = start(address, "risk");
+    let result = wait_for(address, &risk, done);
+    assert_eq!(result["status"], "complete", "{result}");
+    let file = &result["result"]["files"][0];
+    assert_eq!(file["path"], "after.txt");
+    assert!(
+        file["analysis"]["aggregate"]
+            .as_f64()
+            .is_some_and(|score| (score - 0.6).abs() < 0.0001)
+    );
+    assert_eq!(
+        file["analysis"]["observations"].as_array().unwrap().len(),
+        1
+    );
+    let discussion = call(
+        address,
+        "POST",
+        "/api/v1/review/discussion",
+        json!({"selection":{"source":source,"index":0,"path":"after.txt"}}),
+    );
+    assert_eq!(discussion["threads"][0]["origin"]["kind"], "ai");
+    assert_eq!(
+        discussion["threads"][0]["anchor"]["revision"],
+        file["revision"]
+    );
+
+    let guide = start(address, "guidance");
+    let result = wait_for(address, &guide, done);
+    assert_eq!(
+        result["result"]["files"][0]["analysis"]["steps"][0]["text"],
+        "Read the new value."
+    );
+    let narrative = start(address, "narrative");
+    let result = wait_for(address, &narrative, done);
+    assert_eq!(result["result"]["narrative"][0]["path"], "after.txt");
+
+    let cancelled = start(address, "guidance");
+    assert_eq!(wait_for(address, &cancelled, ready)["status"], "running");
+    assert_eq!(
+        call(address, "DELETE", &cancelled, Value::Null)["status"],
+        "cancelled"
+    );
+    let stale = start(address, "risk");
+    assert_eq!(wait_for(address, &stale, ready)["status"], "running");
+    std::fs::write(&after, "another revision\n").unwrap();
+    assert_eq!(wait_for(address, &stale, done)["status"], "stale");
+    assert_eq!(
+        call(address, "GET", &cancelled, Value::Null)["status"],
+        "cancelled"
+    );
+
+    std::fs::write(&after, "INVALID_FIXTURE\n").unwrap();
+    let malformed = start(address, "risk");
+    assert_eq!(wait_for(address, &malformed, done)["status"], "failed");
+
+    let unavailable = start(disabled_address, "risk");
+    assert_eq!(
+        wait_for(disabled_address, &unavailable, done)["status"],
+        "unavailable"
+    );
 }

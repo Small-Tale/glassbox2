@@ -4,7 +4,7 @@ use std::io;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::path::Path;
 
-use axum::extract::{DefaultBodyLimit, Request, State};
+use axum::extract::{DefaultBodyLimit, Path as RoutePath, Request, State};
 use axum::http::{StatusCode, header};
 use axum::middleware::{Next, from_fn_with_state};
 use axum::response::{IntoResponse, Response};
@@ -20,6 +20,7 @@ use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 use tower_http::services::ServeDir;
 
+mod analysis;
 mod discussion;
 mod export;
 mod review_files;
@@ -44,12 +45,13 @@ impl LocalHost {
         }
         let listener = TcpListener::bind(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0)).await?;
         let address = listener.local_addr()?;
-        let router = router(address, assets, difftool);
+        let (router, analysis) = router(address, assets, difftool);
         let (shutdown, closing) = oneshot::channel();
         let task = tokio::spawn(async move {
             axum::serve(listener, router)
-                .with_graceful_shutdown(async {
+                .with_graceful_shutdown(async move {
                     let _ = closing.await;
+                    analysis.shutdown();
                 })
                 .await
         });
@@ -101,7 +103,11 @@ struct LocalOrigin {
     origin: String,
 }
 
-fn router(address: SocketAddr, assets: Option<&Path>, difftool: Option<DifftoolInput>) -> Router {
+fn router(
+    address: SocketAddr,
+    assets: Option<&Path>,
+    difftool: Option<DifftoolInput>,
+) -> (Router, analysis::Analysis) {
     let source_launch = difftool.clone();
     let selected_launch = difftool.clone();
     let discussion_launch = difftool.clone();
@@ -110,6 +116,10 @@ fn router(address: SocketAddr, assets: Option<&Path>, difftool: Option<DifftoolI
     let handoff = discussion.clone();
     let delivery = export::Delivery::new(discussion.clone(), difftool.clone());
     let preview_delivery = delivery.clone();
+    let analysis = analysis::Analysis::new(discussion.clone(), difftool.clone());
+    let analysis_start = analysis.clone();
+    let analysis_status = analysis.clone();
+    let analysis_cancel = analysis.clone();
     let mut router = Router::new()
         .route(
             "/api/v1/health",
@@ -142,6 +152,15 @@ fn router(address: SocketAddr, assets: Option<&Path>, difftool: Option<DifftoolI
             post(move |Json(input)| export::send(delivery, input)),
         )
         .route(
+            "/api/v1/review/analysis",
+            post(move |Json(input)| async move { analysis_start.start(input) }),
+        )
+        .route(
+            "/api/v1/review/analysis/{id}",
+            get(move |RoutePath(id)| async move { analysis_status.status(id, false) })
+                .delete(move |RoutePath(id)| async move { analysis_cancel.status(id, true) }),
+        )
+        .route(
             "/api/v1/review/file/action",
             post(move |Json(input)| review_files::file_action(input, None)),
         );
@@ -155,7 +174,10 @@ fn router(address: SocketAddr, assets: Option<&Path>, difftool: Option<DifftoolI
         host: address.to_string(),
         origin: format!("http://{address}"),
     };
-    router.layer(from_fn_with_state(local, guard_local_origin))
+    (
+        router.layer(from_fn_with_state(local, guard_local_origin)),
+        analysis,
+    )
 }
 
 async fn settings() -> Response {
