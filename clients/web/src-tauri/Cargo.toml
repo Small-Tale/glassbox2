@@ -12,3 +12,6 @@ tauri-build = "2"
 [dependencies]
 glassbox-server = { path = "../../../crates/glassbox-server" }
 tauri = "2"
+
+[dev-dependencies]
+serde_json = "1"
