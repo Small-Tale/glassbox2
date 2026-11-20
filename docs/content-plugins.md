@@ -42,3 +42,33 @@ Run the real-host regression with
 `cargo test --locked -p glassbox-server --test http renders_selected_diagrams_and_falls_back_for_attached_sources`.
 The test compiles a renderer fixture and exercises all three formats and the
 attachment fallback.
+
+## Local adapter
+
+Build the optional adapter with
+`cargo build --locked -p glassbox-render-local`. Point
+`GLASSBOX_CONTENT_RENDERER` at the resulting executable in `target/debug`
+(`.exe` on Windows). Set the absolute paths for the formats you use.
+
+| Format | Configuration |
+| --- | --- |
+| Graphviz | `GLASSBOX_GRAPHVIZ_EXECUTABLE` points to [Graphviz dot](https://graphviz.org/doc/info/command.html). |
+| Mermaid | `GLASSBOX_MERMAID_EXECUTABLE` points to [Mermaid CLI](https://github.com/mermaid-js/mermaid-cli). |
+| PlantUML | `GLASSBOX_JAVA_EXECUTABLE` points to Java and `GLASSBOX_PLANTUML_JAR` points to the jar. The adapter starts PlantUML in its [SANDBOX profile](https://plantuml.com/security). |
+
+The adapter runs each tool in a fresh temporary directory with a
+seven-second deadline. It uses a process group on Unix and a job object
+on Windows to clean up tools and their child processes on timeout.
+Missing tools, failed commands, and oversized outputs leave source
+available through the normal fallback. Configure tools from installations
+you trust. Tool binaries and distribution are tracked separately from
+the Glassbox adapter.
+
+`cargo test --locked -p glassbox-render-local` exercises dispatch, bounds,
+and failure handling. With the four tool paths configured, run
+`cargo test --locked -p glassbox-render-local renders_real_tools -- --ignored`
+to smoke test the installed engines.
+
+The **Local diagram tools** workflow runs that smoke test on macOS, Linux,
+and Windows with installed engines. The regular CI runs the adapter
+fixtures on all three platforms.

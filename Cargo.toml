@@ -6,6 +6,7 @@ members = [
     "crates/glassbox-comparison",
     "crates/glassbox-feedback",
     "crates/glassbox-model",
+    "crates/glassbox-render-local",
     "crates/glassbox-server",
     "crates/glassbox-settings",
 ]

@@ -85,10 +85,15 @@ impl Renderer {
             source,
         })
         .ok()?;
-        let reply = tokio::time::timeout(RENDER_TIMEOUT, self.exchange(&request))
-            .await
-            .ok()?
-            .ok()?;
+        let renderer = self.clone();
+        // The adapter owns its child tree and needs time to reap it when the client leaves.
+        let reply = tokio::spawn(async move {
+            tokio::time::timeout(RENDER_TIMEOUT, renderer.exchange(&request)).await
+        })
+        .await
+        .ok()?
+        .ok()?
+        .ok()?;
         match (reply.version, reply.outcome) {
             (PROTOCOL_VERSION, Outcome::Rendered { svg }) if svg.contains("<svg") => Some(svg),
             _ => None,
