@@ -40,8 +40,13 @@ jobs:
           tools="$temporary_directory/glassbox-renderers"
           mkdir -p "$tools"
           npm install --prefix "$tools" --no-audit --no-fund @mermaid-js/mermaid-cli@11.12.0 playwright@1.65.1
+          if [[ "$RUNNER_OS" != Windows ]]; then
+            export PLAYWRIGHT_BROWSERS_PATH="$tools/browsers"
+          fi
           if [[ "$RUNNER_OS" == Linux ]]; then
-            node "$tools/node_modules/playwright/cli.js" install --with-deps chromium
+            node "$tools/node_modules/playwright/cli.js" install --with-deps --only-shell chromium
+          elif [[ "$RUNNER_OS" == macOS ]]; then
+            node "$tools/node_modules/playwright/cli.js" install --only-shell chromium
           else
             node "$tools/node_modules/playwright/cli.js" install chromium
           fi
@@ -64,9 +69,33 @@ jobs:
           else
             graphviz="$(command -v dot)"
           fi
+          mermaid="$tools/node_modules/.bin/mmdc$mermaid_suffix"
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            # This profile applies only to the fixed diagram fixtures on the hosted runner.
+            printf '%s\n' '{"args":["--no-sandbox"]}' > "$tools/puppeteer-smoke.json"
+            cat > "$tools/mmdc-smoke" <<'SH'
+          #!/usr/bin/env bash
+          tools="$(dirname "$0")"
+          exec "$tools/node_modules/.bin/mmdc" "$@" -p "$tools/puppeteer-smoke.json"
+          SH
+            chmod +x "$tools/mmdc-smoke"
+            mermaid="$tools/mmdc-smoke"
+          fi
           export GLASSBOX_GRAPHVIZ_EXECUTABLE="$(native_path "$graphviz")"
-          export GLASSBOX_MERMAID_EXECUTABLE="$(native_path "$tools/node_modules/.bin/mmdc$mermaid_suffix")"
+          export GLASSBOX_MERMAID_EXECUTABLE="$(native_path "$mermaid")"
           export GLASSBOX_JAVA_EXECUTABLE="$(native_path "$JAVA_HOME/bin/java$executable_suffix")"
           export GLASSBOX_PLANTUML_JAR="$(native_path "$tools/plantuml.jar")"
-          export PUPPETEER_EXECUTABLE_PATH="$(node -p 'require(process.argv[1]).chromium.executablePath()' "$tools/node_modules/playwright")"
-          cargo +stable test --locked -p glassbox-render-local renders_real_tools --quiet -- --ignored
+          if [[ "$RUNNER_OS" == Windows ]]; then
+            browser="$(node -p 'require(process.argv[1]).chromium.executablePath()' "$tools/node_modules/playwright")"
+          else
+            browser="$(find "$PLAYWRIGHT_BROWSERS_PATH" -type f -name chrome-headless-shell -print -quit)"
+            test -x "$browser"
+          fi
+          export PUPPETEER_EXECUTABLE_PATH="$browser"
+          if ! cargo +stable test --locked -p glassbox-render-local renders_real_tools --quiet -- --ignored; then
+            if [[ "$RUNNER_OS" != Windows ]]; then
+              printf 'flowchart TD\nA --> B\n' > "$tools/diagnostic.mmd"
+              "$mermaid" -i "$tools/diagnostic.mmd" -o "$tools/diagnostic.svg" || true
+            fi
+            exit 1
+          fi
