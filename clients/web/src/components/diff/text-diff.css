@@ -94,3 +94,19 @@
 .text-diff [data-token='number'] {
   color: var(--kui-color-warning-on-fill);
 }
+
+.text-diff__number {
+  position: relative;
+}
+
+.text-diff__number > button {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  opacity: 0;
+}
+
+.text-diff__cell:hover .text-diff__number > button,
+.text-diff__number > button:focus-visible {
+  opacity: 1;
+}

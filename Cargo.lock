@@ -287,11 +287,14 @@ name = "glassbox-server"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "base64",
  "glassbox-comparison",
+ "glassbox-feedback",
  "glassbox-model",
  "glassbox-settings",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
  "tokio",
  "tower-http",

@@ -4,7 +4,7 @@ use std::io;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::path::Path;
 
-use axum::extract::{Request, State};
+use axum::extract::{DefaultBodyLimit, Request, State};
 use axum::http::{StatusCode, header};
 use axum::middleware::{Next, from_fn_with_state};
 use axum::response::{IntoResponse, Response};
@@ -20,6 +20,7 @@ use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 use tower_http::services::ServeDir;
 
+mod discussion;
 mod review_files;
 
 pub struct LocalHost {
@@ -102,6 +103,8 @@ struct LocalOrigin {
 fn router(address: SocketAddr, assets: Option<&Path>, difftool: Option<DifftoolInput>) -> Router {
     let source_launch = difftool.clone();
     let selected_launch = difftool.clone();
+    let discussion_launch = difftool.clone();
+    let discussion = discussion::Discussion::default();
     let mut router = Router::new()
         .route(
             "/api/v1/health",
@@ -115,6 +118,11 @@ fn router(address: SocketAddr, assets: Option<&Path>, difftool: Option<DifftoolI
         .route(
             "/api/v1/review/file",
             post(move |Json(file)| review_files::selected(file, selected_launch)),
+        )
+        .route(
+            "/api/v1/review/discussion",
+            post(move |Json(input)| discussion::handle(discussion, input, discussion_launch))
+                .layer(DefaultBodyLimit::max(68_000_000)),
         )
         .route(
             "/api/v1/review/file/action",

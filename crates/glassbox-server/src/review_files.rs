@@ -12,8 +12,9 @@ use glassbox_model::{
     Change, ComparisonData, ComparisonEntry, DifftoolInput, TextHunk, UnavailableLfsObject,
 };
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub(crate) enum ReviewSource {
     Paths { before: PathBuf, after: PathBuf },
@@ -21,7 +22,7 @@ pub(crate) enum ReviewSource {
     Difftool,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub(crate) enum GitMode {
     WorkingTree,
@@ -68,15 +69,16 @@ struct ReviewFile {
 
 #[derive(Deserialize)]
 pub(crate) struct SelectedFile {
-    source: ReviewSource,
-    index: usize,
-    path: String,
+    pub(crate) source: ReviewSource,
+    pub(crate) index: usize,
+    pub(crate) path: String,
 }
 
 #[derive(Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 enum FileContent {
     Text {
+        revision: String,
         hunks: Vec<TextHunk>,
     },
     Media,
@@ -92,7 +94,7 @@ enum Entries {
     Direct(Vec<ComparisonEntry>),
 }
 
-struct Comparison {
+pub(crate) struct Comparison {
     identity: String,
     comparison: String,
     branch: Option<String>,
@@ -143,7 +145,10 @@ pub(crate) async fn selected(input: SelectedFile, difftool: Option<DifftoolInput
         let result = load(input.source, difftool)?;
         validate_selection(&result, input.index, &input.path)?;
         Ok(match result.entries.content(input.index)? {
-            ComparisonData::Text(hunks) => FileContent::Text { hunks },
+            ComparisonData::Text(hunks) => FileContent::Text {
+                revision: text_revision(&hunks)?,
+                hunks,
+            },
             ComparisonData::Media { .. } => FileContent::Media,
             ComparisonData::UnavailableLfs { before, after } => {
                 FileContent::UnavailableLfs { before, after }
@@ -154,7 +159,53 @@ pub(crate) async fn selected(input: SelectedFile, difftool: Option<DifftoolInput
     .await
 }
 
-fn validate_selection(result: &Comparison, index: usize, path: &str) -> io::Result<()> {
+pub(crate) fn text_revision(hunks: &[TextHunk]) -> io::Result<String> {
+    let bytes = serde_json::to_vec(hunks).map_err(io::Error::other)?;
+    Ok(format!("{:x}", Sha256::digest(bytes)))
+}
+
+impl Comparison {
+    pub(crate) fn text_hunks(&self, index: usize) -> io::Result<Vec<TextHunk>> {
+        match self.entries.content(index)? {
+            ComparisonData::Text(hunks) => Ok(hunks),
+            _ => Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "The selected file has no text lines.",
+            )),
+        }
+    }
+
+    pub(crate) fn bundle_context(
+        &self,
+        source: &ReviewSource,
+        difftool: Option<&DifftoolInput>,
+    ) -> glassbox_feedback::BundleContext {
+        let project = match &self.entries {
+            Entries::Git(review) => Some(review.root.clone()),
+            Entries::Direct(_) => match source {
+                ReviewSource::Paths { after, .. } if after.is_dir() => Some(after.clone()),
+                ReviewSource::Paths { after, .. } => after
+                    .parent()
+                    .filter(|parent| !parent.as_os_str().is_empty())
+                    .map(Path::to_path_buf),
+                _ => None,
+            },
+        };
+        let paths = match source {
+            ReviewSource::Paths { before, after } => Some((before, after)),
+            ReviewSource::Difftool => difftool.map(|value| (&value.before, &value.after)),
+            ReviewSource::Git { .. } => None,
+        };
+        glassbox_feedback::BundleContext {
+            project,
+            comparison: self.comparison.clone(),
+            before: paths.map(|(before, _)| before.to_string_lossy().into_owned()),
+            after: paths.map(|(_, after)| after.to_string_lossy().into_owned()),
+        }
+    }
+}
+
+pub(crate) fn validate_selection(result: &Comparison, index: usize, path: &str) -> io::Result<()> {
     if result
         .entries
         .metadata(index)
@@ -297,7 +348,7 @@ async fn blocking<T: Serialize + Send + 'static>(
     }
 }
 
-fn load(input: ReviewSource, difftool: Option<DifftoolInput>) -> io::Result<Comparison> {
+pub(crate) fn load(input: ReviewSource, difftool: Option<DifftoolInput>) -> io::Result<Comparison> {
     match input {
         ReviewSource::Paths { before, after } => Ok(Comparison {
             identity: label(&after),

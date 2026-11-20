@@ -230,6 +230,87 @@
       }
     },
     {
+      "id": "review-discussion",
+      "name": "Review Discussion",
+      "kind": "composition",
+      "purpose": "Show separate line discussions and the selected thread in the inspector.",
+      "source": "src/components/discussion/discussion.tsx",
+      "publicExports": [
+        {
+          "name": "DiscussionInspector"
+        },
+        {
+          "name": "LineCommentAction"
+        },
+        {
+          "name": "LineDiscussion"
+        },
+        {
+          "name": "wireDiscussion"
+        }
+      ],
+      "sourceLinks": ["src/components/discussion/discussion.tsx"],
+      "composition": {
+        "parents": {
+          "mode": "any",
+          "entries": []
+        },
+        "contexts": ["application-ui"],
+        "zones": [],
+        "children": {
+          "mode": "any",
+          "concepts": [],
+          "requiredConcepts": []
+        },
+        "state": [],
+        "wiring": {
+          "required": true,
+          "helpers": ["wireDiscussion"],
+          "sources": [
+            {
+              "export": "wireDiscussion",
+              "source": "src/components/discussion/discussion.tsx",
+              "returnsDisposer": true
+            }
+          ],
+          "obligations": ["Wire line selection, inspector edits and discussion actions."]
+        },
+        "responsive": {
+          "owner": "component",
+          "behaviors": ["wrap-discussion-text", "stack-inspector-actions"]
+        },
+        "layout": {
+          "roles": ["content"],
+          "geometry": {
+            "margin": "none",
+            "border": "none",
+            "padding": "none"
+          }
+        }
+      },
+      "boundaries": {
+        "rootClass": "discussion-inspector",
+        "publicClasses": ["discussion-inspector", "discussion-inline"],
+        "publicTokens": []
+      },
+      "accessibility": {
+        "obligations": ["Identify the active thread and label inspector actions."]
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/discussion/discussion.tsx",
+        "composition": "src/components/discussion/discussion.tsx"
+      },
+      "selection": {
+        "useWhen": ["Show separate comments and replies for a code line."],
+        "avoidWhen": ["Render file navigation or raw diff content."],
+        "styleSources": ["src/components/discussion/discussion.css"],
+        "demoSource": "src/ux-demo/demos/discussion/discussion.tsx",
+        "documentation": "docs/ui-conventions.md",
+        "uses": ["badge", "button", "empty-state", "text-field", "lucide-icon", "select", "file-picker"]
+      }
+    },
+    {
       "id": "text-diff",
       "name": "Text Diff",
       "kind": "composition",

@@ -91,6 +91,97 @@
       }
     },
     {
+      "key": "glassbox2:review-discussion",
+      "package": "glassbox2",
+      "id": "review-discussion",
+      "name": "Review Discussion",
+      "kind": "composition",
+      "purpose": "Show separate line discussions and the selected thread in the inspector.",
+      "publicExports": [
+        {
+          "name": "DiscussionInspector"
+        },
+        {
+          "name": "LineCommentAction"
+        },
+        {
+          "name": "LineDiscussion"
+        },
+        {
+          "name": "wireDiscussion"
+        }
+      ],
+      "sourceLinks": [
+        "src/components/discussion/discussion.tsx"
+      ],
+      "source": "src/components/discussion/discussion.tsx",
+      "parents": {
+        "mode": "any",
+        "entries": []
+      },
+      "contexts": [
+        "application-ui"
+      ],
+      "zones": [],
+      "children": {
+        "mode": "any",
+        "concepts": [],
+        "requiredConcepts": []
+      },
+      "state": [],
+      "wiring": {
+        "required": true,
+        "helpers": [
+          "wireDiscussion"
+        ],
+        "sources": [
+          {
+            "export": "wireDiscussion",
+            "source": "src/components/discussion/discussion.tsx",
+            "returnsDisposer": true
+          }
+        ],
+        "obligations": [
+          "Wire line selection, inspector edits and discussion actions."
+        ]
+      },
+      "responsive": {
+        "owner": "component",
+        "behaviors": [
+          "wrap-discussion-text",
+          "stack-inspector-actions"
+        ]
+      },
+      "layout": {
+        "roles": [
+          "content"
+        ],
+        "geometry": {
+          "margin": "none",
+          "border": "none",
+          "padding": "none"
+        }
+      },
+      "accessibility": {
+        "obligations": [
+          "Identify the active thread and label inspector actions."
+        ]
+      },
+      "boundaries": {
+        "rootClass": "discussion-inspector",
+        "publicClasses": [
+          "discussion-inspector",
+          "discussion-inline"
+        ],
+        "publicTokens": []
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/discussion/discussion.tsx",
+        "composition": "src/components/discussion/discussion.tsx"
+      }
+    },
+    {
       "key": "glassbox2:review-navigator",
       "package": "glassbox2",
       "id": "review-navigator",

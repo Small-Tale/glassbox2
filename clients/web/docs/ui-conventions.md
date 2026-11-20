@@ -66,3 +66,10 @@ The collapsed Kerf UI section lists the upstream components named by
 Glassbox's direct dependencies. Entries show guidance from the installed
 Kerf catalog, link to upstream documentation, and link back to the
 Glassbox components that use them (`HS2-RBX2HQ`).
+
+## Discussion
+
+Line actions distinguish before and after anchors. The diff groups previews
+beneath the matching line and distinguishes the active thread with a brand
+border and quiet fill. The inspector retains the open thread across diff
+layout changes and labels stale anchors. See HS2-XQBQCG.

@@ -2,7 +2,7 @@ import './text-diff.css';
 
 import { LucideIcon } from '@kerfjs/ui/lucide-icon';
 import { ToolbarButton, ToolbarControlGroup } from '@kerfjs/ui/toolbar-control-group';
-import { signal } from 'kerfjs';
+import { type SafeHtml, signal } from 'kerfjs';
 import { Columns2, Rows2, WrapText } from 'lucide';
 
 import { type DiffLine, splitLines, syntaxTokens, type TextHunk } from './text-diff-model.js';
@@ -48,7 +48,20 @@ export function TextDiffToolbar({ id, state }: { id: string; state: TextDiffStat
   );
 }
 
-function DiffCell({ line, side, path }: { line?: DiffLine; side: 'before' | 'after' | 'both'; path: string }) {
+type LineControl = (side: 'before' | 'after', line: number) => SafeHtml;
+type RowContent = (before: number | null | undefined, after: number | null | undefined) => SafeHtml;
+
+function DiffCell({
+  line,
+  side,
+  path,
+  lineControl,
+}: {
+  line?: DiffLine;
+  lineControl?: LineControl;
+  side: 'before' | 'after' | 'both';
+  path: string;
+}) {
   if (line === undefined)
     return <div class="text-diff__cell" data-change="blank" data-side={side} aria-hidden="true" />;
   const mark = line.kind === 'added' ? '+' : line.kind === 'removed' ? '−' : '';
@@ -65,11 +78,13 @@ function DiffCell({ line, side, path }: { line?: DiffLine; side: 'before' | 'aft
       {side === 'after' ? null : (
         <span class="text-diff__number" aria-label={before === null ? undefined : `Before line ${before}`}>
           {before}
+          {before === null ? null : lineControl?.('before', before)}
         </span>
       )}
       {side === 'before' ? null : (
         <span class="text-diff__number" aria-label={after === null ? undefined : `After line ${after}`}>
           {after}
+          {after === null ? null : lineControl?.('after', after)}
         </span>
       )}
       <span class="text-diff__marker">{mark}</span>
@@ -92,7 +107,19 @@ function range(start: number, count: number) {
   return count === 1 ? String(start) : `${start},${count}`;
 }
 
-export function TextDiff({ hunks, path, state }: { hunks: readonly TextHunk[]; path: string; state: TextDiffState }) {
+export function TextDiff({
+  hunks,
+  path,
+  state,
+  lineControl,
+  rowContent,
+}: {
+  hunks: readonly TextHunk[];
+  path: string;
+  state: TextDiffState;
+  lineControl?: LineControl;
+  rowContent?: RowContent;
+}) {
   const layout = state.layout.value;
   const lastLine = hunks.reduce(
     (largest, hunk) =>
@@ -123,11 +150,17 @@ export function TextDiff({ hunks, path, state }: { hunks: readonly TextHunk[]; p
             {layout === 'split'
               ? splitLines(hunk.lines).map(({ before, after }) => (
                   <>
-                    <DiffCell line={before} side="before" path={path} />
-                    <DiffCell line={after} side="after" path={path} />
+                    <DiffCell line={before} side="before" path={path} lineControl={lineControl} />
+                    <DiffCell line={after} side="after" path={path} lineControl={lineControl} />
+                    {rowContent?.(before?.before_line, after?.after_line)}
                   </>
                 ))
-              : hunk.lines.map((line) => <DiffCell line={line} side="both" path={path} />)}
+              : hunk.lines.map((line) => (
+                  <>
+                    <DiffCell line={line} side="both" path={path} lineControl={lineControl} />
+                    {rowContent?.(line.before_line, line.after_line)}
+                  </>
+                ))}
           </>
         ))}
       </div>

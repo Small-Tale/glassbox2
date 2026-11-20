@@ -37,6 +37,7 @@ impl RunningServer {
         }
         if let Some(directory) = settings_directory {
             command.env("GLASSBOX_SETTINGS_DIRECTORY", directory);
+            command.env("GLASSBOX_FEEDBACK_DIRECTORY", directory.join("feedback"));
         }
         let child = command
             .args(args)
@@ -253,4 +254,91 @@ fn desktop_file_actions_validate_comparison_path_and_reject_snapshots() {
     );
     assert!(snapshot.starts_with("HTTP/1.1 400"), "{snapshot}");
     assert!(snapshot.contains("without a verified live path"));
+}
+
+#[test]
+fn discussion_publishes_edits_replies_and_attachments_and_rejects_stale_anchors() {
+    use serde_json::{Value, json};
+
+    let directory = tempfile::tempdir().unwrap();
+    let before = directory.path().join("before.txt");
+    let after = directory.path().join("after.txt");
+    std::fs::write(&before, "before\n").unwrap();
+    std::fs::write(&after, "after\n").unwrap();
+    let (_host, address) = RunningServer::start_configured(None, &[], Some(directory.path()));
+    let selection = json!({"source":{"kind":"paths","before":before,"after":after},"path":"after.txt","index":0});
+    let post = |route: &str, value: Value| {
+        let response = exchange(
+            address,
+            "POST",
+            route,
+            &address.to_string(),
+            "Content-Type: application/json\r\n",
+            &value.to_string(),
+        );
+        let (header, body) = response.split_once("\r\n\r\n").unwrap();
+        (header[..12].to_string(), body.to_string())
+    };
+    let (status, file) = post("/api/v1/review/file", selection.clone());
+    assert_eq!(status, "HTTP/1.1 200");
+    let revision = serde_json::from_str::<Value>(&file).unwrap()["revision"].clone();
+    let discuss = |operation: Value| {
+        post(
+            "/api/v1/review/discussion",
+            json!({"selection":selection,"operation":operation}),
+        )
+    };
+    let create = |markdown| {
+        json!({
+            "kind":"create", "author":"Reviewer", "markdown":markdown, "category":"style",
+            "anchor":{"path":"after.txt","side":"after","revision":revision,"target":{"kind":"line","start":1,"end":1}},
+        })
+    };
+    let (status, _) = discuss(create("First"));
+    assert_eq!(status, "HTTP/1.1 200");
+    let (status, list) = discuss(create("Second"));
+    assert_eq!(status, "HTTP/1.1 200");
+    let list: Value = serde_json::from_str(&list).unwrap();
+    assert_eq!(list["threads"].as_array().unwrap().len(), 2);
+    let (status, _) = discuss(
+        json!({"kind":"apply","id":1,"revision":1,"change":{"kind":"reply","author":"Other reviewer","markdown":"Reply"}}),
+    );
+    assert_eq!(status, "HTTP/1.1 200");
+    let (status, list) = discuss(
+        json!({"kind":"attach","id":1,"revision":2,"filename":"evidence.txt","content":"dGVzdA=="}),
+    );
+    assert_eq!(status, "HTTP/1.1 200");
+    let list: Value = serde_json::from_str(&list).unwrap();
+    assert_eq!(
+        list["threads"][0]["opening"]["attachments"][0]["filename"],
+        "evidence.txt"
+    );
+    assert!(
+        list["threads"][0]["opening"]["attachments"][0]
+            .get("bytes")
+            .is_none()
+    );
+    assert_eq!(
+        list["threads"][0]["replies"][0]["message"]["author"],
+        "Other reviewer"
+    );
+    assert_eq!(list["threads"][1]["replies"].as_array().unwrap().len(), 0);
+    let (status, _) =
+        discuss(json!({"kind":"apply","id":1,"revision":1,"change":{"kind":"remove_thread"}}));
+    assert_eq!(status, "HTTP/1.1 409");
+
+    std::fs::write(&after, "a new revision\n").unwrap();
+    assert_eq!(discuss(create("Stale line")).0, "HTTP/1.1 409");
+    let stored = std::fs::read_dir(directory.path().join("feedback"))
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+    let markdown = std::fs::read_to_string(stored.join("review.md")).unwrap();
+    assert!(
+        markdown.contains("First")
+            && markdown.contains("Second")
+            && markdown.contains("evidence.txt")
+    );
 }

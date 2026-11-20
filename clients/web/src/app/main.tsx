@@ -9,6 +9,13 @@ import { GitCompareArrows } from 'lucide';
 
 import { selectedDiff } from '../components/diff/selected-diff.js';
 import { createTextDiffState, TextDiff, TextDiffToolbar, wireTextDiffToolbar } from '../components/diff/text-diff.js';
+import {
+  DiscussionInspector,
+  LineCommentAction,
+  LineDiscussion,
+  wireDiscussion,
+} from '../components/discussion/discussion.js';
+import { createDiscussionState } from '../components/discussion/discussion-state.js';
 import { ReviewNavigator, wireReviewNavigator } from '../components/review/review-navigator.js';
 import { createReviewSourceState } from '../components/review/review-source.js';
 import {
@@ -26,6 +33,7 @@ const workbench = createReviewWorkbenchState();
 const source = createReviewSourceState();
 const textDiff = createTextDiffState();
 const diff = selectedDiff(source);
+const discussion = createDiscussionState(source);
 const diffToolbarId = 'glassbox-text-diff';
 const appearance = createAppearanceState();
 const appearanceId = 'glassbox-appearance';
@@ -39,6 +47,19 @@ mount(root, () => {
   const index = source.selected.value;
   const file = index === undefined ? undefined : review?.files[index];
   const result = diff.result.value;
+  const threads =
+    result?.kind === 'text'
+      ? discussion.threads.value.filter(
+          ({ anchor }) => anchor.path === file?.path && anchor.revision === result.revision,
+        )
+      : [];
+  const threadMap = new Map<string, typeof threads>();
+  for (const thread of threads) {
+    const key = `${thread.anchor.side}:${thread.anchor.target.start}`;
+    const existing = threadMap.get(key);
+    if (existing === undefined) threadMap.set(key, [thread]);
+    else existing.push(thread);
+  }
   let comparison = (
     <EmptyState
       title={review === null ? 'No Review Open' : 'No File Selected'}
@@ -51,7 +72,18 @@ mount(root, () => {
       case 'text':
         comparison =
           result.hunks.length > 0 ? (
-            <TextDiff hunks={result.hunks} path={file.path} state={textDiff} />
+            <TextDiff
+              hunks={result.hunks}
+              path={file.path}
+              state={textDiff}
+              lineControl={(side, line) => <LineCommentAction side={side} line={line} />}
+              rowContent={(before, after) => (
+                <LineDiscussion
+                  threads={[...(threadMap.get(`before:${before}`) ?? []), ...(threadMap.get(`after:${after}`) ?? [])]}
+                  active={discussion.threadId.value}
+                />
+              )}
+            />
           ) : (
             <EmptyState title="No Text Changes" />
           );
@@ -86,12 +118,26 @@ mount(root, () => {
       state={workbench}
       projectTitle={review?.identity ?? 'Changed Files'}
       comparisonTitle={file?.path.split('/').at(-1) ?? 'Review'}
-      inspectorTitle="Inspector"
+      inspectorTitle={
+        discussion.adding.value !== null
+          ? 'New Comment'
+          : discussion.activeThread()?.origin.kind === 'ai'
+            ? 'AI Review Note'
+            : discussion.activeThread()
+              ? 'Line Comment'
+              : 'Inspector'
+      }
       navigator={<ReviewNavigator id="glassbox-review-navigator" state={source} />}
       comparison={comparison}
       comparisonToolbar={comparisonToolbar}
       footerSettings={<AppearanceMenu id={appearanceId} state={appearance} />}
-      inspector={<EmptyState title="No Discussion Selected" />}
+      inspector={
+        <DiscussionInspector
+          state={discussion}
+          path={file?.path}
+          revision={result?.kind === 'text' ? result.revision : undefined}
+        />
+      }
     />
   );
 });
@@ -99,5 +145,19 @@ void wireReviewWorkbench(root, 'glassbox-workbench', workbench);
 void wireReviewNavigator(root, 'glassbox-review-navigator', source);
 void wireTextDiffToolbar(root, diffToolbarId, textDiff);
 void wireAppearanceMenu(root, appearanceId, appearance);
+void wireDiscussion(
+  root,
+  discussion,
+  (side, line) => {
+    const index = source.selected.value;
+    const file = index === undefined ? undefined : source.review.value?.files[index];
+    const content = diff.result.value;
+    if (file === undefined || content?.kind !== 'text') return undefined;
+    return { side, path: file.path, revision: content.revision, target: { kind: 'line', start: line, end: line } };
+  },
+  () => {
+    workbench.inspector.collapsed.value = false;
+  },
+);
 void appearance.load();
 void source.openDifftool();

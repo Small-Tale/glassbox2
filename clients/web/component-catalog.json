@@ -34,6 +34,43 @@
       "documentation": "docs/ui-conventions.md"
     },
     {
+      "id": "review-discussion",
+      "name": "Review Discussion",
+      "kind": "composition",
+      "purpose": "Show separate line discussions and the selected thread in the inspector.",
+      "useWhen": [
+        "Show separate comments and replies for a code line."
+      ],
+      "avoidWhen": [
+        "Render file navigation or raw diff content."
+      ],
+      "publicClasses": [
+        "discussion-inspector",
+        "discussion-inline"
+      ],
+      "publicTokens": [],
+      "uses": [
+        "badge",
+        "button",
+        "empty-state",
+        "text-field",
+        "lucide-icon",
+        "select",
+        "file-picker"
+      ],
+      "source": "src/components/discussion/discussion.tsx",
+      "styleSources": [
+        "src/components/discussion/discussion.css"
+      ],
+      "demoSource": "src/ux-demo/demos/discussion/discussion.tsx",
+      "geometry": {
+        "margin": "none",
+        "border": "none",
+        "padding": "none"
+      },
+      "documentation": "docs/ui-conventions.md"
+    },
+    {
       "id": "review-navigator",
       "name": "Review Navigator",
       "kind": "composition",

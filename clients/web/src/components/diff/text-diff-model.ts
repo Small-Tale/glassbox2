@@ -15,7 +15,10 @@ export type TextHunk = {
 };
 
 export type FileContent =
-  { kind: 'text'; hunks: TextHunk[] } | { kind: 'media' } | { kind: 'unavailable_lfs' } | { kind: 'binary' };
+  | { kind: 'text'; revision: string; hunks: TextHunk[] }
+  | { kind: 'media' }
+  | { kind: 'unavailable_lfs' }
+  | { kind: 'binary' };
 
 export function splitLines(lines: readonly DiffLine[]) {
   const rows: { before?: DiffLine; after?: DiffLine }[] = [];

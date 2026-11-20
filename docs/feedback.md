@@ -39,6 +39,26 @@ The model tests verify validation and full mutation sequences,
 including mixed threads on one line, stale anchors, conflicting
 edits, scoped attachments, and JSON recovery.
 
+## Inline discussion
+
+In text comparisons, use the comment action on a before or after line.
+Inline previews show each thread’s author, category or AI tags, opening
+message, and first reply. The Inspector opens the selected thread and
+shows the complete reply chain. Reviewer comments autosave after editing.
+A reviewer can give their comment a category, remove it, add replies with
+an author, or attach local files. Attachment filenames are visible in the
+inspector and their bytes are written into the bundle.
+
+The host checks the selected path and text revision before creating a line
+anchor. Existing threads on earlier revisions remain available in the
+Inspector with a stale indicator. New AI analysis results are tracked in
+`HS2-05B1PZ`.
+
+The open comparison retains its editable discussions as files are switched.
+Each successful change publishes the current review to its stable local
+handoff bundle, which survives the Glassbox process. Reopening a previous
+editable discussion session is tracked separately.
+
 ## Durable AI handoff
 
 The feedback bundle store creates a private directory for each review
