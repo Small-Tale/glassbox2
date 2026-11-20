@@ -8,6 +8,92 @@
   },
   "entries": [
     {
+      "key": "glassbox2:analysis-controls",
+      "package": "glassbox2",
+      "id": "analysis-controls",
+      "name": "Review Analysis Controls",
+      "kind": "composition",
+      "purpose": "Toggle risk and guidance independently and describe analysis in the diff.",
+      "publicExports": [
+        {
+          "name": "AnalysisContext"
+        },
+        {
+          "name": "AnalysisControls"
+        },
+        {
+          "name": "wireAnalysisControls"
+        }
+      ],
+      "sourceLinks": [
+        "src/components/analysis/analysis-controls.tsx"
+      ],
+      "source": "src/components/analysis/analysis-controls.tsx",
+      "parents": {
+        "mode": "any",
+        "entries": []
+      },
+      "contexts": [
+        "application-ui"
+      ],
+      "zones": [],
+      "children": {
+        "mode": "any",
+        "concepts": [],
+        "requiredConcepts": []
+      },
+      "state": [],
+      "wiring": {
+        "required": true,
+        "helpers": [
+          "wireAnalysisControls"
+        ],
+        "sources": [
+          {
+            "export": "wireAnalysisControls",
+            "source": "src/components/analysis/analysis-controls.tsx",
+            "returnsDisposer": true
+          }
+        ],
+        "obligations": [
+          "Wire each analysis toggle and guidance step movement."
+        ]
+      },
+      "responsive": {
+        "owner": "component",
+        "behaviors": [
+          "wrap-guidance-and-step-controls"
+        ]
+      },
+      "layout": {
+        "roles": [
+          "content"
+        ],
+        "geometry": {
+          "margin": "none",
+          "border": "none",
+          "padding": "none"
+        }
+      },
+      "accessibility": {
+        "obligations": [
+          "Name both icon-only controls and announce analysis progress."
+        ]
+      },
+      "boundaries": {
+        "rootClass": "analysis-context",
+        "publicClasses": [
+          "analysis-context"
+        ],
+        "publicTokens": []
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/analysis/analysis-controls.tsx",
+        "composition": "src/components/analysis/analysis-controls.tsx"
+      }
+    },
+    {
       "key": "glassbox2:appearance-menu",
       "package": "glassbox2",
       "id": "appearance-menu",

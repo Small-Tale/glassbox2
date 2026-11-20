@@ -3,7 +3,12 @@
 Glassbox uses a shared Rust provider registry and a versioned subprocess
 protocol. This follows the manifest and behavioral plugin boundary in Hot
 Sheet 2’s AI-tool plugin design. The protocol is available to the local host
-and headless callers. [Optional analysis](#optional-review-analysis) uses that contract for risk, reading order, and guided review. The workbench controls are tracked in `HS2-487RGX`.
+and headless callers. [Optional analysis](#optional-review-analysis) uses that contract for risk, reading order, and guided review. The text diff’s Risk Analysis and Code Guidance controls are independent.
+Either or both can be on while the text comparison stays visible. Risk
+emphasizes the existing risk note. Code Guidance shows a step for the
+selected revision, with navigation when several steps apply. Turning a
+mode off cancels its running request. Opening another comparison resets both
+modes.
 
 ## First-release coverage
 

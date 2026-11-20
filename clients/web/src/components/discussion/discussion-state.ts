@@ -55,6 +55,7 @@ export function createDiscussionState(source: ReviewSourceState, load = request)
   const pending = signal(false);
   const error = signal('');
   let current: Selection | null = null;
+  let refreshSequence = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let writing: { selection: Selection; done: Promise<Thread[]> } | undefined;
 
@@ -104,6 +105,7 @@ export function createDiscussionState(source: ReviewSourceState, load = request)
   async function save(operation: Operation) {
     const selection = current;
     if (selection === null || pending.value) return false;
+    refreshSequence++;
     pending.value = true;
     error.value = '';
     try {
@@ -120,6 +122,19 @@ export function createDiscussionState(source: ReviewSourceState, load = request)
     } finally {
       if (writing?.selection === selection) writing = undefined;
       if (selection === current) pending.value = false;
+    }
+  }
+
+  async function refreshCurrent() {
+    const selection = current;
+    const sequence = ++refreshSequence;
+    if (selection === null) return;
+    try {
+      if (writing?.selection === selection) await writing.done;
+      const items = await load(selection);
+      if (selection === current && sequence === refreshSequence) threads.value = items;
+    } catch (failure) {
+      if (selection === current && sequence === refreshSequence) error.value = String(failure);
     }
   }
 
@@ -205,6 +220,7 @@ export function createDiscussionState(source: ReviewSourceState, load = request)
     error,
     stop,
     activeThread,
+    refreshCurrent,
     apply,
     attach,
     showThread,

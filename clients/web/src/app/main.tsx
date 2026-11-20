@@ -7,6 +7,8 @@ import { LucideIcon } from '@kerfjs/ui/lucide-icon';
 import { effect, mount } from 'kerfjs';
 import { GitCompareArrows } from 'lucide';
 
+import { AnalysisContext, AnalysisControls, wireAnalysisControls } from '../components/analysis/analysis-controls.js';
+import { createAnalysisState } from '../components/analysis/analysis-state.js';
 import { selectedDiff } from '../components/diff/selected-diff.js';
 import { createTextDiffState, TextDiff, TextDiffToolbar, wireTextDiffToolbar } from '../components/diff/text-diff.js';
 import {
@@ -40,6 +42,21 @@ const source = createReviewSourceState();
 const textDiff = createTextDiffState();
 const diff = selectedDiff(source);
 const discussion = createDiscussionState(source);
+const analysis = createAnalysisState(() => {
+  void discussion.refreshCurrent();
+});
+const analysisId = 'glassbox-analysis';
+void effect(() => {
+  analysis.setSource(source.activeSource.value);
+});
+
+function selectedAnalysis() {
+  const index = source.selected.value;
+  const file = index === undefined ? undefined : source.review.value?.files[index];
+  const content = diff.result.value;
+  if (file === undefined || content?.kind !== 'text') return undefined;
+  return { path: file.path, revision: content.revision };
+}
 const diffToolbarId = 'glassbox-text-diff';
 const appearance = createAppearanceState();
 const appearanceId = 'glassbox-appearance';
@@ -93,13 +110,19 @@ mount(root, () => {
                 <LineDiscussion
                   threads={[...(threadMap.get(`before:${before}`) ?? []), ...(threadMap.get(`after:${after}`) ?? [])]}
                   active={discussion.threadId.value}
+                  highlightRisk={analysis.modes.risk.enabled.value}
                 />
               )}
             />
           ) : (
             <EmptyState title="No Text Changes" />
           );
-        comparisonToolbar = <TextDiffToolbar id={diffToolbarId} state={textDiff} />;
+        comparisonToolbar = (
+          <>
+            <TextDiffToolbar id={diffToolbarId} state={textDiff} />
+            <AnalysisControls id={analysisId} state={analysis} />
+          </>
+        );
         break;
       case 'media':
         comparison = <EmptyState title="Media Comparison" />;
@@ -124,6 +147,7 @@ mount(root, () => {
         break;
     }
   }
+  const selected = selectedAnalysis();
   return (
     <>
       <ReviewWorkbench
@@ -143,6 +167,9 @@ mount(root, () => {
         navigator={<ReviewNavigator id="glassbox-review-navigator" state={source} />}
         comparison={comparison}
         comparisonToolbar={comparisonToolbar}
+        comparisonHeader={
+          selected === undefined ? undefined : <AnalysisContext id={analysisId} state={analysis} selection={selected} />
+        }
         footerStatus={handoff.status.value === '' ? undefined : <ShareStatus state={handoff} />}
         footerSettings={
           <>
@@ -167,6 +194,7 @@ mount(root, () => {
 void wireReviewWorkbench(root, 'glassbox-workbench', workbench);
 void wireReviewNavigator(root, 'glassbox-review-navigator', source);
 void wireTextDiffToolbar(root, diffToolbarId, textDiff);
+void wireAnalysisControls(root, analysisId, analysis, selectedAnalysis);
 void wireAppearanceMenu(root, appearanceId, appearance);
 void wireStorageDialog(root, storageId, storage);
 const exportDialog = wireExportDialog(root, exportId, delivery);

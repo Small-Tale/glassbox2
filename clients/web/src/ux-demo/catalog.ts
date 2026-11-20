@@ -4,6 +4,7 @@ import type { SafeHtml } from 'kerfjs';
 import upstreamReferences from 'virtual:glassbox-kerf-references';
 
 import metadata from '../../component-catalog.json';
+import { AnalysisControlsDemo } from './demos/analysis/analysis-controls.js';
 import { TextDiffDemo } from './demos/diff/text-diff.js';
 import { DiscussionDemo } from './demos/discussion/discussion.js';
 import { ExportDialogDemo } from './demos/handoff/export-dialog.js';
@@ -18,6 +19,7 @@ export const componentDemos = {
   'source-context': SourceContextDemo,
   'appearance-menu': AppearanceMenuDemo,
   'text-diff': TextDiffDemo,
+  'analysis-controls': AnalysisControlsDemo,
   'review-discussion': DiscussionDemo,
   'share-menu': ShareMenuDemo,
   'export-dialog': ExportDialogDemo,
@@ -41,6 +43,7 @@ export function isDemoId(value: string): value is DemoId {
 const groups = [
   { category: 'Review Workbench', folder: 'review' },
   { category: 'Comparison', folder: 'diff' },
+  { category: 'Analysis', folder: 'analysis' },
   { category: 'Discussion', folder: 'discussion' },
   { category: 'Handoff', folder: 'handoff' },
   { category: 'Settings', folder: 'settings' },

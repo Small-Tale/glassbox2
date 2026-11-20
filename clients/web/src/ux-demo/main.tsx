@@ -9,6 +9,7 @@ import { wireCatalog } from '@kerfjs/ui/wire-catalog';
 import { effect, mount, signal } from 'kerfjs';
 
 import { catalogSections, componentDemos, isCatalogId, isDemoId, kerfReferences, kerfSections } from './catalog.js';
+import { wireAnalysisControlsDemo } from './demos/analysis/analysis-controls.js';
 import { wireTextDiffDemo } from './demos/diff/text-diff.js';
 import { wireDiscussionDemo } from './demos/discussion/discussion.js';
 import { wireExportDialogDemo } from './demos/handoff/export-dialog.js';
@@ -102,6 +103,8 @@ void wireReviewWorkbenchDemo(root);
 void wireReviewNavigatorDemo(root);
 
 void wireTextDiffDemo(root);
+
+void wireAnalysisControlsDemo(root);
 
 void wireDiscussionDemo(root);
 

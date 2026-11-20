@@ -56,3 +56,7 @@
 .discussion-inspector p {
   margin: 0;
 }
+
+.discussion-inline__thread[data-risk-highlighted='true'] {
+  box-shadow: inset 3px 0 var(--kui-color-warning-border-loud);
+}

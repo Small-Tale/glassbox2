@@ -17,7 +17,7 @@ fn main() {
     } else if input.contains("Order these changed") {
         r#"[{\"index\":0,\"reason\":\"Read the modified file first.\"}]"#
     } else {
-        r#"{\"overview\":\"A change to the review example.\",\"steps\":[{\"side\":\"after\",\"line\":1,\"text\":\"Read the new value.\"}]}"#
+        r#"{\"overview\":\"A change to the review example.\",\"steps\":[{\"side\":\"after\",\"line\":1,\"text\":\"Read the new value.\"},{\"side\":\"after\",\"line\":2,\"text\":\"Check the following line.\"}]}"#
     };
     println!(
         r#"{{"version":1,"outcome":{{"status":"generated","text":"{}"}}}}"#,

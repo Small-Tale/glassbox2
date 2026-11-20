@@ -84,3 +84,7 @@ The delivery and cancel controls stay in the dialog footer. See HS2-6DE0XA.
 The Feedback Storage dialog distinguishes usage, the selected deletion
 scope, and cleanup results. It keeps destructive actions in the pinned
 footer after a separate confirmation. See HS2-5TN81D.
+
+Risk Analysis and Code Guidance use separate normal-size Lucide groups.
+Risk highlights the existing note in place. Guidance and progress sit
+above the diff. See HS2-487RGX.

@@ -21,11 +21,14 @@ pub(super) struct Provider {
 
 impl Provider {
     pub(super) async fn configured() -> Result<Self, String> {
-        let directory = std::env::var_os("GLASSBOX_AI_PROVIDER_DIRECTORY").ok_or_else(|| {
-            String::from("Choose an AI provider before running optional review analysis.")
-        })?;
+        let choose = "Choose an AI provider before running optional review analysis.";
+        let directory = std::env::var_os("GLASSBOX_AI_PROVIDER_DIRECTORY")
+            .filter(|directory| !directory.is_empty())
+            .ok_or(choose)?;
         let id = std::env::var("GLASSBOX_AI_PROVIDER")
-            .map_err(|_| "Choose an AI provider before running optional review analysis.")?;
+            .ok()
+            .filter(|provider| !provider.trim().is_empty())
+            .ok_or(choose)?;
         let mut providers = discover(&PathBuf::from(directory))
             .map_err(|error| format!("Could not read the provider registry: {error:?}"))?;
         let manifest = providers

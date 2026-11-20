@@ -26,12 +26,14 @@ function ThreadLabels({ thread }: { thread: Thread }) {
     <>
       {origin.risk === null ? null : (
         <Badge size="compact" tone={origin.risk === 'high' ? 'danger' : 'warning'}>
-          {`${origin.risk} risk`}
+          {`${origin.risk[0]?.toUpperCase() ?? ''}${origin.risk.slice(1)} risk`}
         </Badge>
       )}
-      {origin.tags.map((tag) => (
-        <Badge size="compact">{tag}</Badge>
-      ))}
+      {origin.tags
+        .filter((tag) => origin.risk === null || tag !== 'Risk Analysis')
+        .map((tag) => (
+          <Badge size="compact">{tag}</Badge>
+        ))}
     </>
   );
 }
@@ -50,7 +52,15 @@ export function LineCommentAction({ side, line }: { side: Anchor['side']; line: 
   );
 }
 
-export function LineDiscussion({ threads, active }: { threads: Thread[]; active: number | null }) {
+export function LineDiscussion({
+  threads,
+  active,
+  highlightRisk = false,
+}: {
+  threads: Thread[];
+  active: number | null;
+  highlightRisk?: boolean;
+}) {
   if (threads.length === 0) return null;
   return (
     <div class="discussion-inline">
@@ -60,6 +70,9 @@ export function LineDiscussion({ threads, active }: { threads: Thread[]; active:
           type="button"
           data-action={`discussion-show:${thread.id}`}
           aria-pressed={active === thread.id ? 'true' : 'false'}
+          data-risk-highlighted={
+            highlightRisk && thread.origin.kind === 'ai' && thread.origin.risk !== null ? 'true' : undefined
+          }
         >
           <span class="discussion-inline__meta">
             <strong>{thread.opening.author}</strong>

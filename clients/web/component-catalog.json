@@ -5,6 +5,39 @@
   "description": "Glassbox components for reviewing changes and sharing feedback.",
   "entries": [
     {
+      "id": "analysis-controls",
+      "name": "Review Analysis Controls",
+      "kind": "composition",
+      "purpose": "Toggle risk and guidance independently and describe analysis in the diff.",
+      "useWhen": [
+        "Toggle analysis and show context over the current text diff."
+      ],
+      "avoidWhen": [
+        "Replace the text comparison."
+      ],
+      "publicClasses": [
+        "analysis-context"
+      ],
+      "publicTokens": [],
+      "uses": [
+        "badge",
+        "button",
+        "lucide-icon",
+        "toolbar-control-group"
+      ],
+      "source": "src/components/analysis/analysis-controls.tsx",
+      "styleSources": [
+        "src/components/analysis/analysis-controls.css"
+      ],
+      "demoSource": "src/ux-demo/demos/analysis/analysis-controls.tsx",
+      "geometry": {
+        "margin": "none",
+        "border": "none",
+        "padding": "none"
+      },
+      "documentation": "docs/ui-conventions.md"
+    },
+    {
       "id": "appearance-menu",
       "name": "Appearance Menu",
       "kind": "component",

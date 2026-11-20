@@ -1,0 +1,19 @@
+.analysis-context {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: var(--kui-color-brand-fill-quiet);
+  overflow-wrap: anywhere;
+}
+
+.analysis-context p {
+  margin: 0;
+}
+
+.analysis-context__guide,
+.analysis-context__steps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}

@@ -23,6 +23,7 @@ interface ReviewWorkbenchProps {
   navigator: SafeHtml;
   comparison: SafeHtml;
   comparisonToolbar?: SafeHtml;
+  comparisonHeader?: SafeHtml;
   footerSettings?: SafeHtml;
   footerStatus?: SafeHtml;
   inspector: SafeHtml;
@@ -37,6 +38,7 @@ export function ReviewWorkbench({
   navigator,
   comparison,
   comparisonToolbar,
+  comparisonHeader,
   footerSettings,
   footerStatus,
   inspector,
@@ -49,6 +51,7 @@ export function ReviewWorkbench({
         mainLabel="Comparison"
         mainMinSize={320}
         main={comparison}
+        mainHeader={comparisonHeader}
         mainToolbar={{
           label: 'Comparison',
           responsive: 'wrap',

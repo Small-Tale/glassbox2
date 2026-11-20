@@ -311,6 +311,84 @@
       }
     },
     {
+      "id": "analysis-controls",
+      "name": "Review Analysis Controls",
+      "kind": "composition",
+      "purpose": "Toggle risk and guidance independently and describe analysis in the diff.",
+      "source": "src/components/analysis/analysis-controls.tsx",
+      "publicExports": [
+        {
+          "name": "AnalysisContext"
+        },
+        {
+          "name": "AnalysisControls"
+        },
+        {
+          "name": "wireAnalysisControls"
+        }
+      ],
+      "sourceLinks": ["src/components/analysis/analysis-controls.tsx"],
+      "composition": {
+        "parents": {
+          "mode": "any",
+          "entries": []
+        },
+        "contexts": ["application-ui"],
+        "zones": [],
+        "children": {
+          "mode": "any",
+          "concepts": [],
+          "requiredConcepts": []
+        },
+        "state": [],
+        "wiring": {
+          "required": true,
+          "helpers": ["wireAnalysisControls"],
+          "sources": [
+            {
+              "export": "wireAnalysisControls",
+              "source": "src/components/analysis/analysis-controls.tsx",
+              "returnsDisposer": true
+            }
+          ],
+          "obligations": ["Wire each analysis toggle and guidance step movement."]
+        },
+        "responsive": {
+          "owner": "component",
+          "behaviors": ["wrap-guidance-and-step-controls"]
+        },
+        "layout": {
+          "roles": ["content"],
+          "geometry": {
+            "margin": "none",
+            "border": "none",
+            "padding": "none"
+          }
+        }
+      },
+      "boundaries": {
+        "rootClass": "analysis-context",
+        "publicClasses": ["analysis-context"],
+        "publicTokens": []
+      },
+      "accessibility": {
+        "obligations": ["Name both icon-only controls and announce analysis progress."]
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/analysis/analysis-controls.tsx",
+        "composition": "src/components/analysis/analysis-controls.tsx"
+      },
+      "selection": {
+        "useWhen": ["Toggle analysis and show context over the current text diff."],
+        "avoidWhen": ["Replace the text comparison."],
+        "styleSources": ["src/components/analysis/analysis-controls.css"],
+        "demoSource": "src/ux-demo/demos/analysis/analysis-controls.tsx",
+        "documentation": "docs/ui-conventions.md",
+        "uses": ["badge", "button", "lucide-icon", "toolbar-control-group"]
+      }
+    },
+    {
       "id": "text-diff",
       "name": "Text Diff",
       "kind": "composition",
