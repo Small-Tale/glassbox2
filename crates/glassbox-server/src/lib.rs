@@ -104,7 +104,9 @@ fn router(address: SocketAddr, assets: Option<&Path>, difftool: Option<DifftoolI
     let source_launch = difftool.clone();
     let selected_launch = difftool.clone();
     let discussion_launch = difftool.clone();
+    let handoff_launch = difftool.clone();
     let discussion = discussion::Discussion::default();
+    let handoff = discussion.clone();
     let mut router = Router::new()
         .route(
             "/api/v1/health",
@@ -123,6 +125,10 @@ fn router(address: SocketAddr, assets: Option<&Path>, difftool: Option<DifftoolI
             "/api/v1/review/discussion",
             post(move |Json(input)| discussion::handle(discussion, input, discussion_launch))
                 .layer(DefaultBodyLimit::max(68_000_000)),
+        )
+        .route(
+            "/api/v1/review/handoff",
+            post(move |Json(source)| discussion::handoff(handoff, source, handoff_launch)),
         )
         .route(
             "/api/v1/review/file/action",

@@ -11,6 +11,7 @@ import { effect, mount, signal } from 'kerfjs';
 import { catalogSections, componentDemos, isCatalogId, isDemoId, kerfReferences, kerfSections } from './catalog.js';
 import { wireTextDiffDemo } from './demos/diff/text-diff.js';
 import { wireDiscussionDemo } from './demos/discussion/discussion.js';
+import { wireShareMenuDemo } from './demos/handoff/share-menu.js';
 import { wireReviewNavigatorDemo } from './demos/review/review-navigator.js';
 import { wireReviewWorkbenchDemo } from './demos/review/review-workbench.js';
 import { wireAppearanceMenuDemo } from './demos/settings/appearance-menu.js';
@@ -101,5 +102,7 @@ void wireReviewNavigatorDemo(root);
 void wireTextDiffDemo(root);
 
 void wireDiscussionDemo(root);
+
+void wireShareMenuDemo(root);
 
 void wireAppearanceMenuDemo(root);

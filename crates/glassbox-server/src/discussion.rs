@@ -6,7 +6,7 @@ use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use base64::prelude::*;
-use glassbox_feedback::{BundleStore, FeedbackBundle};
+use glassbox_feedback::{BundleContext, BundleStore, FeedbackBundle};
 use glassbox_model::DifftoolInput;
 use glassbox_model::feedback::{
     AnchorSide, AnchorTarget, FeedbackChange, FeedbackId, FeedbackMessage, MessageTarget,
@@ -14,7 +14,7 @@ use glassbox_model::feedback::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::review_files::{self, SelectedFile};
+use crate::review_files::{self, ReviewSource, SelectedFile};
 
 #[derive(Default, Clone)]
 pub(crate) struct Discussion(Arc<Mutex<BTreeMap<String, Review>>>);
@@ -66,6 +66,46 @@ pub(crate) async fn handle(
         )
             .into_response(),
     }
+}
+
+pub(crate) async fn handoff(
+    workspace: Discussion,
+    source: ReviewSource,
+    difftool: Option<DifftoolInput>,
+) -> Response {
+    let prepare = move || {
+        let key = serde_json::to_string(&source).map_err(bad_request)?;
+        let mut reviews = workspace.0.lock().map_err(storage_error)?;
+        if let Some(review) = reviews.get(&key) {
+            return review.bundle.instruction().map_err(storage_error);
+        }
+        let source_copy = serde_json::from_str(&key).map_err(bad_request)?;
+        let comparison = review_files::load(source_copy, difftool.clone()).map_err(bad_request)?;
+        let context = comparison.bundle_context(&source, difftool.as_ref());
+        let review = start_review(context, ReviewFeedback::default())?;
+        let instruction = review.bundle.instruction().map_err(storage_error)?;
+        reviews.insert(key, review);
+        Ok(instruction)
+    };
+    match tokio::task::spawn_blocking(prepare).await {
+        Ok(Ok(instruction)) => Json(instruction).into_response(),
+        Ok(Err((status, message))) => (status, message).into_response(),
+        Err(_) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Could not prepare the feedback handoff",
+        )
+            .into_response(),
+    }
+}
+
+fn start_review(context: BundleContext, saved: ReviewFeedback) -> Result<Review, ApiError> {
+    let store = if let Some(directory) = std::env::var_os("GLASSBOX_FEEDBACK_DIRECTORY") {
+        BundleStore::in_directory(PathBuf::from(directory))
+    } else {
+        BundleStore::for_current_user().map_err(storage_error)?
+    };
+    let bundle = store.create(context, &saved).map_err(storage_error)?;
+    Ok(Review { saved, bundle })
 }
 
 type ApiError = (StatusCode, String);
@@ -169,19 +209,7 @@ fn edit(
         review.saved = next.clone();
     } else {
         let context = comparison.bundle_context(&source, difftool.as_ref());
-        let store = if let Some(directory) = std::env::var_os("GLASSBOX_FEEDBACK_DIRECTORY") {
-            BundleStore::in_directory(PathBuf::from(directory))
-        } else {
-            BundleStore::for_current_user().map_err(storage_error)?
-        };
-        let bundle = store.create(context, &next).map_err(storage_error)?;
-        reviews.insert(
-            key,
-            Review {
-                saved: next.clone(),
-                bundle,
-            },
-        );
+        reviews.insert(key, start_review(context, next.clone())?);
     }
     Ok(view(&next, &path))
 }

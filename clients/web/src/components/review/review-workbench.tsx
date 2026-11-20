@@ -24,6 +24,7 @@ interface ReviewWorkbenchProps {
   comparison: SafeHtml;
   comparisonToolbar?: SafeHtml;
   footerSettings?: SafeHtml;
+  footerStatus?: SafeHtml;
   inspector: SafeHtml;
 }
 
@@ -37,6 +38,7 @@ export function ReviewWorkbench({
   comparison,
   comparisonToolbar,
   footerSettings,
+  footerStatus,
   inspector,
 }: ReviewWorkbenchProps) {
   return (
@@ -56,6 +58,7 @@ export function ReviewWorkbench({
         mainBottomToolbar={{
           label: 'Review Actions',
           responsive: 'wrap',
+          leading: footerStatus,
           trailing: footerSettings,
         }}
         leftRail={{

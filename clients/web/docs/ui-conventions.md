@@ -73,3 +73,6 @@ Line actions distinguish before and after anchors. The diff groups previews
 beneath the matching line and distinguishes the active thread with a brand
 border and quiet fill. The inspector retains the open thread across diff
 layout changes and labels stale anchors. See HS2-XQBQCG.
+
+The center footer uses an icon-only Share Feedback action with labeled
+choices. Clipboard feedback is announced in the footer. See HS2-0Y326D.

@@ -288,6 +288,11 @@ fn discussion_publishes_edits_replies_and_attachments_and_rejects_stale_anchors(
             json!({"selection":selection,"operation":operation}),
         )
     };
+    let prepare = || post("/api/v1/review/handoff", selection["source"].clone());
+    let (status, first_instruction) = prepare();
+    assert_eq!(status, "HTTP/1.1 200");
+    let instruction: String = serde_json::from_str(&first_instruction).unwrap();
+    assert!(instruction.contains("review.md"));
     let create = |markdown| {
         json!({
             "kind":"create", "author":"Reviewer", "markdown":markdown, "category":"style",
@@ -329,6 +334,15 @@ fn discussion_publishes_edits_replies_and_attachments_and_rejects_stale_anchors(
 
     std::fs::write(&after, "a new revision\n").unwrap();
     assert_eq!(discuss(create("Stale line")).0, "HTTP/1.1 409");
+    let (status, updated_instruction) = prepare();
+    assert_eq!(status, "HTTP/1.1 200");
+    assert_eq!(updated_instruction, first_instruction);
+    assert_eq!(
+        std::fs::read_dir(directory.path().join("feedback"))
+            .unwrap()
+            .count(),
+        1
+    );
     let stored = std::fs::read_dir(directory.path().join("feedback"))
         .unwrap()
         .next()

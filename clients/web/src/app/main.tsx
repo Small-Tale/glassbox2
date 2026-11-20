@@ -16,6 +16,8 @@ import {
   wireDiscussion,
 } from '../components/discussion/discussion.js';
 import { createDiscussionState } from '../components/discussion/discussion-state.js';
+import { createHandoffState } from '../components/handoff/handoff-state.js';
+import { ShareMenu, ShareStatus, wireShareMenu } from '../components/handoff/share-menu.js';
 import { ReviewNavigator, wireReviewNavigator } from '../components/review/review-navigator.js';
 import { createReviewSourceState } from '../components/review/review-source.js';
 import {
@@ -37,6 +39,8 @@ const discussion = createDiscussionState(source);
 const diffToolbarId = 'glassbox-text-diff';
 const appearance = createAppearanceState();
 const appearanceId = 'glassbox-appearance';
+const handoff = createHandoffState();
+const shareId = 'glassbox-share';
 void effect(() => {
   const preference = appearance.appearance.value;
   if (preference === 'system') delete document.documentElement.dataset.kuiScheme;
@@ -130,7 +134,13 @@ mount(root, () => {
       navigator={<ReviewNavigator id="glassbox-review-navigator" state={source} />}
       comparison={comparison}
       comparisonToolbar={comparisonToolbar}
-      footerSettings={<AppearanceMenu id={appearanceId} state={appearance} />}
+      footerStatus={handoff.status.value === '' ? undefined : <ShareStatus state={handoff} />}
+      footerSettings={
+        <>
+          <ShareMenu id={shareId} state={handoff} ready={source.activeSource.value !== null} />
+          <AppearanceMenu id={appearanceId} state={appearance} />
+        </>
+      }
       inspector={
         <DiscussionInspector
           state={discussion}
@@ -145,6 +155,7 @@ void wireReviewWorkbench(root, 'glassbox-workbench', workbench);
 void wireReviewNavigator(root, 'glassbox-review-navigator', source);
 void wireTextDiffToolbar(root, diffToolbarId, textDiff);
 void wireAppearanceMenu(root, appearanceId, appearance);
+void wireShareMenu(root, shareId, handoff, () => source.activeSource.value, discussion.saveEdit);
 void wireDiscussion(
   root,
   discussion,

@@ -79,6 +79,13 @@ path. Storage management is tracked in `HS2-D518Y2`.
 Disk tests cover copied instructions, edits after handoff, binary
 evidence, failed publication and retry, and concurrent reading.
 
+The center footer’s Share Feedback menu exposes Copy AI Instruction as
+soon as a comparison is open. The first copy publishes a bundle even
+when the review has no comments. Subsequent copies and edits use the
+same bundle path and leave the comparison available for editing. The
+Send to Hot Sheet 2 choice becomes available with the export flow
+tracked in `HS2-6DE0XA`.
+
 ## Hot Sheet 2 delivery
 
 Glassbox uses the local `hotsheet-cli` and the selected project's

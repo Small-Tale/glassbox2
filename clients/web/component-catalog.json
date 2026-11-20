@@ -140,6 +140,39 @@
       "documentation": "docs/ui-conventions.md"
     },
     {
+      "id": "share-menu",
+      "name": "Share Feedback",
+      "kind": "component",
+      "purpose": "Open the review handoff choices from an icon-only footer action.",
+      "useWhen": [
+        "Offer handoff from an open review."
+      ],
+      "avoidWhen": [
+        "Choose an application appearance."
+      ],
+      "publicClasses": [
+        "share-menu",
+        "share-status"
+      ],
+      "publicTokens": [],
+      "uses": [
+        "toolbar-control-group",
+        "lucide-icon",
+        "popup-menu"
+      ],
+      "source": "src/components/handoff/share-menu.tsx",
+      "styleSources": [
+        "src/components/handoff/share-menu.css"
+      ],
+      "demoSource": "src/ux-demo/demos/handoff/share-menu.tsx",
+      "geometry": {
+        "margin": "none",
+        "border": "none",
+        "padding": "none"
+      },
+      "documentation": "docs/ui-conventions.md"
+    },
+    {
       "id": "source-context",
       "name": "Review Source Context",
       "kind": "component",

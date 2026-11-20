@@ -353,6 +353,93 @@
       }
     },
     {
+      "key": "glassbox2:share-menu",
+      "package": "glassbox2",
+      "id": "share-menu",
+      "name": "Share Feedback",
+      "kind": "component",
+      "purpose": "Open the review handoff choices from an icon-only footer action.",
+      "publicExports": [
+        {
+          "name": "ShareMenu"
+        },
+        {
+          "name": "ShareStatus"
+        },
+        {
+          "name": "wireShareMenu"
+        }
+      ],
+      "sourceLinks": [
+        "src/components/handoff/share-menu.tsx"
+      ],
+      "source": "src/components/handoff/share-menu.tsx",
+      "parents": {
+        "mode": "any",
+        "entries": []
+      },
+      "contexts": [
+        "application-ui"
+      ],
+      "zones": [],
+      "children": {
+        "mode": "any",
+        "concepts": [],
+        "requiredConcepts": []
+      },
+      "state": [],
+      "wiring": {
+        "required": true,
+        "helpers": [
+          "wireShareMenu"
+        ],
+        "sources": [
+          {
+            "export": "wireShareMenu",
+            "source": "src/components/handoff/share-menu.tsx",
+            "returnsDisposer": true
+          }
+        ],
+        "obligations": [
+          "Wire the clipboard and export choices to the active review."
+        ]
+      },
+      "responsive": {
+        "owner": "component",
+        "behaviors": [
+          "open-within-viewport"
+        ]
+      },
+      "layout": {
+        "roles": [
+          "content"
+        ],
+        "geometry": {
+          "margin": "none",
+          "border": "none",
+          "padding": "none"
+        }
+      },
+      "accessibility": {
+        "obligations": [
+          "Name the icon-only trigger and publish the clipboard result as status."
+        ]
+      },
+      "boundaries": {
+        "rootClass": "share-menu",
+        "publicClasses": [
+          "share-menu",
+          "share-status"
+        ],
+        "publicTokens": []
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/handoff/share-menu.tsx",
+        "composition": "src/components/handoff/share-menu.tsx"
+      }
+    },
+    {
       "key": "glassbox2:source-context",
       "package": "glassbox2",
       "id": "source-context",

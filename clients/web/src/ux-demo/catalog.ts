@@ -6,6 +6,7 @@ import upstreamReferences from 'virtual:glassbox-kerf-references';
 import metadata from '../../component-catalog.json';
 import { TextDiffDemo } from './demos/diff/text-diff.js';
 import { DiscussionDemo } from './demos/discussion/discussion.js';
+import { ShareMenuDemo } from './demos/handoff/share-menu.js';
 import { ReviewNavigatorDemo } from './demos/review/review-navigator.js';
 import { ReviewWorkbenchDemo } from './demos/review/review-workbench.js';
 import { SourceContextDemo } from './demos/review/source-context.js';
@@ -16,6 +17,7 @@ export const componentDemos = {
   'appearance-menu': AppearanceMenuDemo,
   'text-diff': TextDiffDemo,
   'review-discussion': DiscussionDemo,
+  'share-menu': ShareMenuDemo,
   'review-navigator': ReviewNavigatorDemo,
   'review-workbench': ReviewWorkbenchDemo,
 } satisfies Record<string, () => SafeHtml>;
@@ -36,6 +38,7 @@ const groups = [
   { category: 'Review Workbench', folder: 'review' },
   { category: 'Comparison', folder: 'diff' },
   { category: 'Discussion', folder: 'discussion' },
+  { category: 'Handoff', folder: 'handoff' },
   { category: 'Settings', folder: 'settings' },
 ];
 
