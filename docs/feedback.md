@@ -97,8 +97,14 @@ the current feedback and its referenced evidence in one attachment
 batch. The Markdown refers to files by their Hot Sheet attachment names.
 Optional reviewer summary text is included in the delivery note.
 
-The dialog previews the whole review, including threads, replies, and
-attachments. It detects the destination from the current comparison
+The dialog previews the whole review by default. Select Threads lets the
+reviewer choose complete threads grouped by file. A selected thread
+includes its opening comment, replies, and referenced attachments. The
+counts reflect the selection. A selected delivery requires at least one
+thread and validates its revisions before staging. The local review and
+copied AI instruction still include every thread.
+
+The dialog detects the destination from the current comparison
 when possible. Change accepts a project or store path. Recent lists
 newest-created tickets in the selected store. The existing ticket field
 also accepts a pasted Hot Sheet reference. The review remains available

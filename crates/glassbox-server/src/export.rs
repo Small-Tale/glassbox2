@@ -11,7 +11,7 @@ use glassbox_feedback::{
 use glassbox_model::DifftoolInput;
 use serde::{Deserialize, Serialize};
 
-use crate::discussion::{Discussion, Preview};
+use crate::discussion::{Discussion, Preview, ThreadSelection};
 use crate::review_files::{self, ReviewSource};
 
 #[derive(Clone)]
@@ -45,6 +45,7 @@ pub(crate) struct SendInput {
     source: ReviewSource,
     destination: Option<PathBuf>,
     request: ExportRequest,
+    selection: Option<Vec<ThreadSelection>>,
 }
 
 #[derive(Serialize)]
@@ -145,6 +146,7 @@ impl Delivery {
                     self.difftool.clone(),
                     client,
                     input.request,
+                    input.selection.as_deref(),
                 )?;
                 entry.insert(Attempt {
                     target: target.clone(),
@@ -155,7 +157,7 @@ impl Delivery {
         if attempt.target != target {
             return Err((
                 StatusCode::CONFLICT,
-                "Start a new delivery after changing its destination or summary.".into(),
+                "Start a new delivery after changing its destination, summary, or selected feedback.".into(),
             ));
         }
         let receipt = match &mut attempt.phase {

@@ -4,6 +4,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use glassbox_model::feedback::FeedbackThread;
 use serde::{Deserialize, Serialize};
 use tempfile::{Builder, TempDir};
 
@@ -190,6 +191,32 @@ impl FeedbackBundle {
             .publication
             .lock()
             .map_err(|_| io::Error::other("The feedback writer lost its publication lock"))?;
+        let document = fs::read_to_string(self.path())?;
+        self.stage_export(client, request, document, &evidence)
+    }
+
+    pub fn prepare_selected_export(
+        &self,
+        client: HotSheetClient,
+        request: ExportRequest,
+        threads: &[&FeedbackThread],
+    ) -> io::Result<PreparedExport> {
+        let _publication = self
+            .publication
+            .lock()
+            .map_err(|_| io::Error::other("The feedback writer lost its publication lock"))?;
+        let (document, evidence) = self.render_document(threads.iter().copied())?;
+        let document = String::from_utf8(document).map_err(io::Error::other)?;
+        self.stage_export(client, request, document, &evidence)
+    }
+
+    fn stage_export(
+        &self,
+        client: HotSheetClient,
+        request: ExportRequest,
+        mut document: String,
+        evidence: &std::collections::BTreeSet<String>,
+    ) -> io::Result<PreparedExport> {
         let staging = Builder::new().prefix("gb-delivery-").tempdir()?;
         let batch_id = staging
             .path()
@@ -197,7 +224,6 @@ impl FeedbackBundle {
             .and_then(OsStr::to_str)
             .ok_or_else(|| io::Error::other("Could not create a feedback delivery ID"))?
             .to_owned();
-        let mut document = fs::read_to_string(self.path())?;
         let mut files = Vec::with_capacity(evidence.len() + 1);
         for filename in evidence.iter() {
             let exported = format!("{batch_id}-{filename}");

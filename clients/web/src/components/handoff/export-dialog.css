@@ -48,6 +48,22 @@
   color: var(--kui-color-brand-on-quiet);
 }
 
+.feedback-export__selection {
+  display: grid;
+  min-width: 0;
+  gap: var(--kui-space-xs);
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.feedback-export__selection legend {
+  margin-block-end: var(--kui-space-2xs);
+  padding: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
 .feedback-export__notice {
   margin: 0.5rem 1rem;
   overflow-wrap: anywhere;

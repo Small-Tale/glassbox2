@@ -116,6 +116,23 @@ pub(crate) struct Preview {
     pub(crate) replies: usize,
     pub(crate) attachments: usize,
     pub(crate) paths: Vec<String>,
+    pub(crate) entries: Vec<ThreadPreview>,
+}
+
+#[derive(Serialize)]
+pub(crate) struct ThreadPreview {
+    id: FeedbackId,
+    revision: u32,
+    path: String,
+    excerpt: String,
+    replies: usize,
+    attachments: usize,
+}
+
+#[derive(Deserialize, Serialize)]
+pub(crate) struct ThreadSelection {
+    id: FeedbackId,
+    revision: u32,
 }
 
 impl Discussion {
@@ -130,19 +147,26 @@ impl Discussion {
             .iter()
             .map(|thread| thread.anchor.path.clone())
             .collect();
-        let attachments = threads
+        let entries: Vec<_> = threads
             .iter()
-            .flat_map(|thread| {
-                std::iter::once(&thread.opening)
+            .map(|thread| ThreadPreview {
+                id: thread.id,
+                revision: thread.revision,
+                path: thread.anchor.path.clone(),
+                excerpt: thread.opening.markdown.chars().take(120).collect(),
+                replies: thread.replies.len(),
+                attachments: std::iter::once(&thread.opening)
                     .chain(thread.replies.iter().map(|reply| &reply.message))
+                    .map(|message| message.attachments.len())
+                    .sum(),
             })
-            .map(|message| message.attachments.len())
-            .sum();
+            .collect();
         Ok(Preview {
             threads: threads.len(),
-            replies: threads.iter().map(|thread| thread.replies.len()).sum(),
-            attachments,
+            replies: entries.iter().map(|thread| thread.replies).sum(),
+            attachments: entries.iter().map(|thread| thread.attachments).sum(),
             paths: paths.into_iter().collect(),
+            entries,
         })
     }
 
@@ -223,11 +247,34 @@ impl Discussion {
         difftool: Option<DifftoolInput>,
         client: HotSheetClient,
         request: ExportRequest,
+        selection: Option<&[ThreadSelection]>,
     ) -> Result<PreparedExport, ApiError> {
         with_review(self, source, difftool, |review| {
+            let Some(selection) = selection else {
+                return review
+                    .bundle
+                    .prepare_export(client, request)
+                    .map_err(storage_error);
+            };
+            if selection.is_empty() {
+                return Err(bad_request("Choose at least one feedback thread."));
+            }
+            let revisions: BTreeMap<_, _> = selection
+                .iter()
+                .map(|entry| (entry.id, entry.revision))
+                .collect();
+            let chosen: Vec<_> = review
+                .saved
+                .threads()
+                .iter()
+                .filter(|thread| revisions.get(&thread.id) == Some(&thread.revision))
+                .collect();
+            if chosen.len() != selection.len() {
+                return Err((StatusCode::CONFLICT, "Selected feedback has changed. Refresh the delivery and select the threads again.".into()));
+            }
             review
                 .bundle
-                .prepare_export(client, request)
+                .prepare_selected_export(client, request, &chosen)
                 .map_err(storage_error)
         })
     }

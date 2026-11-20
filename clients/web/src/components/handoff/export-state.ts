@@ -5,7 +5,15 @@ import type { ReviewSource } from '../review/review-source.js';
 export type ExportMode = 'new' | 'existing';
 export type RecentTicket = { slug: string; title: string; status: string };
 export type Destination = { name: string; path: string };
-export type FeedbackPreview = { threads: number; replies: number; attachments: number; paths: string[] };
+type ThreadSelection = { id: number; revision: number };
+type ThreadPreview = ThreadSelection & { path: string; excerpt: string; replies: number; attachments: number };
+export type FeedbackPreview = {
+  threads: number;
+  replies: number;
+  attachments: number;
+  paths: string[];
+  entries: ThreadPreview[];
+};
 export type ExportPreview = {
   destination: Destination | null;
   recent: RecentTicket[];
@@ -17,6 +25,7 @@ type Send = {
   id: string;
   source: ReviewSource;
   destination: string;
+  selection: ThreadSelection[] | null;
   request: {
     target: { kind: 'new' } | { kind: 'existing'; reference: string };
     title: string;
@@ -61,7 +70,9 @@ export function createExportState(load = preview, deliver = send) {
   const destinationDraft = signal('');
   const changingDestination = signal(false);
   const recent = signal<RecentTicket[]>([]);
-  const feedback = signal<FeedbackPreview>({ threads: 0, replies: 0, attachments: 0, paths: [] });
+  const emptyFeedback: FeedbackPreview = { threads: 0, replies: 0, attachments: 0, paths: [], entries: [] };
+  const feedback = signal(emptyFeedback);
+  const included = signal<ThreadSelection[] | null>(null);
   const title = signal('');
   const reference = signal('');
   const summary = signal('');
@@ -94,6 +105,11 @@ export function createExportState(load = preview, deliver = send) {
       }
       recent.value = result.recent;
       feedback.value = result.feedback;
+      const current = included.value;
+      if (current !== null) {
+        const revisions = new Map(result.feedback.entries.map(({ id, revision }) => [id, revision]));
+        included.value = current.filter(({ id, revision }) => revisions.get(id) === revision);
+      }
       message.value = result.message ?? '';
     } catch (error) {
       if (request === generation)
@@ -111,7 +127,8 @@ export function createExportState(load = preview, deliver = send) {
     destinationDraft.value = '';
     changingDestination.value = false;
     recent.value = [];
-    feedback.value = { threads: 0, replies: 0, attachments: 0, paths: [] };
+    feedback.value = emptyFeedback;
+    included.value = null;
     mode.value = 'new';
     title.value = '';
     reference.value = '';
@@ -131,6 +148,40 @@ export function createExportState(load = preview, deliver = send) {
     message.value = '';
   }
 
+  async function revise() {
+    resetDelivery();
+    await update(destination.value?.path ?? null);
+  }
+
+  function toggleSelection() {
+    included.value =
+      included.value === null ? feedback.value.entries.map(({ id, revision }) => ({ id, revision })) : null;
+  }
+
+  function setIncluded(id: number, checked: boolean) {
+    const current = included.value;
+    if (current === null || attempted.value) return;
+    const thread = feedback.value.entries.find((entry) => entry.id === id);
+    if (thread === undefined) return;
+    if (!checked) included.value = current.filter((entry) => entry.id !== id);
+    else if (!current.some((entry) => entry.id === id))
+      included.value = [...current, { id, revision: thread.revision }];
+  }
+
+  function includedFeedback() {
+    const current = included.value;
+    if (current === null) return feedback.value;
+    const ids = new Set(current.map(({ id }) => id));
+    const entries = feedback.value.entries.filter(({ id }) => ids.has(id));
+    return {
+      entries,
+      threads: entries.length,
+      replies: entries.reduce((count, thread) => count + thread.replies, 0),
+      attachments: entries.reduce((count, thread) => count + thread.attachments, 0),
+      paths: [...new Set(entries.map(({ path }) => path))],
+    };
+  }
+
   async function chooseDestination() {
     const path = destinationDraft.value.trim();
     if (path === '') return;
@@ -146,6 +197,7 @@ export function createExportState(load = preview, deliver = send) {
       !changingDestination.value &&
       !sending.value &&
       receipt.value === null &&
+      included.value?.length !== 0 &&
       (mode.value === 'new' || ticketReference(reference.value) !== undefined)
     );
   }
@@ -161,6 +213,7 @@ export function createExportState(load = preview, deliver = send) {
       id: crypto.randomUUID(),
       source,
       destination: destination.value.path,
+      selection: included.value,
       request: {
         target,
         title: title.value.trim(),
@@ -187,6 +240,8 @@ export function createExportState(load = preview, deliver = send) {
     changingDestination,
     recent,
     feedback,
+    included,
+    includedFeedback,
     title,
     reference,
     summary,
@@ -198,7 +253,9 @@ export function createExportState(load = preview, deliver = send) {
     open,
     close,
     chooseDestination,
-    resetDelivery,
+    revise,
+    toggleSelection,
+    setIncluded,
     canSend,
     submit,
   };

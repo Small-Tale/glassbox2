@@ -182,7 +182,7 @@
       "id": "export-dialog",
       "name": "Hot Sheet Export",
       "kind": "composition",
-      "purpose": "Choose a Hot Sheet destination and deliver the whole feedback bundle.",
+      "purpose": "Choose a Hot Sheet destination and deliver the full review or selected threads.",
       "publicExports": [
         {
           "name": "ExportDialog"

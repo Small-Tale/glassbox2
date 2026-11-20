@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use glassbox_model::feedback::{
-    AnchorSide, AnchorTarget, FeedbackAttachment, FeedbackMessage, ReviewFeedback,
+    AnchorSide, AnchorTarget, FeedbackAttachment, FeedbackMessage, FeedbackThread, ReviewFeedback,
     ReviewerCategory, ThreadOrigin,
 };
 use serde::{Deserialize, Serialize};
@@ -99,6 +99,15 @@ impl FeedbackBundle {
             .publication
             .lock()
             .map_err(|_| io::Error::other("The feedback writer lost its publication lock"))?;
+        let (output, evidence) = self.render_document(feedback.threads().iter())?;
+        write_replace(&self.directory, HANDOFF, &output)?;
+        *publication = evidence;
+        Ok(())
+    }
+    fn render_document<'a>(
+        &self,
+        threads: impl Iterator<Item = &'a FeedbackThread>,
+    ) -> io::Result<(Vec<u8>, BTreeSet<String>)> {
         let attachment_directory = self.directory.join(ATTACHMENTS);
         fs::create_dir_all(&attachment_directory)?;
 
@@ -106,10 +115,11 @@ impl FeedbackBundle {
         let mut evidence = BTreeSet::new();
         writeln!(output, "{BUNDLE_HEADER}")?;
         write_context(&mut output, &self.context)?;
-        if feedback.threads().is_empty() {
+        let mut threads = threads.peekable();
+        if threads.peek().is_none() {
             writeln!(output, "\nNo feedback has been recorded.\n")?;
         }
-        for thread in feedback.threads() {
+        for thread in threads {
             let side = match thread.anchor.side {
                 AnchorSide::Before => "before",
                 AnchorSide::After => "after",
@@ -160,9 +170,7 @@ impl FeedbackBundle {
             }
         }
 
-        write_replace(&self.directory, HANDOFF, &output)?;
-        *publication = evidence;
-        Ok(())
+        Ok((output, evidence))
     }
 }
 

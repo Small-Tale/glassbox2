@@ -407,19 +407,54 @@ fn export_sends_to_a_new_and_an_existing_ticket_without_replaying_delivery() {
     std::fs::write(&after, "after\n").unwrap();
     let (_host, address) = RunningServer::start_configured(None, &[], Some(scratch.path()));
     let source = json!({"kind":"paths","before":before,"after":after});
-    let route = |path: &str, input: Value| {
-        let response = exchange(
+    let raw_route = |path: &str, input: Value| {
+        exchange(
             address,
             "POST",
             path,
             &address.to_string(),
             "Content-Type: application/json\r\n",
             &input.to_string(),
-        );
+        )
+    };
+    let route = |path: &str, input: Value| {
+        let response = raw_route(path, input);
         let (head, body) = response.split_once("\r\n\r\n").unwrap();
         assert!(head.starts_with("HTTP/1.1 200"), "{response}");
         serde_json::from_str::<Value>(body).unwrap()
     };
+    let selection = json!({"source":source,"index":0,"path":"after.txt"});
+    let content = route("/api/v1/review/file", selection.clone());
+    let discuss = |operation: Value| {
+        route(
+            "/api/v1/review/discussion",
+            json!({"selection":selection,"operation":operation}),
+        )
+    };
+    for text in ["Keep this thread", "Exclude this thread"] {
+        discuss(
+            json!({"kind":"create","anchor":{"path":"after.txt","side":"after","revision":content["revision"],
+            "target":{"kind":"line","start":1,"end":1}},"category":"note","author":"Fixture","markdown":text}),
+        );
+    }
+    let preview = route(
+        "/api/v1/review/export/preview",
+        json!({"source":source,"destination":store}),
+    );
+    let kept = &preview["feedback"]["entries"][0];
+    let excluded = &preview["feedback"]["entries"][1];
+    let view = discuss(
+        json!({"kind":"attach","id":kept["id"],"revision":kept["revision"],"filename":"keep.txt","content":"a2VlcA=="}),
+    );
+    discuss(
+        json!({"kind":"attach","id":excluded["id"],"revision":excluded["revision"],"filename":"exclude.txt","content":"ZXhjbHVkZQ=="}),
+    );
+    let kept_revision = &view["threads"][0]["revision"];
+    let view = discuss(
+        json!({"kind":"apply","id":kept["id"],"revision":kept_revision,"change":{
+        "kind":"reply","author":"Fixture","markdown":"Keep this reply"}}),
+    );
+    let kept_revision = &view["threads"][0]["revision"];
     let created = json!({"id":"00000000-0000-0000-0000-000000000001","source":source,"destination":store,
         "request":{"target":{"kind":"new"},"title":"Fixture review","summary":"First delivery"}});
     let receipt = route("/api/v1/review/export/send", created.clone());
@@ -430,17 +465,51 @@ fn export_sends_to_a_new_and_an_existing_ticket_without_replaying_delivery() {
         json!({"source":source,"destination":store,"recent":true}),
     );
     assert_eq!(preview["recent"][0]["slug"], ticket);
-    let appended = route(
-        "/api/v1/review/export/send",
-        json!({"id":"00000000-0000-0000-0000-000000000002","source":source,
-        "destination":store,"request":{"target":{"kind":"existing","reference":ticket},"summary":"Second delivery"}}),
-    );
+    let mut selective = json!({"id":"00000000-0000-0000-0000-000000000002","source":source,
+        "destination":store,"request":{"target":{"kind":"existing","reference":ticket},"summary":"Second delivery"},
+        "selection":[{"id":kept["id"],"revision":kept["revision"]}]});
+    let endpoint = "/api/v1/review/export/send";
+    assert!(raw_route(endpoint, selective.clone()).starts_with("HTTP/1.1 409"));
+    selective["selection"] = json!([]);
+    assert!(raw_route(endpoint, selective.clone()).starts_with("HTTP/1.1 400"));
+    selective["selection"] = json!([{"id":kept["id"],"revision":kept_revision}]);
+    let appended = route(endpoint, selective.clone());
+    assert_eq!(route(endpoint, selective), appended);
     assert_eq!(appended["ticket"], ticket);
     assert_ne!(appended["batch_id"], receipt["batch_id"]);
     let written = cli(&["show", ticket]);
     assert_eq!(written.matches("First delivery").count(), 1);
     assert_eq!(written.matches("Second delivery").count(), 1);
     assert!(written.contains("status: not_started"));
+    let batch = appended["batch_id"].as_str().unwrap();
+    let files: Vec<_> = std::fs::read_dir(store.join("attachments"))
+        .unwrap()
+        .flat_map(|directory| std::fs::read_dir(directory.unwrap().path()).unwrap())
+        .flat_map(|directory| std::fs::read_dir(directory.unwrap().path()).unwrap())
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| {
+            path.file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with(batch)
+        })
+        .collect();
+    assert_eq!(files.len(), 2);
+    let document = files
+        .iter()
+        .find(|path| {
+            path.file_name()
+                .unwrap()
+                .to_string_lossy()
+                .ends_with("-review.md")
+        })
+        .unwrap();
+    let document = std::fs::read_to_string(document).unwrap();
+    assert!(document.contains("Keep this thread"));
+    assert!(document.contains("Keep this reply"));
+    assert!(document.contains("keep.txt"));
+    assert!(!document.contains("Exclude this thread"));
+    assert!(!document.contains("exclude.txt"));
 }
 
 #[test]

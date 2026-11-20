@@ -7,7 +7,16 @@ const id = 'demo-hot-sheet-export';
 const preview: ExportPreview = {
   destination: { name: 'Fieldnotes', path: 'Fieldnotes.hs2' },
   recent: [{ slug: 'FN-4QX8M2', title: 'Make review bundle writes atomic', status: 'started' }],
-  feedback: { threads: 2, replies: 3, attachments: 1, paths: ['src/bundle.ts'] },
+  feedback: {
+    threads: 2,
+    replies: 3,
+    attachments: 1,
+    paths: ['src/bundle.ts'],
+    entries: [
+      { id: 1, revision: 3, path: 'src/bundle.ts', excerpt: 'Use an atomic replacement.', replies: 2, attachments: 1 },
+      { id: 2, revision: 2, path: 'src/bundle.ts', excerpt: 'Cover simultaneous writes.', replies: 1, attachments: 0 },
+    ],
+  },
   message: null,
 };
 const state = createExportState(

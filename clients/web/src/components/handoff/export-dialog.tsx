@@ -2,6 +2,7 @@ import '@kerfjs/ui/popup-menu/register';
 import './export-dialog.css';
 
 import { Button } from '@kerfjs/ui/button';
+import { Checkbox } from '@kerfjs/ui/checkbox';
 import { px } from '@kerfjs/ui/css-values';
 import { deviceClass } from '@kerfjs/ui/device-class';
 import { PopupMenu } from '@kerfjs/ui/popup-menu';
@@ -25,7 +26,9 @@ export function ExportDialog({ id, state, embedded = false }: { id: string; stat
   const changing = state.changingDestination.value;
   const locked = state.attempted.value;
   const existing = state.mode.value === 'existing';
-  const feedback = state.feedback.value;
+  const feedback = state.includedFeedback();
+  const included = state.included.value;
+  const available = state.feedback.value;
   const receipt = state.receipt.value;
   const files = feedback.paths.length === 1 ? feedback.paths[0] : `${feedback.paths.length} files`;
   const submitLabel = locked ? 'Retry' : existing ? 'Add to Ticket' : 'Create Ticket';
@@ -150,13 +153,25 @@ export function ExportDialog({ id, state, embedded = false }: { id: string; stat
           <section class="feedback-export__section" aria-labelledby={`${id}-included`}>
             <h3 id={`${id}-included`}>Included Feedback</h3>
             <div class="feedback-export__group">
-              {feedback.threads === 0 ? (
-                <span>No feedback has been recorded.</span>
-              ) : (
-                <span>
-                  {feedback.threads} {feedback.threads === 1 ? 'thread' : 'threads'} · {files}
-                </span>
-              )}
+              <div class="feedback-export__row">
+                {feedback.threads === 0 ? (
+                  <span>{included === null ? 'No feedback has been recorded.' : 'No threads selected.'}</span>
+                ) : (
+                  <span>
+                    {feedback.threads} {feedback.threads === 1 ? 'thread' : 'threads'} · {files}
+                  </span>
+                )}
+                {available.threads === 0 ? null : (
+                  <Button
+                    action="export-selection"
+                    tone="brand"
+                    emphasis="plain"
+                    disabled={locked || state.loading.value}
+                  >
+                    {included === null ? 'Select Threads' : 'Include Everything'}
+                  </Button>
+                )}
+              </div>
               {feedback.replies > 0 ? (
                 <span>
                   {feedback.replies} {feedback.replies === 1 ? 'reply' : 'replies'}
@@ -167,6 +182,24 @@ export function ExportDialog({ id, state, embedded = false }: { id: string; stat
                   {feedback.attachments} {feedback.attachments === 1 ? 'attachment' : 'attachments'}
                 </span>
               ) : null}
+              {included === null
+                ? null
+                : available.paths.map((path) => (
+                    <fieldset class="feedback-export__selection">
+                      <legend>{path}</legend>
+                      {available.entries
+                        .filter((thread) => thread.path === path)
+                        .map((thread) => (
+                          <Checkbox
+                            label={thread.excerpt}
+                            name="export-thread"
+                            value={String(thread.id)}
+                            checked={included.some(({ id }) => id === thread.id)}
+                            disabled={locked || state.loading.value}
+                          />
+                        ))}
+                    </fieldset>
+                  ))}
             </div>
           </section>
         </div>
@@ -215,6 +248,15 @@ export function wireExportDialog(root: HTMLElement, id: string, state: ExportSta
   const belongs = (target: EventTarget | null): target is HTMLElement =>
     target instanceof HTMLElement && target.closest('dialog')?.id === id;
 
+  root.addEventListener(
+    'change',
+    (event) => {
+      const field = event.target;
+      if (!belongs(field) || !(field instanceof HTMLInputElement) || field.name !== 'export-thread') return;
+      state.setIncluded(Number(field.value), field.checked);
+    },
+    { signal },
+  );
   root.addEventListener(
     'input',
     (event) => {
@@ -268,7 +310,10 @@ export function wireExportDialog(root: HTMLElement, id: string, state: ExportSta
           void state.submit();
           break;
         case 'export-revise':
-          state.resetDelivery();
+          void state.revise();
+          break;
+        case 'export-selection':
+          state.toggleSelection();
           break;
       }
     },

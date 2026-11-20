@@ -70,9 +70,9 @@
       "id": "export-dialog",
       "name": "Hot Sheet Export",
       "kind": "composition",
-      "purpose": "Choose a Hot Sheet destination and deliver the whole feedback bundle.",
+      "purpose": "Choose a Hot Sheet destination and deliver the full review or selected threads.",
       "useWhen": [
-        "Send a whole review bundle to a Hot Sheet ticket."
+        "Send all or selected review threads to a Hot Sheet ticket."
       ],
       "avoidWhen": [
         "Copy instructions to the clipboard."
@@ -83,6 +83,7 @@
       "publicTokens": [],
       "uses": [
         "button",
+        "checkbox",
         "popup-menu",
         "segmented-control",
         "text-field",
