@@ -1,3 +1,4 @@
+mod cache;
 mod input;
 mod provider;
 
@@ -14,7 +15,7 @@ use glassbox_model::analysis::{
 use serde::Deserialize;
 use tokio::task::AbortHandle;
 
-use self::{input::capture, provider::Provider};
+use self::{cache::Cache, input::capture, provider::Provider};
 use crate::discussion::Discussion;
 use crate::review_files::ReviewSource;
 
@@ -26,6 +27,7 @@ pub(crate) struct Analysis {
     jobs: Arc<Mutex<Jobs>>,
     difftool: Option<DifftoolInput>,
     discussion: Discussion,
+    cache: Arc<Cache>,
 }
 
 #[derive(Default)]
@@ -52,6 +54,7 @@ impl Analysis {
             jobs: Arc::default(),
             difftool,
             discussion,
+            cache: Arc::default(),
         }
     }
 
@@ -165,21 +168,72 @@ impl Analysis {
                 total,
             },
         );
+        let key = Cache::key(&provider, request.mode, &snapshot);
+        let persistent = provider.can_persist();
+        let gate = match key.as_deref() {
+            Some(key) => Some(self.cache.acquire(key).await),
+            None => None,
+        };
+        let cached = key
+            .as_deref()
+            .and_then(|key| self.cache.load(key, persistent));
+        let was_cached = cached.is_some();
+        let result = match cached {
+            Some(result) => result,
+            None => match self
+                .generate(id, request.mode, &snapshot, &provider, total)
+                .await
+            {
+                Ok(result) => result,
+                Err(error) => return failed(error),
+            },
+        };
+        match capture(request.source.clone(), self.difftool.clone()).await {
+            Ok(current) if current == snapshot => (),
+            Ok(_) => return AnalysisStatus::Stale,
+            Err(error) => return failed(error),
+        }
+        let analysis = self.clone();
+        match tokio::task::spawn_blocking(move || {
+            let _gate = gate;
+            let state = analysis.publish(id, request.source, result);
+            if !was_cached {
+                if let (Some(key), AnalysisStatus::Complete { result }) = (key, &state) {
+                    analysis.cache.save(&key, persistent, result);
+                }
+            }
+            state
+        })
+        .await
+        {
+            Ok(state) => state,
+            Err(error) => failed(error),
+        }
+    }
+
+    async fn generate(
+        &self,
+        id: u64,
+        mode: AnalysisMode,
+        snapshot: &input::Snapshot,
+        provider: &Provider,
+        total: usize,
+    ) -> Result<AnalysisResult, String> {
         let mut result = AnalysisResult {
-            mode: request.mode,
+            mode,
             files: Vec::new(),
             narrative: Vec::new(),
             skipped: snapshot.skipped.clone(),
             failures: Vec::new(),
         };
-        if request.mode == AnalysisMode::Narrative && total > 0 {
+        if mode == AnalysisMode::Narrative && total > 0 {
             match provider.narrative(&snapshot.files).await {
                 Ok(narrative) => result.narrative = narrative,
-                Err(error) => return failed(error),
+                Err(error) => return Err(error),
             }
         } else {
             for (index, file) in snapshot.files.iter().enumerate() {
-                match provider.analyze_file(request.mode, file).await {
+                match provider.analyze_file(mode, file).await {
                     Ok(file) => result.files.push(file),
                     Err(message) => result.failures.push(FileAnalysisFailure {
                         path: file.path.clone(),
@@ -197,21 +251,10 @@ impl Analysis {
         }
         if result.files.is_empty() {
             if let Some(first) = result.failures.first() {
-                return failed(format!("{}: {}", first.path, first.message));
+                return Err(format!("{}: {}", first.path, first.message));
             }
         }
-        match capture(request.source.clone(), self.difftool.clone()).await {
-            Ok(current) if current == snapshot => (),
-            Ok(_) => return AnalysisStatus::Stale,
-            Err(error) => return failed(error),
-        }
-        let analysis = self.clone();
-        match tokio::task::spawn_blocking(move || analysis.publish(id, request.source, result))
-            .await
-        {
-            Ok(state) => state,
-            Err(error) => failed(error),
-        }
+        Ok(result)
     }
 
     fn publish(&self, id: u64, source: ReviewSource, result: AnalysisResult) -> AnalysisStatus {

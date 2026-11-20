@@ -85,3 +85,22 @@ node scripts/measure-analysis.mjs target/debug/glassbox-server /tmp/glassbox-pro
 
 Append a fixture and mode to repeat a single row. The script creates its
 own local review and feedback directories and removes them on exit.
+
+## Exact-input cache verification
+
+With the cache enabled and a revision explicitly supplied for this
+isolated Apple model run, all 24 requests completed. Median repeats
+met the 250 ms target in each case.
+
+| Fixture | Mode | First request | Median repeat |
+| --- | --- | ---: | ---: |
+| Timeout adjustment | Risk | 3,738 ms | 54 ms |
+| Timeout adjustment | Narrative | 685 ms | 53 ms |
+| Timeout adjustment | Guidance | 1,468 ms | 54 ms |
+| Atomic writer | Risk | 7,945 ms | 106 ms |
+| Atomic writer | Narrative | 790 ms | 54 ms |
+| Atomic writer | Guidance | 6,699 ms | 105 ms |
+
+The real host regression counted one generation for two simultaneous
+requests and zero additional generations after a host restart. Changing
+the configured model revision triggered another generation.

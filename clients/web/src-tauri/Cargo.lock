@@ -1168,6 +1168,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "base64 0.22.1",
+ "fs2",
  "glassbox-ai",
  "glassbox-comparison",
  "glassbox-feedback",
@@ -1176,6 +1177,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "tempfile",
  "tokio",
  "tower-http",
 ]

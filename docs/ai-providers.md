@@ -101,3 +101,18 @@ Analysis passes only bounded text diff inputs to the selected provider.
 Results identify omitted media, oversized changes, and files beyond the
 job limit. The host reads the comparison again before publishing to catch
 working-tree changes while inference was running. See the [latency baseline and reuse decision](benchmarks/2026-11-19-analysis-reuse.md).
+
+## Exact-input reuse
+
+The host caches complete results for matching files, revisions, analysis
+mode, and resolved provider settings. Adapter changes and model changes
+produce a fresh result. Set `GLASSBOX_AI_MODEL_REVISION` only when the
+configured model has a known revision. With a revision, entries can
+survive host restarts in `.glassbox2/analysis-cache`. Otherwise reuse is
+limited to the host lifetime. Disk storage is capped at 64 MiB, separate
+from saved review feedback.
+
+Simultaneous identical requests can reuse the first completed result.
+If the generating job is cancelled, another waiting job can generate
+its own result. Each usable result still goes through the normal
+revision and discussion publication checks.

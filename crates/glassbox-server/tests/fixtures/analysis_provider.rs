@@ -9,6 +9,15 @@ fn main() {
         println!(r#"{{"version":1,"outcome":{{"status":"models","models":["fixture"]}}}}"#);
         return;
     }
+    if let Some(path) = std::env::var_os("GLASSBOX_TEST_GENERATIONS") {
+        use std::io::Write;
+        let mut counter = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .unwrap();
+        writeln!(counter, "generated").unwrap();
+    }
     std::thread::sleep(Duration::from_millis(400));
     let result = if input.contains("INVALID_FIXTURE")
         || (input.contains("INVALID_ONCE") && !input.contains("Return a minimal object"))

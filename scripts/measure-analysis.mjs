@@ -54,6 +54,7 @@ async function serve(registry, run) {
       GLASSBOX_AI_MODEL: 'apple-foundation',
       GLASSBOX_AI_PROVIDER_SETTINGS: '{}',
       GLASSBOX_FEEDBACK_DIRECTORY: join(scratch, 'feedback'),
+      GLASSBOX_ANALYSIS_CACHE_DIRECTORY: join(scratch, 'analysis-cache'),
     },
     stdio: ['ignore', 'pipe', 'inherit'],
   });

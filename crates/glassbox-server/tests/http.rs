@@ -45,6 +45,9 @@ impl RunningServer {
             .env_remove("GLASSBOX_AI_PROVIDER_DIRECTORY")
             .env_remove("GLASSBOX_AI_PROVIDER")
             .env_remove("GLASSBOX_AI_MODEL")
+            .env_remove("GLASSBOX_AI_MODEL_REVISION")
+            .env_remove("GLASSBOX_ANALYSIS_CACHE_DIRECTORY")
+            .env_remove("GLASSBOX_TEST_GENERATIONS")
             .env_remove("GLASSBOX_AI_PROVIDER_SETTINGS");
         for (key, value) in environment {
             command.env(key, value);
@@ -473,15 +476,17 @@ fn analysis_uses_provider_jobs_with_progress_results_cancellation_stale_and_unav
     std::fs::write(&before, "before\n").unwrap();
     std::fs::write(&after, "after\n").unwrap();
     let source = json!({"kind":"paths","before":before,"after":after});
-    let (_host, address) = RunningServer::start_in_environment(
-        None,
-        &[],
-        Some(root.path()),
-        &[
-            ("GLASSBOX_AI_PROVIDER_DIRECTORY", registry.as_os_str()),
-            ("GLASSBOX_AI_PROVIDER", OsStr::new("fixture")),
-        ],
-    );
+    let counter = root.path().join("generation-count");
+    let cache = root.path().join("analysis-cache");
+    let environment = [
+        ("GLASSBOX_AI_PROVIDER_DIRECTORY", registry.as_os_str()),
+        ("GLASSBOX_AI_PROVIDER", OsStr::new("fixture")),
+        ("GLASSBOX_AI_MODEL_REVISION", OsStr::new("fixture-revision")),
+        ("GLASSBOX_ANALYSIS_CACHE_DIRECTORY", cache.as_os_str()),
+        ("GLASSBOX_TEST_GENERATIONS", counter.as_os_str()),
+    ];
+    let (_host, address) =
+        RunningServer::start_in_environment(None, &[], Some(root.path()), &environment);
     let (_disabled_host, disabled_address) =
         RunningServer::start_configured(None, &[], Some(root.path()));
     let call = |address: SocketAddr, method: &str, path: &str, input: Value| {
@@ -527,7 +532,39 @@ fn analysis_uses_provider_jobs_with_progress_results_cancellation_stale_and_unav
     let ready = |state: &Value| state["total"] == 1 || state["status"] != "running";
 
     let risk = start(address, "risk");
+    let simultaneous = start(address, "risk");
     let result = wait_for(address, &risk, done);
+    assert_eq!(
+        wait_for(address, &simultaneous, done)["result"],
+        result["result"]
+    );
+    assert_eq!(
+        std::fs::read_to_string(&counter).unwrap().lines().count(),
+        1
+    );
+    let (_restart, restarted) =
+        RunningServer::start_in_environment(None, &[], Some(root.path()), &environment);
+    assert_eq!(
+        wait_for(restarted, &start(restarted, "risk"), done)["result"],
+        result["result"]
+    );
+    assert_eq!(
+        std::fs::read_to_string(&counter).unwrap().lines().count(),
+        1
+    );
+    let mut updated_environment = environment;
+    updated_environment[2].1 = OsStr::new("different-model-revision");
+    let (_updated, updated) =
+        RunningServer::start_in_environment(None, &[], Some(root.path()), &updated_environment);
+    assert_eq!(
+        wait_for(updated, &start(updated, "risk"), done)["status"],
+        "complete"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&counter).unwrap().lines().count(),
+        2
+    );
+
     assert_eq!(result["status"], "complete", "{result}");
     let file = &result["result"]["files"][0];
     assert_eq!(file["path"], "after.txt");
@@ -562,6 +599,7 @@ fn analysis_uses_provider_jobs_with_progress_results_cancellation_stale_and_unav
     let result = wait_for(address, &narrative, done);
     assert_eq!(result["result"]["narrative"][0]["path"], "after.txt");
 
+    std::fs::write(&after, "changed before cancellation\n").unwrap();
     let cancelled = start(address, "guidance");
     assert_eq!(wait_for(address, &cancelled, ready)["status"], "running");
     assert_eq!(

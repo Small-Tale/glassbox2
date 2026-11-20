@@ -8,6 +8,7 @@ use glassbox_model::analysis::{
 };
 use glassbox_model::feedback::AnchorSide;
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
 
 use super::input::InputFile;
 
@@ -15,6 +16,8 @@ const TIMEOUT: Duration = Duration::from_secs(90);
 
 pub(super) struct Provider {
     executable: PathBuf,
+    id: String,
+    model_revision: Option<String>,
     model: String,
     settings: BTreeMap<String, serde_json::Value>,
 }
@@ -62,9 +65,33 @@ impl Provider {
         };
         Ok(Self {
             executable: manifest.executable,
+            id,
+            model_revision: std::env::var("GLASSBOX_AI_MODEL_REVISION")
+                .ok()
+                .filter(|revision| !revision.trim().is_empty()),
             model,
             settings,
         })
+    }
+
+    pub(super) fn cache_identity(&self) -> Option<impl serde::Serialize + '_> {
+        let mut file = std::fs::File::open(&self.executable).ok()?;
+        let mut digest = Sha256::new();
+        std::io::copy(&mut file, &mut digest).ok()?;
+        let executable = format!("{:x}", digest.finalize());
+        let settings = Sha256::digest(serde_json::to_vec(&self.settings).ok()?);
+        Some((
+            &self.id,
+            &self.executable,
+            executable,
+            &self.model,
+            &self.model_revision,
+            format!("{settings:x}"),
+        ))
+    }
+
+    pub(super) fn can_persist(&self) -> bool {
+        self.model_revision.is_some()
     }
 
     async fn generate<T: serde::de::DeserializeOwned>(

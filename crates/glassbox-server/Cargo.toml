@@ -7,6 +7,7 @@ rust-version.workspace = true
 [dependencies]
 axum.workspace = true
 base64 = "0.22"
+fs2 = "0.4"
 glassbox-ai = { path = "../glassbox-ai", default-features = false }
 glassbox-comparison = { path = "../glassbox-comparison" }
 glassbox-feedback = { path = "../glassbox-feedback" }
@@ -14,10 +15,10 @@ glassbox-model.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2 = "0.10"
+tempfile.workspace = true
 glassbox-settings.workspace = true
 tokio.workspace = true
 tower-http.workspace = true
 
 [dev-dependencies]
-tempfile.workspace = true
 tokio = { workspace = true, features = ["io-util"] }
