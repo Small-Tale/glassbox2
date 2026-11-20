@@ -8,6 +8,7 @@ use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 use glassbox_model::feedback::{
     AnchorSide, AnchorTarget, FeedbackAttachment, FeedbackMessage, FeedbackThread, ReviewFeedback,
@@ -288,11 +289,24 @@ fn write_temporary(directory: &Path, bytes: &[u8]) -> io::Result<NamedTempFile> 
 }
 
 fn write_replace(directory: &Path, filename: &str, bytes: &[u8]) -> io::Result<()> {
-    let temporary = write_temporary(directory, bytes)?;
-    temporary
-        .persist(directory.join(filename))
-        .map_err(|error| error.error)?;
-    Ok(())
+    let mut temporary = write_temporary(directory, bytes)?;
+    let target = directory.join(filename);
+    let deadline = Instant::now() + Duration::from_millis(500);
+    loop {
+        match temporary.persist(&target) {
+            Ok(_) => return Ok(()),
+            // Windows may temporarily refuse replacing a document while another process is reading it.
+            Err(error)
+                if cfg!(windows)
+                    && matches!(error.error.raw_os_error(), Some(5 | 32 | 33))
+                    && Instant::now() < deadline =>
+            {
+                temporary = error.file;
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            Err(error) => return Err(error.error),
+        }
+    }
 }
 
 fn path_text(path: &Path) -> io::Result<&str> {

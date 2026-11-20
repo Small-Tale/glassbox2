@@ -72,9 +72,11 @@ The Markdown includes project and comparison context, source anchors,
 authorship, categories, AI tags and risk, messages, and replies.
 Attachments are real files with content-addressed names and portable
 extensions. Publication writes evidence before replacing the Markdown
-atomically. A failed publication leaves the previous Markdown and
-its referenced evidence available. Publishing again updates the same
-path. Storage management is tracked in `HS2-D518Y2`.
+atomically. Windows retries temporary sharing failures for up to half a
+second when an external reader has the document open. A failed
+publication leaves the previous Markdown and its referenced evidence
+available. Publishing again updates the same path. Storage management
+is tracked in `HS2-D518Y2`.
 
 Disk tests cover copied instructions, edits after handoff, binary
 evidence, failed publication and retry, and concurrent reading.

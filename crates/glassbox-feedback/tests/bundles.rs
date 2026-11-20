@@ -205,3 +205,41 @@ fn concurrent_readers_only_see_complete_publications() {
         }
     });
 }
+
+#[cfg(windows)]
+#[test]
+fn publication_retries_while_an_external_reader_holds_the_document() {
+    use std::os::windows::fs::OpenOptionsExt;
+    use std::time::{Duration, Instant};
+
+    let directory = tempfile::tempdir().unwrap();
+    let (first, _) = feedback("the original snapshot");
+    let (second, _) = feedback("the next snapshot");
+    let bundle = BundleStore::in_directory(directory.path())
+        .create(context(directory.path()), &first)
+        .unwrap();
+    let path = bundle.path();
+    let reader = fs::OpenOptions::new()
+        .read(true)
+        .share_mode(1) // FILE_SHARE_READ only. Opening the destination for deletion must wait.
+        .open(&path)
+        .unwrap();
+
+    let started = Instant::now();
+    let error = bundle.publish(&second).unwrap_err();
+    assert!(matches!(error.raw_os_error(), Some(5 | 32 | 33)));
+    assert!(started.elapsed() >= Duration::from_millis(500));
+    assert!(
+        fs::read_to_string(&path)
+            .unwrap()
+            .contains("the original snapshot")
+    );
+
+    drop(reader);
+    bundle.publish(&second).unwrap();
+    assert!(
+        fs::read_to_string(&path)
+            .unwrap()
+            .contains("the next snapshot")
+    );
+}
