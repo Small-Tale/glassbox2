@@ -10,5 +10,5 @@ rust-version = "1.85"
 tauri-build = "2"
 
 [dependencies]
-glassbox-server = { path = "../crates/glassbox-server" }
+glassbox-server = { path = "../../../crates/glassbox-server" }
 tauri = "2"

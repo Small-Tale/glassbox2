@@ -5,7 +5,7 @@ and [catalog authoring contract](../node_modules/@kerfjs/ui/docs/catalog.md#cata
 
 ## Components and catalog
 
-Keep related Glassbox components under `src/components/<group>/` with their
+Run client commands from `clients/web`. Keep related Glassbox components under `src/components/<group>/` with their
 owned styles. Register each custom component in `kerf.components.json`, run
 `npm run catalog:generate`, and add a specimen under
 `src/ux-demo/demos/<group>/`. Wire the specimen in `src/ux-demo/catalog.ts`

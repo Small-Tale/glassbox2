@@ -3,6 +3,9 @@ on: [push, pull_request]
 
 jobs:
   check:
+    defaults:
+      run:
+        working-directory: clients/web
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -10,6 +13,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
+          cache-dependency-path: clients/web/package-lock.json
       - run: npm ci
       - run: npm run check
 
@@ -33,6 +37,9 @@ jobs:
       - run: cargo +stable test --locked -p glassbox-cli --quiet
 
   native:
+    defaults:
+      run:
+        working-directory: clients/web
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -40,6 +47,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
+          cache-dependency-path: clients/web/package-lock.json
       - run: npm ci
       - run: npm run build
       - run: rustup toolchain install stable --profile minimal --component rustfmt --component clippy

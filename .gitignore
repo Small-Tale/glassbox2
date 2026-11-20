@@ -10,3 +10,9 @@
 /target/
 /src-tauri/target/
 /src-tauri/gen/
+
+/clients/web/node_modules/
+/clients/web/dist/
+/clients/web/.kerf-cache/
+/clients/web/src-tauri/target/
+/clients/web/src-tauri/gen/

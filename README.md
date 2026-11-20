@@ -1,19 +1,17 @@
 # Glassbox v2
 
-This checkout contains the Kerf scaffold for the Glassbox v2 design pass
-(`HS2-8QJ9NY`). The app entry point and demo are generated starting points for
-the mock environment.
+The shared Rust core lives in `crates/`. The browser client and its Tauri
+wrapper live in `clients/web/`.
 
-Run `npm ci` to install the pinned tooling and `npm run check` to verify it.
-Run `npm run dev` and open `/ux-demo/` for the Glassbox component catalog.
-See the [UI conventions](docs/ui-conventions.md) for adding components and demos. The design-mock skill is installed at
-`node_modules/@kerfjs/ui/ai/design-mock/SKILL.md`. The template index is
-`node_modules/@kerfjs/ui/docs/design/templates.md`.
+From the repository root, run `npm --prefix clients/web ci` to install tooling
+and `npm --prefix clients/web run check` to verify the client. Start Vite with
+`npm --prefix clients/web run dev` and open `/ux-demo/` for the component
+catalog. See the [UI conventions](clients/web/docs/ui-conventions.md) for Kerf guidance.
 
 ## Web coding conventions
 
 Use the Hot Sheet 2 web client as the reference for Glassbox TypeScript and Kerf
-code. Run `npm run lint` and `npm run typecheck` locally. Use strict typed ESLint,
+code. Run `npm run lint` and `npm run typecheck` from `clients/web`. Use strict typed ESLint,
 sorted imports with type-only imports where applicable, Prettier for formatting,
 and Kerf's composition rules. Use public Kerf controls, Lucide icons, accessible
 names for icon-only actions, and the Workbench's responsive toolbar layout.
