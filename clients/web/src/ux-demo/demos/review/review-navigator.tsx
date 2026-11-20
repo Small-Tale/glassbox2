@@ -16,6 +16,11 @@ const sample: ReviewFiles = {
 };
 const id = 'demo-review-navigator';
 const state = createReviewSourceState(sample, () => Promise.resolve(sample));
+const sourceId = 'demo-review-source-form';
+const sourceState = createReviewSourceState(undefined, () => Promise.resolve(sample));
+const emptyId = 'demo-review-empty';
+const empty = { ...sample, files: [] };
+const emptyState = createReviewSourceState(empty, () => Promise.resolve(empty));
 
 export function ReviewNavigatorDemo() {
   return (
@@ -23,10 +28,23 @@ export function ReviewNavigatorDemo() {
       <CatalogExample label="Git Changed Files" viewport={{ width: 'sidebar' }}>
         <ReviewNavigator id={id} state={state} />
       </CatalogExample>
+      <CatalogExample label="Open a Comparison" viewport={{ width: 'sidebar' }}>
+        <ReviewNavigator id={sourceId} state={sourceState} />
+      </CatalogExample>
+      <CatalogExample label="Unchanged Comparison" viewport={{ width: 'sidebar' }}>
+        <ReviewNavigator id={emptyId} state={emptyState} />
+      </CatalogExample>
     </CatalogExampleStack>
   );
 }
 
 export function wireReviewNavigatorDemo(root: HTMLElement) {
-  return wireReviewNavigator(root, id, state);
+  const stopFiles = wireReviewNavigator(root, id, state);
+  const stopSource = wireReviewNavigator(root, sourceId, sourceState, { wireKeyboard: false });
+  const stopEmpty = wireReviewNavigator(root, emptyId, emptyState, { wireKeyboard: false });
+  return () => {
+    stopFiles();
+    stopSource();
+    stopEmpty();
+  };
 }

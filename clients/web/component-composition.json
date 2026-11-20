@@ -41,9 +41,20 @@
       },
       "state": [],
       "wiring": {
-        "required": false,
-        "helpers": [],
-        "obligations": []
+        "required": true,
+        "helpers": [
+          "wireAppearanceMenu"
+        ],
+        "sources": [
+          {
+            "export": "wireAppearanceMenu",
+            "source": "src/components/settings/appearance-menu.tsx",
+            "returnsDisposer": true
+          }
+        ],
+        "obligations": [
+          "Wire menu selection to the appearance state."
+        ]
       },
       "responsive": {
         "owner": "component",
@@ -71,10 +82,7 @@
         "publicClasses": [
           "appearance-menu"
         ],
-        "publicTokens": [],
-        "placeableClasses": [
-          "appearance-menu"
-        ]
+        "publicTokens": []
       },
       "diagnostics": [],
       "provenance": {
@@ -116,14 +124,25 @@
       },
       "state": [],
       "wiring": {
-        "required": false,
-        "helpers": [],
-        "obligations": []
+        "required": true,
+        "helpers": [
+          "wireReviewNavigator"
+        ],
+        "sources": [
+          {
+            "export": "wireReviewNavigator",
+            "source": "src/components/review/review-navigator.tsx",
+            "returnsDisposer": true
+          }
+        ],
+        "obligations": [
+          "Wire source entry, filtering, file selection, and keyboard navigation."
+        ]
       },
       "responsive": {
         "owner": "component",
         "behaviors": [
-          "fit-sidebar-or-overlay"
+          "fit-available-rail-width"
         ]
       },
       "layout": {
@@ -146,10 +165,7 @@
         "publicClasses": [
           "review-navigator"
         ],
-        "publicTokens": [],
-        "placeableClasses": [
-          "review-navigator"
-        ]
+        "publicTokens": []
       },
       "diagnostics": [],
       "provenance": {
@@ -194,9 +210,20 @@
       },
       "state": [],
       "wiring": {
-        "required": false,
-        "helpers": [],
-        "obligations": []
+        "required": true,
+        "helpers": [
+          "wireReviewWorkbench"
+        ],
+        "sources": [
+          {
+            "export": "wireReviewWorkbench",
+            "source": "src/components/review/review-workbench.tsx",
+            "returnsDisposer": true
+          }
+        ],
+        "obligations": [
+          "Wire rail toggles, resizing, overlays, and focus restoration."
+        ]
       },
       "responsive": {
         "owner": "component",
@@ -226,10 +253,7 @@
         "publicClasses": [
           "review-workbench"
         ],
-        "publicTokens": [],
-        "placeableClasses": [
-          "review-workbench"
-        ]
+        "publicTokens": []
       },
       "diagnostics": [],
       "provenance": {
@@ -243,7 +267,7 @@
       "id": "source-context",
       "name": "Review Source Context",
       "kind": "component",
-      "purpose": "Show the branch or path pair and comparison type for the active review.",
+      "purpose": "Show the active review source identity and comparison mode.",
       "publicExports": [
         {
           "name": "SourceContext"
@@ -298,10 +322,7 @@
         "publicClasses": [
           "source-context"
         ],
-        "publicTokens": [],
-        "placeableClasses": [
-          "source-context"
-        ]
+        "publicTokens": []
       },
       "diagnostics": [],
       "provenance": {
@@ -349,9 +370,20 @@
       },
       "state": [],
       "wiring": {
-        "required": false,
-        "helpers": [],
-        "obligations": []
+        "required": true,
+        "helpers": [
+          "wireTextDiffToolbar"
+        ],
+        "sources": [
+          {
+            "export": "wireTextDiffToolbar",
+            "source": "src/components/diff/text-diff.tsx",
+            "returnsDisposer": true
+          }
+        ],
+        "obligations": [
+          "Wire the text diff toolbar layout and wrapping actions."
+        ]
       },
       "responsive": {
         "owner": "component",
@@ -381,10 +413,7 @@
         "publicClasses": [
           "text-diff"
         ],
-        "publicTokens": [],
-        "placeableClasses": [
-          "text-diff"
-        ]
+        "publicTokens": []
       },
       "diagnostics": [],
       "provenance": {

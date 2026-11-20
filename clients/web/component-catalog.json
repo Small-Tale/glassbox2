@@ -86,10 +86,7 @@
       "publicTokens": [],
       "uses": [
         "workbench",
-        "toolbar-text",
-        "review-navigator",
-        "text-diff",
-        "appearance-menu"
+        "toolbar-text"
       ],
       "source": "src/components/review/review-workbench.tsx",
       "styleSources": [
@@ -107,7 +104,7 @@
       "id": "source-context",
       "name": "Review Source Context",
       "kind": "component",
-      "purpose": "Show the branch or path pair and comparison type for the active review.",
+      "purpose": "Show the active review source identity and comparison mode.",
       "useWhen": [
         "Show the identity and comparison type of the active review."
       ],

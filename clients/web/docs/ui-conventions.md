@@ -55,3 +55,9 @@ The developer catalog exposes Kerf's theme, contrast, motion, and preview
 background controls. The footer lists related Glassbox entries and links to
 the specimen, component source, and UI guidance. The `component` query
 parameter links directly to a specimen (`HS2-D2T8BN`).
+
+Catalog `uses` describes direct dependencies of the production component.
+The app supplies the Workbench's slot content. Demo fixture components and
+slot content do not create a Workbench dependency. Keep each production
+component source represented and declare its required wiring in
+`kerf.components.json` (`HS2-R1ZZ67`).

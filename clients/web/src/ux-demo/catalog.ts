@@ -36,6 +36,11 @@ export const catalogSections: CatalogSection[] = groups.map(({ category, folder 
   category,
   entries: metadata.entries
     .filter(({ source }) => source.startsWith(`src/components/${folder}/`))
+    .sort(
+      (first, second) =>
+        Number(first.kind === 'composition') - Number(second.kind === 'composition') ||
+        first.name.localeCompare(second.name),
+    )
     .map(({ id, name, purpose, kind, uses, source, demoSource, documentation }) => ({
       id,
       name,

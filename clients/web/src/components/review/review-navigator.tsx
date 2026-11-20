@@ -170,8 +170,13 @@ export function ReviewNavigator({ id, state }: { id: string; state: ReviewSource
   );
 }
 
-export function wireReviewNavigator(root: HTMLElement, id: string, state: ReviewSourceState) {
-  const stopTree = wireTreeList(root);
+export function wireReviewNavigator(
+  root: HTMLElement,
+  id: string,
+  state: ReviewSourceState,
+  { wireKeyboard = true } = {},
+) {
+  const stopTree = wireKeyboard ? wireTreeList(root) : undefined;
   const controller = new AbortController();
   const { signal } = controller;
   const scope = (target: EventTarget | null): target is HTMLElement =>
@@ -255,6 +260,6 @@ export function wireReviewNavigator(root: HTMLElement, id: string, state: Review
 
   return () => {
     controller.abort();
-    stopTree();
+    stopTree?.();
   };
 }
