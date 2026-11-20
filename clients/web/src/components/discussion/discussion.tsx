@@ -11,7 +11,14 @@ import { TextField } from '@kerfjs/ui/text-field';
 import { wireFilePickers } from '@kerfjs/ui/wire-file-pickers';
 import { MessageSquarePlus } from 'lucide';
 
-import { type Anchor, categories, type DiscussionState, type Side, type Thread } from './discussion-state.js';
+import {
+  type Anchor,
+  categories,
+  type DiscussionState,
+  isDiagramAttachment,
+  type Side,
+  type Thread,
+} from './discussion-state.js';
 
 function ThreadLabels({ thread }: { thread: Thread }) {
   const origin = thread.origin;
@@ -105,6 +112,30 @@ export function DiscussionInspector({
   mediaRevisions?: Partial<Record<Side, string>>;
 }) {
   const thread = state.activeThread();
+  const artifact = state.artifact.value;
+  function attachment({ id, filename }: { id: number; filename: string }) {
+    if (!isDiagramAttachment(filename)) return <p>{filename}</p>;
+    return (
+      <div>
+        <Button action={`discussion-artifact:${id}`} emphasis="plain" tone="brand">
+          {artifact?.id === id ? `Close ${filename}` : `Preview ${filename}`}
+        </Button>
+        {artifact?.id !== id ? null : artifact.preview === undefined ? (
+          <p role="status">{artifact.message ?? 'Loading diagram…'}</p>
+        ) : artifact.preview.url === undefined ? (
+          <pre class="discussion-inspector__artifact-source">{artifact.preview.source}</pre>
+        ) : (
+          <>
+            <img class="discussion-inspector__artifact" src={artifact.preview.url} alt={artifact.label} />
+            <details>
+              <summary>Diagram Source</summary>
+              <pre class="discussion-inspector__artifact-source">{artifact.preview.source}</pre>
+            </details>
+          </>
+        )}
+      </div>
+    );
+  }
   const anchor = state.adding.value ?? thread?.anchor;
   const isDraft = state.adding.value !== null;
   const editable = isDraft || thread?.origin.kind === 'reviewer';
@@ -164,9 +195,7 @@ export function DiscussionInspector({
         </div>
       ) : (
         <>
-          {thread?.opening.attachments.map(({ filename }) => (
-            <p>{filename}</p>
-          ))}
+          {thread?.opening.attachments.map(attachment)}
           <FilePickerTrigger label="Attach to Thread" pickerId="discussion-attachment" disabled={state.pending.value} />
           {editable ? (
             <div class="discussion-inspector__actions">
@@ -180,9 +209,7 @@ export function DiscussionInspector({
             <div class="discussion-inspector__reply">
               <strong>{message.author}</strong>
               <p>{message.markdown}</p>
-              {message.attachments.map(({ filename }) => (
-                <span>{filename}</span>
-              ))}
+              {message.attachments.map(attachment)}
             </div>
           ))}
           <TextField name="discussion-author" label="Reply Author" value={state.author.value} />
@@ -287,6 +314,7 @@ export function wireDiscussion(
         showInspector();
       }
       if (kind === 'discussion-cancel') state.resetEditor();
+      if (kind === 'discussion-artifact') void state.previewArtifact(Number(first));
       if (kind === 'discussion-submit') void state.submitComment();
       if (kind === 'discussion-reply')
         void state.apply({ kind: 'reply', author: state.author.value, markdown: state.reply.value }).then((saved) => {

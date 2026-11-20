@@ -33,6 +33,11 @@ export type Thread = {
 };
 type Selection = { source: ReviewSource; index: number; path: string };
 type Operation = Record<string, unknown>;
+type ArtifactPreview = { source: string; url?: string };
+
+export function isDiagramAttachment(filename: string): boolean {
+  return /\.(?:dot|gv|mmd|mermaid|puml|plantuml)$/iu.test(filename);
+}
 
 async function request(selection: Selection, operation?: Operation, abort?: AbortSignal) {
   const response = await fetch('/api/v1/review/discussion', {
@@ -55,6 +60,8 @@ export function createDiscussionState(source: ReviewSourceState, load = request)
   const reply = signal('');
   const pending = signal(false);
   const error = signal('');
+  const artifact = signal<{ id: number; label: string; preview?: ArtifactPreview; message?: string } | null>(null);
+  let artifactRequest: AbortController | undefined;
   let current: Selection | null = null;
   let refreshSequence = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -65,6 +72,7 @@ export function createDiscussionState(source: ReviewSourceState, load = request)
   }
 
   function resetEditor() {
+    closeArtifact();
     clearTimeout(timer);
     threadId.value = null;
     adding.value = null;
@@ -100,8 +108,48 @@ export function createDiscussionState(source: ReviewSourceState, load = request)
       });
     return () => {
       controller.abort();
+      closeArtifact();
     };
   });
+
+  function closeArtifact() {
+    artifactRequest?.abort();
+    artifact.value = null;
+  }
+
+  async function previewArtifact(id: number) {
+    if (artifact.value?.id === id) {
+      closeArtifact();
+      return;
+    }
+    const selection = current;
+    const thread = activeThread();
+    if (selection === null || thread === undefined) return;
+    const attachment = [thread.opening, ...thread.replies.map(({ message }) => message)]
+      .flatMap(({ attachments }) => attachments)
+      .find((item) => item.id === id);
+    if (attachment === undefined) return;
+    closeArtifact();
+    const controller = new AbortController();
+    artifactRequest = controller;
+    const label = attachment.filename;
+    artifact.value = { id, label };
+    try {
+      const response = await fetch('/api/v1/review/diagram/attachment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selection, thread: thread.id, attachment: id }),
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error('Could not read the attached diagram.');
+      const { source, svg } = (await response.json()) as { source: string; svg: string | null };
+      if (controller.signal.aborted) return;
+      const url = svg === null ? undefined : `data:image/svg+xml,${encodeURIComponent(svg)}`;
+      artifact.value = { id, label, preview: { source, url } };
+    } catch {
+      if (!controller.signal.aborted) artifact.value = { id, label, message: 'Could not read the attached diagram.' };
+    }
+  }
 
   async function save(operation: Operation) {
     const selection = current;
@@ -219,6 +267,8 @@ export function createDiscussionState(source: ReviewSourceState, load = request)
     reply,
     pending,
     error,
+    artifact,
+    previewArtifact,
     stop,
     activeThread,
     refreshCurrent,

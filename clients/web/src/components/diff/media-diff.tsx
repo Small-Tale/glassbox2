@@ -42,7 +42,17 @@ function regionStyle({ left, top, width, height }: ImageRegion) {
   return `left:${left * 100}%;top:${top * 100}%;width:${width * 100}%;height:${height * 100}%`;
 }
 
-export function MediaDiffToolbar({ id, images, state }: { id: string; images: Images; state: State }) {
+export function MediaDiffToolbar({
+  id,
+  images,
+  state,
+  allowRegions = true,
+}: {
+  id: string;
+  images: Images;
+  state: State;
+  allowRegions?: boolean;
+}) {
   const both = images.before !== null && images.after !== null;
   return (
     <>
@@ -84,7 +94,7 @@ export function MediaDiffToolbar({ id, images, state }: { id: string; images: Im
             pressed={state.drawing.value}
             ariaLabel="Add Region Comment"
             title="Add Region Comment"
-            disabled={state.mode.value === 'difference' || state.mode.value === 'slice'}
+            disabled={!allowRegions || state.mode.value === 'difference' || state.mode.value === 'slice'}
             icon={<LucideIcon icon={Scan} name="scan" />}
           />
         </ToolbarControlGroup>

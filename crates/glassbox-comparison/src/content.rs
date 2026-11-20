@@ -133,8 +133,13 @@ fn compare_content(
     {
         return Ok(ComparisonData::Binary);
     }
+    compare_text_bytes(before, after).map(ComparisonData::Text)
+}
+
+/// Compare UTF-8 source bytes from an already resolved pair.
+pub fn compare_text_bytes(before: &[u8], after: &[u8]) -> io::Result<Vec<TextHunk>> {
     if before == after {
-        return Ok(ComparisonData::Text(Vec::new()));
+        return Ok(Vec::new());
     }
     let staging = tempfile::tempdir()?;
     fs::write(staging.path().join("before"), before)?;
@@ -159,7 +164,7 @@ fn compare_content(
         ));
     }
     let patch = std::str::from_utf8(&output.stdout).map_err(io::Error::other)?;
-    Ok(ComparisonData::Text(parse_hunks(patch)?))
+    parse_hunks(patch)
 }
 
 fn asset_type(path: &Path) -> Option<&'static str> {

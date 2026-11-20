@@ -21,6 +21,7 @@ use tokio::sync::oneshot;
 use tower_http::services::ServeDir;
 
 mod analysis;
+mod diagrams;
 mod discussion;
 mod export;
 mod review_files;
@@ -112,9 +113,14 @@ fn router(
     let source_launch = difftool.clone();
     let selected_launch = difftool.clone();
     let media_launch = difftool.clone();
+    let diagram_launch = difftool.clone();
+    let renderer = diagrams::Renderer::from_environment();
+    let renderer_available = renderer.is_some();
+    let artifact_renderer = renderer.clone();
     let discussion_launch = difftool.clone();
     let handoff_launch = difftool.clone();
     let discussion = discussion::Discussion::default();
+    let artifact_discussion = discussion.clone();
     let handoff = discussion.clone();
     let delivery = export::Delivery::new(discussion.clone(), difftool.clone());
     let preview_delivery = delivery.clone();
@@ -136,11 +142,23 @@ fn router(
         )
         .route(
             "/api/v1/review/file",
-            post(move |Json(file)| review_files::selected(file, selected_launch)),
+            post(move |Json(file)| {
+                review_files::selected(file, selected_launch, renderer_available)
+            }),
         )
         .route(
             "/api/v1/review/media",
             post(move |Json(media)| review_files::media(media, media_launch)),
+        )
+        .route(
+            "/api/v1/review/diagram",
+            post(move |Json(file)| diagrams::comparison(renderer, file, diagram_launch)),
+        )
+        .route(
+            "/api/v1/review/diagram/attachment",
+            post(move |Json(input)| {
+                diagrams::artifact(artifact_renderer, artifact_discussion, input)
+            }),
         )
         .route(
             "/api/v1/review/discussion",

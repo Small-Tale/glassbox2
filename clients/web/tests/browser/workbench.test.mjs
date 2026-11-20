@@ -22,6 +22,7 @@ async function seedReview(scratch) {
   const repo = join(scratch, 'Fieldnotes');
   await mkdir(repo);
   const [file, image] = ['bundle.ts', 'mark.svg'].map((name) => join(repo, name));
+  const diagram = join(repo, 'flow.dot');
   const git = (...args) =>
     execFileSync('git', ['-c', 'commit.gpgsign=false', '-c', 'core.autocrlf=false', ...args], {
       cwd: repo,
@@ -30,10 +31,12 @@ async function seedReview(scratch) {
   git('init', '-q', '--initial-branch=review');
   await writeFile(file, 'export const revision = 1;\n');
   await writeFile(image, svg('#506b91'));
+  await writeFile(diagram, 'digraph { a -> b }\n');
   git('add', '.');
   git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'initial');
   await writeFile(file, 'export const revision = 2;\n');
   await writeFile(image, svg('#3b7c68'));
+  await writeFile(diagram, 'digraph { a -> c }\n');
   const before = join(scratch, 'before.txt');
   const after = join(scratch, 'after.txt');
   await writeFile(before, 'before\n');
@@ -118,7 +121,7 @@ async function exerciseWorkbench(page, url, paths, settings) {
   await page.locator('.text-diff').getByText('after', { exact: true }).waitFor();
 }
 
-async function withWorkbench(exercise, launchArgs = () => []) {
+async function withWorkbench(exercise, { launchArgs = () => [], renderer = false } = {}) {
   const scratch = await mkdtemp(join(tmpdir(), 'glassbox-browser-'));
   const settings = join(scratch, 'settings');
   let host;
@@ -127,12 +130,18 @@ async function withWorkbench(exercise, launchArgs = () => []) {
   let browser;
   try {
     const paths = await seedReview(scratch);
+    const rendererPath = renderer ? join(scratch, `renderer${process.platform === 'win32' ? '.exe' : ''}`) : '';
+    if (renderer) {
+      const fixture = join(root, 'crates', 'glassbox-server', 'tests', 'fixtures', 'diagram_renderer.rs');
+      execFileSync('rustc', [fixture, '-o', rendererPath], { windowsHide: true });
+    }
     host = spawn(executable, ['--assets', join(root, 'clients', 'web', 'dist'), ...launchArgs(paths)], {
       cwd: root,
       env: {
         ...process.env,
         GLASSBOX_SETTINGS_DIRECTORY: settings,
         GLASSBOX_FEEDBACK_DIRECTORY: join(scratch, 'feedback'),
+        GLASSBOX_CONTENT_RENDERER: rendererPath,
       },
       stdio: ['ignore', 'pipe', 'inherit'],
       windowsHide: true,
@@ -184,6 +193,31 @@ test('built workbench opens the only file supplied by Git difftool', { timeout: 
       await page.locator('.text-diff').getByText('after', { exact: true }).waitFor();
       await capture(page, 'workbench-difftool');
     },
-    ({ before, after }) => ['--difftool', before, after],
+    { launchArgs: ({ before, after }) => ['--difftool', before, after] },
+  );
+});
+
+test('diagram source toggle keeps adjacent review modes unchanged', { timeout: 60_000 }, async () => {
+  await withWorkbench(
+    async (page, url, paths) => {
+      await page.goto(url);
+      await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(paths.repo);
+      await page.getByRole('button', { name: 'Open Comparison', exact: true }).click();
+      await page.getByRole('treeitem', { name: /flow\.dot/ }).click();
+      await page.getByRole('button', { name: 'Render Diagram', exact: true }).click();
+      await page.waitForFunction(() => document.querySelector('img[data-media-side="after"]')?.naturalWidth > 0);
+      assert.equal(await page.evaluate(() => Reflect.has(window, 'diagramScriptRan')), false);
+      await page.getByRole('button', { name: 'Show Diagram Source', exact: true }).click();
+      assert.equal(
+        await page.getByRole('button', { name: 'Risk Analysis', exact: true }).getAttribute('aria-pressed'),
+        'false',
+      );
+      assert.equal(
+        await page.getByRole('button', { name: 'Code Guidance', exact: true }).getAttribute('aria-pressed'),
+        'false',
+      );
+      await page.locator('.text-diff').waitFor();
+    },
+    { renderer: true },
   );
 });

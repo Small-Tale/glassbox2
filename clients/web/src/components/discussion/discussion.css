@@ -60,3 +60,13 @@
 .discussion-inline__thread[data-risk-highlighted='true'] {
   box-shadow: inset 3px 0 var(--kui-color-warning-border-loud);
 }
+
+.discussion-inspector__artifact {
+  display: block;
+  max-inline-size: 100%;
+}
+
+.discussion-inspector__artifact-source {
+  max-inline-size: 100%;
+  overflow: auto;
+}

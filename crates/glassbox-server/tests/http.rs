@@ -48,7 +48,8 @@ impl RunningServer {
             .env_remove("GLASSBOX_AI_MODEL_REVISION")
             .env_remove("GLASSBOX_ANALYSIS_CACHE_DIRECTORY")
             .env_remove("GLASSBOX_TEST_GENERATIONS")
-            .env_remove("GLASSBOX_AI_PROVIDER_SETTINGS");
+            .env_remove("GLASSBOX_AI_PROVIDER_SETTINGS")
+            .env_remove("GLASSBOX_CONTENT_RENDERER");
         for (key, value) in environment {
             command.env(key, value);
         }
@@ -510,6 +511,117 @@ fn export_sends_to_a_new_and_an_existing_ticket_without_replaying_delivery() {
     assert!(document.contains("keep.txt"));
     assert!(!document.contains("Exclude this thread"));
     assert!(!document.contains("exclude.txt"));
+}
+
+#[test]
+fn renders_selected_diagrams_and_falls_back_for_attached_sources() {
+    use serde_json::{Value, json};
+
+    let scratch = tempfile::tempdir().unwrap();
+    let program = scratch
+        .path()
+        .join(format!("diagram-renderer{}", std::env::consts::EXE_SUFFIX));
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/diagram_renderer.rs");
+    let compiler = std::env::var_os("RUSTC").unwrap_or_else(|| "rustc".into());
+    let compile = Command::new(compiler)
+        .arg(fixture)
+        .arg("-o")
+        .arg(&program)
+        .output()
+        .unwrap();
+    assert!(
+        compile.status.success(),
+        "{}",
+        String::from_utf8_lossy(&compile.stderr)
+    );
+    let (_host, address) = RunningServer::start_in_environment(
+        None,
+        &[],
+        Some(scratch.path()),
+        &[("GLASSBOX_CONTENT_RENDERER", program.as_os_str())],
+    );
+    let post = |endpoint: &str, input: Value| {
+        let response = exchange(
+            address,
+            "POST",
+            endpoint,
+            &address.to_string(),
+            "Content-Type: application/json\r\n",
+            &input.to_string(),
+        );
+        let (head, body) = response.split_once("\r\n\r\n").unwrap();
+        (
+            head.lines().next().unwrap().to_owned(),
+            serde_json::from_str::<Value>(body).unwrap_or_else(|_| json!(body)),
+        )
+    };
+    for extension in ["dot", "mmd", "puml"] {
+        let before = scratch.path().join(format!("before.{extension}"));
+        let after = scratch.path().join(format!("after.{extension}"));
+        std::fs::write(&before, "old diagram\n").unwrap();
+        std::fs::write(&after, "new diagram\n").unwrap();
+        let path = format!("after.{extension}");
+        let selection =
+            json!({"source":{"kind":"paths","before":before,"after":after},"index":0,"path":path});
+        let (status, file) = post("/api/v1/review/file", selection.clone());
+        assert_eq!(status, "HTTP/1.1 200 OK", "{file}");
+        assert_eq!(file["diagram"], true, "{file}");
+        let mut render = selection.clone();
+        render["revision"] = file["revision"].clone();
+        let (status, rendered) = post("/api/v1/review/diagram", render.clone());
+        assert_eq!(status, "HTTP/1.1 200 OK");
+        assert!(
+            rendered["before"]
+                .as_str()
+                .unwrap()
+                .contains("Diagram fixture")
+        );
+        assert!(
+            rendered["after"]
+                .as_str()
+                .unwrap()
+                .contains("Diagram fixture")
+        );
+        if extension != "dot" {
+            continue;
+        }
+        let (_, discussion) = post(
+            "/api/v1/review/discussion",
+            json!({"selection":selection,"operation":{
+                "kind":"create","anchor":{"path":path,"side":"after","revision":file["revision"],"target":{"kind":"line","start":1,"end":1}},
+                "category":"note","author":"Fixture","markdown":"See attached diagram"
+            }}),
+        );
+        let thread = &discussion["threads"][0];
+        let (_, attached) = post(
+            "/api/v1/review/discussion",
+            json!({"selection":selection,"operation":{
+                "kind":"attach","id":thread["id"],"revision":thread["revision"],"filename":"fallback.mmd","content":"Y2Fubm90LXJlbmRlcg=="
+            }}),
+        );
+        let attachment = &attached["threads"][0]["opening"]["attachments"][0]["id"];
+        let request = json!({"selection":selection,"thread":thread["id"],"attachment":attachment});
+        let (status, preview) = post("/api/v1/review/diagram/attachment", request.clone());
+        assert_eq!(status, "HTTP/1.1 200 OK");
+        assert_eq!(preview["source"], "cannot-render");
+        assert_eq!(preview["svg"], Value::Null);
+        let mut wrong_selection = request;
+        wrong_selection["selection"]["path"] = json!("unrelated.dot");
+        assert_eq!(
+            post("/api/v1/review/diagram/attachment", wrong_selection).0,
+            "HTTP/1.1 404 Not Found"
+        );
+        std::fs::write(after, "cannot-render").unwrap();
+        assert_eq!(
+            post("/api/v1/review/diagram", render.clone()).0,
+            "HTTP/1.1 409 Conflict"
+        );
+        render["revision"] = post("/api/v1/review/file", selection).1["revision"].clone();
+        assert_eq!(
+            post("/api/v1/review/diagram", render).0,
+            "HTTP/1.1 422 Unprocessable Entity"
+        );
+    }
 }
 
 #[test]

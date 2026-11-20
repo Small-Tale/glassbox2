@@ -6,7 +6,7 @@ use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use glassbox_comparison::{
     GitChange, GitFileChange, GitReview, GitReviewMode, compare_difftool_paths,
-    compare_direct_content, compare_git_content, compare_paths, review_git,
+    compare_direct_content, compare_git_content, compare_paths, compare_text_bytes, review_git,
 };
 use glassbox_model::feedback::AnchorSide;
 use glassbox_model::{
@@ -82,6 +82,7 @@ enum FileContent {
     Text {
         revision: String,
         hunks: Vec<TextHunk>,
+        diagram: bool,
     },
     Media {
         before: Option<MediaMetadata>,
@@ -170,14 +171,20 @@ pub(crate) async fn list(input: ReviewSource, difftool: Option<DifftoolInput>) -
     .await
 }
 
-pub(crate) async fn selected(input: SelectedFile, difftool: Option<DifftoolInput>) -> Response {
+pub(crate) async fn selected(
+    input: SelectedFile,
+    difftool: Option<DifftoolInput>,
+    renderer_available: bool,
+) -> Response {
     blocking(move || {
         let result = load(input.source, difftool)?;
         validate_selection(&result, input.index, &input.path)?;
-        Ok(match result.entries.content(input.index)? {
+        Ok(match result.display_content(input.index)? {
             ComparisonData::Text(hunks) => FileContent::Text {
                 revision: text_revision(&hunks)?,
                 hunks,
+                diagram: renderer_available
+                    && crate::diagrams::DiagramFormat::for_path(Path::new(&input.path)).is_some(),
             },
             ComparisonData::Media { before, after } => FileContent::Media {
                 before: before.as_ref().map(MediaMetadata::from_asset),
@@ -238,6 +245,42 @@ pub(crate) fn text_revision(hunks: &[TextHunk]) -> io::Result<String> {
 }
 
 impl Comparison {
+    fn display_content(&self, index: usize) -> io::Result<ComparisonData> {
+        let content = self.entries.content(index)?;
+        if let ComparisonData::Media { before, after } = &content {
+            if diagram_assets(before, after) {
+                let before = before.as_ref().map_or(&[][..], |asset| &asset.bytes);
+                let after = after.as_ref().map_or(&[][..], |asset| &asset.bytes);
+                if [before, after]
+                    .into_iter()
+                    .any(|bytes| bytes.contains(&0) || std::str::from_utf8(bytes).is_err())
+                {
+                    return Ok(ComparisonData::Binary);
+                }
+                return compare_text_bytes(before, after).map(ComparisonData::Text);
+            }
+        }
+        Ok(content)
+    }
+
+    pub(crate) fn diagram_sources(
+        &self,
+        index: usize,
+    ) -> io::Result<crate::diagrams::DiagramSources> {
+        if let ComparisonData::Media { before, after } = self.entries.content(index)? {
+            if diagram_assets(&before, &after) {
+                return Ok(crate::diagrams::DiagramSources {
+                    before: before.map(|asset| asset.bytes),
+                    after: after.map(|asset| asset.bytes),
+                });
+            }
+        }
+        Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "The selected file has no available diagram source.",
+        ))
+    }
+
     fn media_asset(&self, index: usize, side: AnchorSide) -> io::Result<Option<MediaAsset>> {
         match (self.entries.content(index)?, side) {
             (ComparisonData::Media { before, .. }, AnchorSide::Before) => Ok(before),
@@ -269,7 +312,7 @@ impl Comparison {
 
 impl Comparison {
     pub(crate) fn text_hunks(&self, index: usize) -> io::Result<Vec<TextHunk>> {
-        match self.entries.content(index)? {
+        match self.display_content(index)? {
             ComparisonData::Text(hunks) => Ok(hunks),
             _ => Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -306,6 +349,13 @@ impl Comparison {
             after: paths.map(|(_, after)| after.to_string_lossy().into_owned()),
         }
     }
+}
+
+fn diagram_assets(before: &Option<MediaAsset>, after: &Option<MediaAsset>) -> bool {
+    [before, after]
+        .into_iter()
+        .flatten()
+        .all(|asset| asset.content_type == "text/plain")
 }
 
 pub(crate) fn validate_selection(result: &Comparison, index: usize, path: &str) -> io::Result<()> {

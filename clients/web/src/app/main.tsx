@@ -4,8 +4,9 @@ import './style.css';
 
 import { EmptyState } from '@kerfjs/ui/empty-state';
 import { LucideIcon } from '@kerfjs/ui/lucide-icon';
+import { ToolbarButton, ToolbarControlGroup } from '@kerfjs/ui/toolbar-control-group';
 import { effect, mount } from 'kerfjs';
-import { GitCompareArrows } from 'lucide';
+import { Code, GitCompareArrows, Workflow } from 'lucide';
 
 import { AnalysisContext, AnalysisControls, wireAnalysisControls } from '../components/analysis/analysis-controls.js';
 import { createAnalysisState } from '../components/analysis/analysis-state.js';
@@ -112,7 +113,37 @@ mount(root, () => {
   let comparisonToolbar;
   if (file !== undefined) {
     switch (result?.kind) {
-      case 'text':
+      case 'text': {
+        const diagram = diff.showDiagram.value ? diff.diagram.value : null;
+        const diagramControl =
+          result.diagram === true ? (
+            <ToolbarControlGroup label="Diagram View" content="icon">
+              <ToolbarButton
+                action="toggle-diagram"
+                disabled={diff.diagramPending.value}
+                pressed={diagram !== null}
+                ariaLabel={diagram === null ? 'Render Diagram' : 'Show Diagram Source'}
+                title={diagram === null ? 'Render Diagram' : 'Show Diagram Source'}
+                icon={
+                  diagram === null ? (
+                    <LucideIcon icon={Workflow} name="workflow" />
+                  ) : (
+                    <LucideIcon icon={Code} name="code" />
+                  )
+                }
+              />
+            </ToolbarControlGroup>
+          ) : null;
+        if (diagram !== null) {
+          comparison = <MediaDiff id={mediaId} images={diagram} state={mediaDiff} />;
+          comparisonToolbar = (
+            <>
+              <MediaDiffToolbar id={mediaId} images={diagram} state={mediaDiff} allowRegions={false} />
+              {diagramControl}
+            </>
+          );
+          break;
+        }
         comparison =
           result.hunks.length > 0 ? (
             <TextDiff
@@ -135,9 +166,19 @@ mount(root, () => {
           <>
             <TextDiffToolbar id={diffToolbarId} state={textDiff} />
             <AnalysisControls id={analysisId} state={analysis} />
+            {diagramControl}
           </>
         );
+        if (diff.diagramPending.value || diff.diagramError.value !== '') {
+          comparison = (
+            <>
+              <p role="status">{diff.diagramPending.value ? 'Rendering diagram…' : diff.diagramError.value}</p>
+              {comparison}
+            </>
+          );
+        }
         break;
+      }
       case 'media': {
         const regions = discussion.threads.value.flatMap(({ anchor, id }) =>
           anchor.target.kind === 'image_region' &&
@@ -222,6 +263,12 @@ mount(root, () => {
 void wireReviewWorkbench(root, 'glassbox-workbench', workbench);
 void wireReviewNavigator(root, 'glassbox-review-navigator', source);
 void wireTextDiffToolbar(root, diffToolbarId, textDiff);
+root.addEventListener('click', (event) => {
+  if (event.target instanceof Element && event.target.closest('button[data-action="toggle-diagram"]') !== null) {
+    event.stopImmediatePropagation();
+    void diff.toggleDiagram();
+  }
+});
 void wireMediaDiff(root, mediaId, mediaDiff, (side, target) => {
   const index = source.selected.value;
   const file = index === undefined ? undefined : source.review.value?.files[index];

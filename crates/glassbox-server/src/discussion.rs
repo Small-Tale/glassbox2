@@ -136,6 +136,38 @@ pub(crate) struct ThreadSelection {
 }
 
 impl Discussion {
+    pub(crate) fn diagram_attachment(
+        &self,
+        selection: &SelectedFile,
+        id: FeedbackId,
+        attachment: FeedbackId,
+    ) -> Result<Option<(crate::diagrams::DiagramFormat, Vec<u8>)>, ApiError> {
+        let key = serde_json::to_string(&selection.source).map_err(bad_request)?;
+        let reviews = self.0.lock().map_err(storage_error)?;
+        let result = reviews
+            .get(&key)
+            .and_then(|review| {
+                review
+                    .saved
+                    .threads()
+                    .iter()
+                    .find(|thread| thread.id == id && thread.anchor.path == selection.path)
+            })
+            .and_then(|thread| {
+                std::iter::once(&thread.opening)
+                    .chain(thread.replies.iter().map(|reply| &reply.message))
+                    .flat_map(|message| &message.attachments)
+                    .find(|item| item.id == attachment)
+            })
+            .and_then(|item| {
+                let format =
+                    crate::diagrams::DiagramFormat::for_path(std::path::Path::new(&item.filename))?;
+                (item.bytes.len() <= crate::diagrams::MAX_SOURCE_BYTES)
+                    .then(|| (format, item.bytes.clone()))
+            });
+        Ok(result)
+    }
+
     pub(crate) fn preview(&self, source: &ReviewSource) -> Result<Preview, ApiError> {
         use std::collections::BTreeSet;
         let key = serde_json::to_string(source).map_err(bad_request)?;

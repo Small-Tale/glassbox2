@@ -18,7 +18,7 @@ export type MediaMetadata = { content_type: string; size: number; revision: stri
 export type MediaSides<T> = { before: T | null; after: T | null };
 
 export type FileContent =
-  | { kind: 'text'; revision: string; hunks: TextHunk[] }
+  | { kind: 'text'; revision: string; hunks: TextHunk[]; diagram?: boolean }
   | ({ kind: 'media' } & MediaSides<MediaMetadata>)
   | { kind: 'unavailable_lfs' }
   | { kind: 'binary' };

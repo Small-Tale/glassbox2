@@ -8,7 +8,7 @@ review entry point. Both return the same content types.
   selected before and after bytes with three lines of context.
 - Image and SVG input returns the original bytes and content type for each
   available side. Diagram inputs recognized by the old Mermaid, Graphviz and
-  PlantUML plugins return original source bytes as text. Other binary files
+  PlantUML plugins return original source as text. A configured [diagram renderer](content-plugins.md) can preview either side of the comparison. Other binary files
   are identified without turning their bytes into code lines.
 - Historical Git inputs are pinned to the resolved commits. Index and worktree
   views read the index and working files when the selected entry is requested.
