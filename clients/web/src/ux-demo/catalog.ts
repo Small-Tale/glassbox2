@@ -1,4 +1,5 @@
 import type { CatalogSection } from '@kerfjs/ui/catalog';
+import { catalogResources } from '@kerfjs/ui/catalog-resources';
 import type { SafeHtml } from 'kerfjs';
 
 import metadata from '../../component-catalog.json';
@@ -28,14 +29,30 @@ const groups = [
   { category: 'Settings', folder: 'settings' },
 ];
 
+const repository = 'https://github.com/Small-Tale/glassbox2/blob/main/clients/web/';
+const sourceLink = (path: string) => ({ href: new URL(path, repository).href, detail: path });
+
 export const catalogSections: CatalogSection[] = groups.map(({ category, folder }) => ({
   category,
   entries: metadata.entries
     .filter(({ source }) => source.startsWith(`src/components/${folder}/`))
-    .map(({ id, name, purpose, kind }) => ({
+    .map(({ id, name, purpose, kind, uses, source, demoSource, documentation }) => ({
       id,
       name,
       description: purpose,
       tags: kind === 'composition' ? ['Composition'] : undefined,
+      related: [
+        ...metadata.entries
+          .filter((entry) => uses?.includes(entry.id) === true)
+          .map(({ id, name }) => ({ id, name, group: 'Uses' })),
+        ...metadata.entries
+          .filter((entry) => entry.uses?.includes(id) === true)
+          .map(({ id, name }) => ({ id, name, group: 'Used by' })),
+      ],
+      resources: catalogResources({
+        demoSource: sourceLink(demoSource),
+        componentSource: sourceLink(source),
+        guidance: sourceLink(documentation),
+      }),
     })),
 }));

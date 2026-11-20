@@ -50,3 +50,8 @@ line numbers for downstream review threads.
 The center footer has one icon-only Appearance menu with System,
 Light, and Dark choices. Its selected state reflects the shared
 setting (`HS2-9T7RCB`).
+
+The developer catalog exposes Kerf's theme, contrast, motion, and preview
+background controls. The footer lists related Glassbox entries and links to
+the specimen, component source, and UI guidance. The `component` query
+parameter links directly to a specimen (`HS2-D2T8BN`).

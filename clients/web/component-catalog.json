@@ -54,7 +54,8 @@
         "empty-state",
         "select",
         "text-field",
-        "tree-list"
+        "tree-list",
+        "source-context"
       ],
       "source": "src/components/review/review-navigator.tsx",
       "styleSources": [
@@ -85,7 +86,10 @@
       "publicTokens": [],
       "uses": [
         "workbench",
-        "toolbar-text"
+        "toolbar-text",
+        "review-navigator",
+        "text-diff",
+        "appearance-menu"
       ],
       "source": "src/components/review/review-workbench.tsx",
       "styleSources": [

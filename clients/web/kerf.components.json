@@ -133,7 +133,7 @@
       "selection": {
         "useWhen": ["Display the Glassbox review shell."],
         "avoidWhen": ["Display one standalone component without app chrome."],
-        "uses": ["workbench", "toolbar-text"],
+        "uses": ["workbench", "toolbar-text", "review-navigator", "text-diff", "appearance-menu"],
         "styleSources": ["src/components/review/review-workbench.css"],
         "demoSource": "src/ux-demo/demos/review/review-workbench.tsx",
         "documentation": "docs/ui-conventions.md"
@@ -205,7 +205,7 @@
         "styleSources": ["src/components/review/review-navigator.css"],
         "demoSource": "src/ux-demo/demos/review/review-navigator.tsx",
         "documentation": "docs/ui-conventions.md",
-        "uses": ["badge", "button", "empty-state", "select", "text-field", "tree-list"]
+        "uses": ["badge", "button", "empty-state", "select", "text-field", "tree-list", "source-context"]
       }
     },
     {

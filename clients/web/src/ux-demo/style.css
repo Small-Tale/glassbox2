@@ -3,3 +3,16 @@ body,
 #app {
   height: 100%;
 }
+
+html.catalog-contrast {
+  --kui-color-neutral-border-normal: currentColor;
+  --kui-focus-ring: 3px solid currentColor;
+}
+
+html.catalog-reduced-motion *,
+html.catalog-reduced-motion *::before,
+html.catalog-reduced-motion *::after {
+  scroll-behavior: auto !important;
+  animation-duration: 1ms !important;
+  transition-duration: 1ms !important;
+}
