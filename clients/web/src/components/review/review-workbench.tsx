@@ -1,6 +1,5 @@
 import './review-workbench.css';
 
-import { ToolbarActionLink, ToolbarControlGroup } from '@kerfjs/ui/toolbar-control-group';
 import { ToolbarText } from '@kerfjs/ui/toolbar-text';
 import { wireWorkbench } from '@kerfjs/ui/wire-workbench';
 import { Workbench } from '@kerfjs/ui/workbench';
@@ -58,11 +57,6 @@ export function ReviewWorkbench({
           label: 'Review Actions',
           responsive: 'wrap',
           trailing: footerSettings,
-          leading: (
-            <ToolbarControlGroup label="Component Catalog" appearance="borderless" single content="text">
-              <ToolbarActionLink href="/ux-demo/" label="Component Catalog" />
-            </ToolbarControlGroup>
-          ),
         }}
         leftRail={{
           label: 'Changed Files',

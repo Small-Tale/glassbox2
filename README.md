@@ -5,7 +5,7 @@ wrapper live in `clients/web/`.
 
 From the repository root, run `npm --prefix clients/web ci` to install tooling
 and `npm --prefix clients/web run check` to verify the client. Start Vite with
-`npm --prefix clients/web run dev` and open `/ux-demo/` for the component
+`npm --prefix clients/web run dev` and open `/ux-demo` for the component
 catalog. See the [UI conventions](clients/web/docs/ui-conventions.md) for Kerf guidance.
 
 ## Web coding conventions

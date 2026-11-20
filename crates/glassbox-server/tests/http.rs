@@ -126,6 +126,9 @@ fn built_pages_and_assets_are_served_by_the_same_application_origin() {
     std::fs::write(directory.path().join("app.js"), "console.log('Glassbox');").unwrap();
     let (_host, address) = RunningServer::start(Some(directory.path()));
     assert!(get(address, "/").contains("<title>Glassbox</title>"));
+    let catalog_redirect = get(address, "/ux-demo");
+    assert!(catalog_redirect.starts_with("HTTP/1.1 307 Temporary Redirect"));
+    assert!(catalog_redirect.contains("location: /ux-demo/"));
     assert!(get(address, "/ux-demo/").contains("<title>Catalog</title>"));
     let js = get(address, "/app.js");
     assert!(js.starts_with("HTTP/1.1 200 OK"));

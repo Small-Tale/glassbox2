@@ -12,7 +12,7 @@ owned styles. Register each custom component in `kerf.components.json`, run
 and use the same component in the application. Group specimens by function and
 use Kerf's `CatalogExample` for each meaningful variant or state.
 
-Both builds and the dev server expose the catalog at `/ux-demo/`. Run
+Open `/ux-demo` directly for developer review in Vite or the built client. Run
 `npm run check` to verify catalog metadata, lint, types, Kerf UI Doctor, tests,
 and the build. Inspect wide, medium, and compact browser layouts where UI changes.
 

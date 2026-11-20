@@ -3,7 +3,7 @@
 For the browser client, run `npm --prefix clients/web ci`,
 `npm --prefix clients/web run build`, then
 `cargo run -p glassbox-server -- --assets clients/web/dist`. Open the loopback address
-printed by the service. The same origin serves the app, `/ux-demo/`, the
+printed by the service. The same origin serves the app, the developer catalog at `/ux-demo`, the
 versioned readiness response, and read/write application settings.
 
 For a local Tauri smoke run, build the frontend first, then run

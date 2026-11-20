@@ -133,7 +133,7 @@
       "selection": {
         "useWhen": ["Display the Glassbox review shell."],
         "avoidWhen": ["Display one standalone component without app chrome."],
-        "uses": ["workbench", "toolbar-text", "toolbar-control-group"],
+        "uses": ["workbench", "toolbar-text"],
         "styleSources": ["src/components/review/review-workbench.css"],
         "demoSource": "src/ux-demo/demos/review/review-workbench.tsx",
         "documentation": "docs/ui-conventions.md"
