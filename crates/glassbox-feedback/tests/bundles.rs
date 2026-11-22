@@ -2,7 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Barrier;
 
-use glassbox_feedback::{BundleContext, BundleStore};
+use glassbox_feedback::{BundleContext, BundleStore, CleanupScope};
 use glassbox_model::feedback::{
     AnchorSide, AnchorTarget, FeedbackChange, MessageTarget, ReviewAnchor, ReviewFeedback,
     ReviewerCategory, ThreadOrigin,
@@ -84,6 +84,76 @@ fn copied_instruction_is_valid_immediately_and_after_app_exit() {
         serde_json::from_slice(&fs::read(path.parent().unwrap().join("context.json")).unwrap())
             .unwrap();
     assert_eq!(saved_context, context(directory.path()));
+}
+
+#[test]
+fn reopening_recovers_the_same_bundle_and_excludes_competing_writers_and_cleanup() {
+    let directory = tempfile::tempdir().unwrap();
+    let store = BundleStore::in_directory(directory.path());
+    let (mut state, thread) = feedback("Before exit");
+    state.apply(thread, 1, with_attachment(&[0, 255])).unwrap();
+    let bundle = store.create(context(directory.path()), &state).unwrap();
+    let id = bundle.id().to_owned();
+    let path = bundle.path();
+    assert!(
+        matches!(store.reopen(&id), Err(error) if error.kind() == std::io::ErrorKind::WouldBlock)
+    );
+    drop(bundle);
+
+    let (bundle, mut restored) = store.reopen(&id).unwrap().unwrap();
+    assert_eq!(restored, state);
+    assert_eq!(bundle.path(), path);
+    assert_eq!(store.cleanup(CleanupScope::All).unwrap().active_bundles, 1);
+    restored
+        .apply(thread, 2, FeedbackChange::RemoveThread)
+        .unwrap();
+    bundle.publish(&restored).unwrap();
+    assert!(fs::read_to_string(&path).unwrap().contains("No feedback"));
+    drop(bundle);
+
+    let (bundle, latest) = store.reopen(&id).unwrap().unwrap();
+    assert_eq!(latest, restored);
+    drop(bundle);
+    assert_eq!(store.cleanup(CleanupScope::All).unwrap().removed_bundles, 1);
+    assert!(
+        matches!(store.reopen(&id), Err(error) if error.kind() == std::io::ErrorKind::NotFound)
+    );
+}
+
+#[test]
+fn legacy_handoffs_remain_readable_and_malformed_snapshot_references_fail() {
+    let directory = tempfile::tempdir().unwrap();
+    let store = BundleStore::in_directory(directory.path());
+    let bundle = store
+        .create(context(directory.path()), &ReviewFeedback::default())
+        .unwrap();
+    let id = bundle.id().to_owned();
+    let path = bundle.path();
+    drop(bundle);
+
+    let document = fs::read_to_string(&path).unwrap();
+    let mut old_document = String::new();
+    for line in document.split_inclusive('\n') {
+        if !line.starts_with("<!-- Glassbox editable snapshot ") {
+            old_document.push_str(line);
+        }
+    }
+    fs::write(&path, &old_document).unwrap();
+    assert!(store.reopen(&id).unwrap().is_none());
+    assert!(fs::read_to_string(&path).unwrap().contains("No feedback"));
+    assert!(
+        matches!(store.reopen("../outside"), Err(error) if error.kind() == std::io::ErrorKind::InvalidInput)
+    );
+
+    let invalid = document.replacen(
+        "<!-- Glassbox editable snapshot ",
+        "<!-- Glassbox editable snapshot ../",
+        1,
+    );
+    fs::write(&path, invalid).unwrap();
+    assert!(
+        matches!(store.reopen(&id), Err(error) if error.kind() == std::io::ErrorKind::InvalidData)
+    );
 }
 
 #[test]

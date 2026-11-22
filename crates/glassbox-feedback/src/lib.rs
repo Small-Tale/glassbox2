@@ -1,6 +1,7 @@
 //! Durable, database-free handoff bundles for Glassbox reviews.
 
 mod hotsheet;
+mod snapshots;
 mod storage;
 
 use std::collections::BTreeSet;
@@ -65,7 +66,7 @@ impl BundleStore {
             directory: directory.path().to_owned(),
             _lease: storage::open_bundle_lease(directory.path())?,
             context,
-            publication: Mutex::new(BTreeSet::new()),
+            publication: Mutex::new(Publication::default()),
         };
         let context_json = serde_json::to_vec_pretty(&bundle.context)?;
         write_replace(&bundle.directory, CONTEXT, &context_json)?;
@@ -78,11 +79,24 @@ impl BundleStore {
 pub struct FeedbackBundle {
     directory: PathBuf,
     context: BundleContext,
-    publication: Mutex<BTreeSet<String>>,
+    publication: Mutex<Publication>,
     _lease: File,
 }
 
+#[derive(Default)]
+struct Publication {
+    evidence: BTreeSet<String>,
+    snapshot: Option<String>,
+}
+
 impl FeedbackBundle {
+    pub fn id(&self) -> &str {
+        self.directory
+            .file_name()
+            .and_then(|name| name.to_str())
+            .expect("bundle IDs are generated ASCII names")
+    }
+
     pub fn path(&self) -> PathBuf {
         self.directory.join(HANDOFF)
     }
@@ -101,8 +115,11 @@ impl FeedbackBundle {
             .lock()
             .map_err(|_| io::Error::other("The feedback writer lost its publication lock"))?;
         let (output, evidence) = self.render_document(feedback.threads().iter())?;
-        write_replace(&self.directory, HANDOFF, &output)?;
-        *publication = evidence;
+        let snapshot = snapshots::publish(&self.directory, output, feedback)?;
+        if let Some(previous) = publication.snapshot.replace(snapshot) {
+            let _ = fs::remove_file(self.directory.join(previous));
+        }
+        publication.evidence = evidence;
         Ok(())
     }
     fn render_document<'a>(
@@ -246,17 +263,7 @@ fn write_message(
 }
 
 fn store_attachment(directory: &Path, attachment: &FeedbackAttachment) -> io::Result<String> {
-    let hash = Sha256::digest(&attachment.bytes);
-    let mut filename = format!("{hash:x}");
-    if let Some((_, extension)) = attachment.filename.rsplit_once('.') {
-        if !extension.is_empty()
-            && extension.len() <= 12
-            && extension.bytes().all(|byte| byte.is_ascii_alphanumeric())
-        {
-            filename.push('.');
-            filename.push_str(&extension.to_ascii_lowercase());
-        }
-    }
+    let filename = attachment_filename(attachment);
     let path = directory.join(&filename);
     match fs::symlink_metadata(&path) {
         Ok(metadata) => {
@@ -279,6 +286,21 @@ fn store_attachment(directory: &Path, attachment: &FeedbackAttachment) -> io::Re
         Err(error) => return Err(error),
     }
     Ok(filename)
+}
+
+fn attachment_filename(attachment: &FeedbackAttachment) -> String {
+    let hash = Sha256::digest(&attachment.bytes);
+    let mut filename = format!("{hash:x}");
+    if let Some((_, extension)) = attachment.filename.rsplit_once('.') {
+        if !extension.is_empty()
+            && extension.len() <= 12
+            && extension.bytes().all(|byte| byte.is_ascii_alphanumeric())
+        {
+            filename.push('.');
+            filename.push_str(&extension.to_ascii_lowercase());
+        }
+    }
+    filename
 }
 
 fn write_temporary(directory: &Path, bytes: &[u8]) -> io::Result<NamedTempFile> {

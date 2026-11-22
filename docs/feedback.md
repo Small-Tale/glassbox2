@@ -56,8 +56,13 @@ Inspector with a stale indicator. New AI analysis results are tracked in
 
 The open comparison retains its editable discussions as files are switched.
 Each successful change publishes the current review to its stable local
-handoff bundle, which survives the Glassbox process. Reopening a previous
-editable discussion session is tracked separately.
+handoff bundle, which survives the Glassbox process. New bundle publications
+include a versioned editable snapshot with the thread IDs, revisions, anchors,
+messages, and attachments (`HS2-NG98A2`). The Markdown replacement commits
+the associated snapshot. The store can reopen that snapshot with the
+same writer lease and Markdown path. Earlier bundles retain their
+Markdown handoff. Application controls for finding and reopening saved
+reviews are tracked in `HS2-KXCFZF`.
 
 ## Durable AI handoff
 

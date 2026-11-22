@@ -79,12 +79,11 @@ impl BundleStore {
             CleanupScope::Project(path) => Some(project_identity(&path)?),
         };
         let mut report = CleanupReport::default();
-        let cleanup_lock = match lock_file(&self.root.join(CLEANUP_LOCK)) {
+        let _cleanup_lock = match lock_cleanup(&self.root) {
             Ok(file) => file,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(report),
             Err(error) => return Err(error),
         };
-        FileExt::lock_exclusive(&cleanup_lock)?;
         for bundle in bundle_directories(&self.root)? {
             if project.is_some() && project != bundle.project {
                 continue;
@@ -116,6 +115,24 @@ pub(super) fn open_bundle_lease(path: &Path) -> io::Result<File> {
     Ok(file)
 }
 
+pub(super) fn lock_cleanup(root: &Path) -> io::Result<File> {
+    let file = lock_file(&root.join(CLEANUP_LOCK))?;
+    FileExt::lock_exclusive(&file)?;
+    Ok(file)
+}
+
+pub(super) fn try_open_bundle_lease(path: &Path) -> io::Result<File> {
+    let file = lock_file(&path.join(LEASE))?;
+    FileExt::try_lock_exclusive(&file).map_err(|error| {
+        if error.raw_os_error() == fs2::lock_contended_error().raw_os_error() {
+            io::Error::new(io::ErrorKind::WouldBlock, "The review is already open")
+        } else {
+            error
+        }
+    })?;
+    Ok(file)
+}
+
 fn lock_file(path: &Path) -> io::Result<File> {
     OpenOptions::new()
         .read(true)
@@ -126,17 +143,13 @@ fn lock_file(path: &Path) -> io::Result<File> {
 }
 
 fn remove_idle_bundle(path: &Path) -> io::Result<Option<u64>> {
-    let lease = lock_file(&path.join(LEASE))?;
-    match FileExt::try_lock_exclusive(&lease) {
-        Ok(()) => {}
-        Err(error) if error.raw_os_error() == fs2::lock_contended_error().raw_os_error() => {
-            return Ok(None);
-        }
+    let lease = match try_open_bundle_lease(path) {
+        Ok(lease) => lease,
+        Err(error) if error.kind() == io::ErrorKind::WouldBlock => return Ok(None),
         Err(error) => return Err(error),
-    }
+    };
     let bytes = directory_size(path)?;
-    // Only creation takes a writer lease. A published idle bundle cannot gain
-    // another writer, and the store's cleanup lock excludes other removals.
+    // The store lock excludes reopen and other removals while we retire the directory.
     drop(lease);
     retire_bundle(path)?;
     Ok(Some(bytes))

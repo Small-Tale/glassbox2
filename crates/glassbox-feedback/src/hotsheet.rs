@@ -187,12 +187,12 @@ impl FeedbackBundle {
         client: HotSheetClient,
         request: ExportRequest,
     ) -> io::Result<PreparedExport> {
-        let evidence = self
+        let publication = self
             .publication
             .lock()
             .map_err(|_| io::Error::other("The feedback writer lost its publication lock"))?;
         let document = fs::read_to_string(self.path())?;
-        self.stage_export(client, request, document, &evidence)
+        self.stage_export(client, request, document, &publication.evidence)
     }
 
     pub fn prepare_selected_export(
