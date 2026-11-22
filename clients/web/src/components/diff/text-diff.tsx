@@ -5,6 +5,7 @@ import { ToolbarButton, ToolbarControlGroup } from '@kerfjs/ui/toolbar-control-g
 import { type SafeHtml, signal } from 'kerfjs';
 import { Columns2, Rows2, WrapText } from 'lucide';
 
+import type { Definition } from '../review/definition-navigation.js';
 import { type DiffLine, splitLines, syntaxTokens, type TextHunk } from './text-diff-model.js';
 
 export function createTextDiffState() {
@@ -56,11 +57,15 @@ function DiffCell({
   side,
   path,
   lineControl,
+  symbols = false,
+  definition,
 }: {
   line?: DiffLine;
   lineControl?: LineControl;
   side: 'before' | 'after' | 'both';
   path: string;
+  symbols?: boolean;
+  definition?: Definition;
 }) {
   if (line === undefined)
     return <div class="text-diff__cell" data-change="blank" data-side={side} aria-hidden="true" />;
@@ -74,6 +79,9 @@ function DiffCell({
       data-before-line={before ?? undefined}
       data-after-line={after ?? undefined}
       data-side={side}
+      data-definition-target={
+        definition !== undefined && (definition.side === 'before' ? before : after) === definition.line ? '' : undefined
+      }
     >
       {side === 'after' ? null : (
         <span class="text-diff__number" aria-label={before === null ? undefined : `Before line ${before}`}>
@@ -89,7 +97,7 @@ function DiffCell({
       )}
       <span class="text-diff__marker">{mark}</span>
       <code>
-        {syntaxTokens(line.text, path).map((token) => (
+        {syntaxTokens(line.text, path, symbols).map((token) => (
           <span data-token={token.kind}>{token.text}</span>
         ))}
         {line.ends_with_newline ? null : (
@@ -113,13 +121,53 @@ export function TextDiff({
   state,
   lineControl,
   rowContent,
+  symbols = false,
+  definition,
+  snapshot = false,
 }: {
   hunks: readonly TextHunk[];
   path: string;
   state: TextDiffState;
   lineControl?: LineControl;
   rowContent?: RowContent;
+  symbols?: boolean;
+  definition?: Definition;
+  snapshot?: boolean;
 }) {
+  if (snapshot && definition !== undefined) {
+    const lines = definition.text.split(/\r?\n/u);
+    const terminated = definition.text.endsWith('\n');
+    if (terminated) lines.pop();
+    const start = Math.max(0, definition.line - 41);
+    const excerpt = lines.slice(start, definition.line + 40);
+    return (
+      <div
+        class="text-diff"
+        data-layout="inline"
+        data-snapshot=""
+        data-wrap={String(state.wrap.value)}
+        role="region"
+        aria-label="Read-Only Source"
+        tabindex={0}
+        style={`--glassbox-diff-gutter: ${Math.max(4, String(start + excerpt.length).length + 1)}ch`}
+      >
+        <div class="text-diff__lines">
+          <div class="text-diff__side">{definition.side === 'before' ? 'Before · Read Only' : 'After · Read Only'}</div>
+          {excerpt.map((text, offset) => {
+            const number = start + offset + 1;
+            const line: DiffLine = {
+              kind: 'context',
+              before_line: definition.side === 'before' ? number : null,
+              after_line: definition.side === 'after' ? number : null,
+              text,
+              ends_with_newline: terminated || number < lines.length,
+            };
+            return <DiffCell line={line} side={definition.side} path={path} definition={definition} />;
+          })}
+        </div>
+      </div>
+    );
+  }
   const layout = state.layout.value;
   const lastLine = hunks.reduce(
     (largest, hunk) =>
@@ -150,14 +198,35 @@ export function TextDiff({
             {layout === 'split'
               ? splitLines(hunk.lines).map(({ before, after }) => (
                   <>
-                    <DiffCell line={before} side="before" path={path} lineControl={lineControl} />
-                    <DiffCell line={after} side="after" path={path} lineControl={lineControl} />
+                    <DiffCell
+                      line={before}
+                      side="before"
+                      path={path}
+                      lineControl={lineControl}
+                      symbols={symbols}
+                      definition={definition}
+                    />
+                    <DiffCell
+                      line={after}
+                      side="after"
+                      path={path}
+                      lineControl={lineControl}
+                      symbols={symbols}
+                      definition={definition}
+                    />
                     {rowContent?.(before?.before_line, after?.after_line)}
                   </>
                 ))
               : hunk.lines.map((line) => (
                   <>
-                    <DiffCell line={line} side="both" path={path} lineControl={lineControl} />
+                    <DiffCell
+                      line={line}
+                      side="both"
+                      path={path}
+                      lineControl={lineControl}
+                      symbols={symbols}
+                      definition={definition}
+                    />
                     {rowContent?.(line.before_line, line.after_line)}
                   </>
                 ))}

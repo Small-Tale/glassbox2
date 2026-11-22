@@ -29,6 +29,12 @@ import { ExportDialog, wireExportDialog } from '../components/handoff/export-dia
 import { createExportState } from '../components/handoff/export-state.js';
 import { createHandoffState } from '../components/handoff/handoff-state.js';
 import { ShareMenu, ShareStatus, wireShareMenu } from '../components/handoff/share-menu.js';
+import {
+  createDefinitionLookup,
+  includesDefinition,
+  supportsDefinitions,
+  wireDefinitionNavigation,
+} from '../components/review/definition-navigation.js';
 import { createReviewHistory, wireReviewHistory } from '../components/review/review-history.js';
 import { ReviewNavigator, wireReviewNavigator } from '../components/review/review-navigator.js';
 import { createReviewSourceState } from '../components/review/review-source.js';
@@ -54,8 +60,14 @@ if (!root) throw new Error('Missing #app root.');
 const workbench = createReviewWorkbenchState();
 const source = createReviewSourceState();
 const history = createReviewHistory();
+const definitions = createDefinitionLookup();
 const textDiff = createTextDiffState();
 const diff = selectedDiff(source);
+void effect(() => {
+  if (source.activeSource.value === null || source.selected.value === undefined || diff.result.value?.kind !== 'text') {
+    definitions.clear();
+  }
+});
 const mediaDiff = createMediaDiffState();
 const mediaId = 'glassbox-media-diff';
 void effect(() => {
@@ -108,6 +120,14 @@ mount(root, () => {
   const index = source.selected.value;
   const file = index === undefined ? undefined : review?.files[index];
   const result = diff.result.value;
+  const definition = history.active()?.definition;
+  const snapshot =
+    definition !== undefined &&
+    (definition.index === null ||
+      definition.index !== index ||
+      result?.kind !== 'text' ||
+      result.revision !== definition.diff_revision ||
+      !includesDefinition(result.hunks, definition));
   const threads =
     result?.kind === 'text'
       ? discussion.threads.value.filter(
@@ -129,7 +149,9 @@ mount(root, () => {
     />
   );
   let comparisonToolbar;
-  if (file !== undefined) {
+  if (snapshot) {
+    comparison = <TextDiff hunks={[]} path={definition.path} state={textDiff} definition={definition} snapshot />;
+  } else if (file !== undefined) {
     switch (result?.kind) {
       case 'text': {
         const diagram = diff.showDiagram.value ? diff.diagram.value : null;
@@ -168,6 +190,8 @@ mount(root, () => {
               hunks={result.hunks}
               path={file.path}
               state={textDiff}
+              definition={definition}
+              symbols={source.activeSource.value?.kind === 'git' && supportsDefinitions(file.path)}
               lineControl={(side, line) => <LineCommentAction side={side} line={line} />}
               rowContent={(before, after) => (
                 <LineDiscussion
@@ -229,14 +253,14 @@ mount(root, () => {
         break;
     }
   }
-  const selected = selectedAnalysis();
+  const selected = snapshot ? undefined : selectedAnalysis();
   return (
     <>
       <ReviewWorkbench
         id="glassbox-workbench"
         state={workbench}
         projectTitle={review?.identity ?? 'Changed Files'}
-        comparisonTitle={file?.path.split('/').at(-1) ?? 'Review'}
+        comparisonTitle={(definition?.path ?? file?.path)?.split(/[\\/]/u).at(-1) ?? 'Review'}
         inspectorTitle={
           discussion.adding.value !== null
             ? 'New Comment'
@@ -274,7 +298,13 @@ mount(root, () => {
         comparisonHeader={
           selected === undefined ? undefined : <AnalysisContext id={analysisId} state={analysis} selection={selected} />
         }
-        footerStatus={handoff.status.value === '' ? undefined : <ShareStatus state={handoff} />}
+        footerStatus={
+          definitions.status.value !== '' ? (
+            <span role="status">{definitions.status.value}</span>
+          ) : handoff.status.value === '' ? undefined : (
+            <ShareStatus state={handoff} />
+          )
+        }
         footerSettings={
           <>
             <ShareMenu
@@ -290,14 +320,20 @@ mount(root, () => {
           </>
         }
         inspector={
-          <DiscussionInspector
-            state={discussion}
-            path={file?.path ?? discussion.staleFile.value?.path}
-            revision={result?.kind === 'text' ? result.revision : undefined}
-            mediaRevisions={
-              result?.kind === 'media' ? { before: result.before?.revision, after: result.after?.revision } : undefined
-            }
-          />
+          snapshot ? (
+            <></>
+          ) : (
+            <DiscussionInspector
+              state={discussion}
+              path={file?.path ?? discussion.staleFile.value?.path}
+              revision={result?.kind === 'text' ? result.revision : undefined}
+              mediaRevisions={
+                result?.kind === 'media'
+                  ? { before: result.before?.revision, after: result.after?.revision }
+                  : undefined
+              }
+            />
+          )
         }
       />
       <ExportDialog id={exportId} state={delivery} />
@@ -309,7 +345,7 @@ mount(root, () => {
 });
 void wireReviewWorkbench(root, 'glassbox-workbench', workbench);
 void wireReviewNavigator(root, 'glassbox-review-navigator', source);
-void wireReviewHistory(
+const historyNavigation = wireReviewHistory(
   root,
   source,
   history,
@@ -318,6 +354,20 @@ void wireReviewHistory(
     return content !== null && content.kind !== 'loading';
   },
   discussion.saveEdit,
+);
+void wireDefinitionNavigation(
+  root,
+  definitions,
+  () => {
+    const active = source.activeSource.value;
+    const index = source.selected.value;
+    const content = diff.result.value;
+    const file = index === undefined ? undefined : source.review.value?.files[index];
+    if (active?.kind !== 'git' || index === undefined || file === undefined || content?.kind !== 'text')
+      return undefined;
+    return { source: active, index, path: file.path, revision: content.revision };
+  },
+  historyNavigation.reveal,
 );
 void wireTextDiffToolbar(root, diffToolbarId, textDiff);
 root.addEventListener('click', (event) => {

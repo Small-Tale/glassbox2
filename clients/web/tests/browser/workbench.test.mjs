@@ -213,6 +213,70 @@ test('built workbench reviews Git and direct files with persistent preferences',
   await withWorkbench(exerciseWorkbench);
 });
 
+test('definition navigation restores diff and read-only destinations with history', { timeout: 60_000 }, async () => {
+  await withWorkbench(async (page, url, { repo }) => {
+    const git = (...args) =>
+      execFileSync('git', ['-c', 'commit.gpgsign=false', '-c', 'core.autocrlf=false', ...args], {
+        cwd: repo,
+        windowsHide: true,
+      });
+    const current = join(repo, 'bundle.ts');
+    await writeFile(current, 'export const revision = sharedTarget();\n');
+    await writeFile(join(repo, 'shared.ts'), 'export function sharedTarget() { return 1; }\n');
+    await writeFile(join(repo, 'changed-target.ts'), 'export function changedTarget() { return 1; }\n');
+    git('add', 'bundle.ts', 'shared.ts', 'changed-target.ts');
+    git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'definition fixtures');
+    await writeFile(
+      current,
+      'export function localTarget() { return 2; }\nexport const revision = localTarget() + sharedTarget() + changedTarget() + missingTarget();\n',
+    );
+    await writeFile(join(repo, 'changed-target.ts'), 'export function changedTarget() { return 3; }\n');
+    const modifiers = [process.platform === 'darwin' ? 'Meta' : 'Control'];
+    const button = (name) => page.getByRole('button', { name, exact: true });
+    const heading = (name) => page.getByRole('heading', { name, exact: true });
+    const symbol = (side, line, name) =>
+      page.locator(`[data-${side}-line="${line}"] [data-token="symbol"]`).getByText(name, { exact: true });
+    const target = page.locator('[data-definition-target]');
+    await page.goto(url);
+    await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(repo);
+    await button('Open Comparison').click();
+    await page.getByRole('treeitem', { name: /bundle\.ts/ }).click();
+    await symbol('after', 2, 'localTarget').click({ modifiers });
+    await target.filter({ hasText: 'function localTarget' }).waitFor();
+    assert.equal(await target.getAttribute('data-after-line'), '1');
+
+    await symbol('before', 1, 'sharedTarget').click({ modifiers });
+    await heading('shared.ts').waitFor();
+    const readOnly = page.getByRole('region', { name: 'Read-Only Source', exact: true });
+    await readOnly.waitFor();
+    assert.equal(await readOnly.locator('.text-diff__cell').count(), 1);
+    assert.equal(await target.getAttribute('data-before-line'), '1');
+    for (const width of [1440, 940, 390, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      await readOnly.waitFor();
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
+      await capture(page, `definition-source-${width}`);
+    }
+    await button('Previous File Visit').click();
+    await heading('bundle.ts').waitFor();
+    await target.filter({ hasText: 'function localTarget' }).waitFor();
+    await button('Next File Visit').click();
+    await heading('shared.ts').waitFor();
+    await button('Previous File Visit').click();
+    await heading('bundle.ts').waitFor();
+
+    await symbol('after', 2, 'missingTarget').click({ modifiers });
+    await page.getByRole('status').filter({ hasText: 'No definition found for missingTarget.' }).waitFor();
+    await symbol('after', 2, 'changedTarget').click({ modifiers });
+    await heading('changed-target.ts').waitFor();
+    await page.getByRole('region', { name: 'Text Diff', exact: true }).waitFor();
+    await target.filter({ hasText: 'return 3' }).waitFor();
+    assert.equal(await target.getAttribute('data-after-line'), '1');
+    assert.equal(await button('Next File Visit').isDisabled(), true);
+    await capture(page, 'definition-in-diff');
+  });
+});
+
 test('AI settings select an approved model and keep analysis opt-in', { timeout: 60_000 }, async () => {
   await withWorkbench(
     async (page, url, { repo }, settings) => {

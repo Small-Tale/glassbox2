@@ -33,6 +33,12 @@ test('syntax cues preserve all characters and leave plain files untouched', () =
     ['keyword', 'string', 'comment'],
   );
   assert.deepEqual(syntaxTokens(text, 'README.md'), [{ text, kind: 'plain' }]);
+  assert.deepEqual(
+    syntaxTokens('const $handle = getValue("fake"); // ignoredName', 'file.ts', true)
+      .filter(({ kind }) => kind === 'symbol')
+      .map(({ text }) => text),
+    ['$handle', 'getValue'],
+  );
 });
 
 test('a superseded file request cannot replace the current selection', async () => {

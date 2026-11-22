@@ -41,6 +41,7 @@ struct Destination {
     path: PathBuf,
     side: AnchorSide,
     revision: String,
+    diff_revision: Option<String>,
     index: Option<usize>,
     line: usize,
     text: String,
@@ -94,7 +95,14 @@ fn resolve(input: Lookup) -> Result<Resolution, (StatusCode, String)> {
     let Some(review) = comparison.git() else {
         return Ok(Resolution::Unsupported);
     };
-    search(review, selection.index, side, &symbol).map_err(bad_request)
+    let mut result = search(review, selection.index, side, &symbol).map_err(bad_request)?;
+    if let Resolution::Found { destination } = &mut result {
+        destination.diff_revision = destination
+            .index
+            .and_then(|index| comparison.text_hunks(index).ok())
+            .and_then(|hunks| review_files::text_revision(&hunks).ok());
+    }
+    Ok(result)
 }
 
 fn is_identifier(value: &str) -> bool {
@@ -294,6 +302,7 @@ fn search_paths(
                     path,
                     side,
                     revision,
+                    diff_revision: None,
                     index,
                     line: *line,
                     text,

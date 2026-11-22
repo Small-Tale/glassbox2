@@ -12,11 +12,19 @@ package resolution are outside this lookup.
 diff revision, an explicit before or after side, and a symbol name. A stale
 selection or revision returns HTTP 409. A found result includes the destination
 path, one-based line, side, exact source text, its SHA-256 content revision,
-and the changed-file index when available. Git commit comparisons read
+and the changed-file index and diff revision when available. Git commit comparisons read
 resolved commit trees, staged comparisons read the index, and working-tree
 sides read bounded regular files within the checkout. The resolver limits
 supported source files to 256 KiB and searches up to 64 candidates per tier
 after the current file.
+
+In a supported Git text comparison, hold Command on macOS or Control on
+Windows and Linux, then click a symbol. Side by Side uses the clicked side.
+Inline uses the after side for shared lines and the before side for removals.
+Glassbox highlights the declaration in the corresponding diff when it has
+the matching revision and line. Otherwise it shows a read-only source
+excerpt on the resolved side. Use the existing back and forward buttons
+or keyboard shortcuts to revisit either view and its scroll position.
 
 The benchmark fixtures from `HS2-HQCQXH` compare exact name and line
 against hand-labeled TypeScript and Rust declarations. Unit tests reuse
@@ -24,5 +32,5 @@ those fixtures. The host parser matched all 11 TypeScript and 9 Rust
 locations and found no definition for the phantom symbol in either fixture.
 A real repository and loopback host exercise worktree,
 index, commit, changed and unchanged destinations, stale requests, and
-ambiguity. The workbench shortcut, preview, and navigation history
-integration are tracked in `HS2-HQCQXH`.
+ambiguity. The real workbench test covers the shortcut, both destination
+views, and back and forward history (`HS2-HQCQXH`).

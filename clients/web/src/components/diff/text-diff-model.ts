@@ -53,19 +53,36 @@ export function splitLines(lines: readonly DiffLine[]) {
   return rows;
 }
 
-type Token = { text: string; kind: 'plain' | 'comment' | 'keyword' | 'number' | 'string' };
+type Token = { text: string; kind: 'plain' | 'comment' | 'keyword' | 'number' | 'string' | 'symbol' };
 
-const codeExtensions = new Set(['c', 'cpp', 'cs', 'go', 'h', 'java', 'js', 'jsx', 'mjs', 'rs', 'swift', 'ts', 'tsx']);
+const codeExtensions = new Set([
+  'c',
+  'cpp',
+  'cs',
+  'go',
+  'h',
+  'java',
+  'js',
+  'jsx',
+  'mjs',
+  'rs',
+  'swift',
+  'ts',
+  'tsx',
+  'mts',
+  'cts',
+]);
 const hashExtensions = new Set(['bash', 'py', 'rb', 'sh', 'toml', 'yaml', 'yml', 'zsh']);
 const keywords = new Set(
   'async await break case class const continue def do else enum export false fn for from function if impl import in let match mod new nil none null pub return self static struct super switch this throw trait true try type use var void while'.split(
     ' ',
   ),
 );
-const codeTokens = /\/\/.*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|\b\d+(?:\.\d+)?\b|[A-Za-z_]\w*/g;
+const codeTokens =
+  /\/\/.*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|\b\d+(?:\.\d+)?\b|[\p{L}_$][\p{L}\p{N}_$]*/gu;
 const hashTokens = /#.*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\b\d+(?:\.\d+)?\b|[A-Za-z_]\w*/g;
 
-export function syntaxTokens(text: string, path: string): Token[] {
+export function syntaxTokens(text: string, path: string, navigate = false): Token[] {
   const extension = path.split('.').at(-1)?.toLowerCase() ?? '';
   const pattern = hashExtensions.has(extension)
     ? hashTokens
@@ -87,7 +104,9 @@ export function syntaxTokens(text: string, path: string): Token[] {
             ? 'number'
             : keywords.has(value.toLowerCase())
               ? 'keyword'
-              : 'plain';
+              : navigate
+                ? 'symbol'
+                : 'plain';
     if (kind === 'plain') continue;
     const index = match.index;
     if (index > offset) tokens.push({ text: text.slice(offset, index), kind: 'plain' });

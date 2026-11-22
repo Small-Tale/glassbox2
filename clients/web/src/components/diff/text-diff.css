@@ -95,6 +95,19 @@
   color: var(--kui-color-warning-on-fill);
 }
 
+[data-definition-modifier] .text-diff [data-token='symbol'] {
+  cursor: pointer;
+}
+
+.text-diff__cell[data-definition-target] {
+  outline: 2px solid var(--kui-color-brand-border-loud);
+  outline-offset: -2px;
+}
+
+.text-diff[data-snapshot] .text-diff__cell {
+  border-inline-start: 0;
+}
+
 .text-diff__number {
   position: relative;
 }

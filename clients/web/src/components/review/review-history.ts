@@ -1,9 +1,10 @@
-import { effect, signal } from 'kerfjs';
+import { batch, effect, signal } from 'kerfjs';
 
+import type { Definition } from './definition-navigation.js';
 import type { ReviewSourceState } from './review-source.js';
 
 type Position = { top: number; left: number };
-type Visit = { index: number; position: Position };
+type Visit = { index: number; position: Position | null; definition?: Definition };
 type Direction = -1 | 1;
 
 export function createReviewHistory() {
@@ -14,11 +15,26 @@ export function createReviewHistory() {
     return visits.peek()[cursor.peek()];
   }
 
+  function active() {
+    return visits.value[cursor.value];
+  }
+
   function visit(index: number) {
-    if (current()?.index === index) return;
-    const next = [...visits.peek().slice(0, cursor.peek() + 1), { index, position: { top: 0, left: 0 } }];
-    visits.value = next;
-    cursor.value = next.length - 1;
+    const previous = current();
+    if (previous?.index === index && previous.definition === undefined) return;
+    push({ index, position: { top: 0, left: 0 } });
+  }
+
+  function visitDefinition(origin: number, definition: Definition) {
+    push({ index: definition.index ?? origin, position: null, definition });
+  }
+
+  function push(visit: Visit) {
+    const next = [...visits.peek().slice(0, cursor.peek() + 1), visit];
+    batch(() => {
+      visits.value = next;
+      cursor.value = next.length - 1;
+    });
   }
 
   function move(direction: Direction) {
@@ -42,7 +58,7 @@ export function createReviewHistory() {
     return visits.value[cursor.value + direction] !== undefined;
   }
 
-  return { current, visit, move, save, clear, canMove };
+  return { current, active, visit, visitDefinition, move, save, clear, canMove };
 }
 
 type History = ReturnType<typeof createReviewHistory>;
@@ -63,11 +79,11 @@ export function wireReviewHistory(
     return pane?.querySelector<HTMLElement>('.text-diff') ?? pane;
   };
   let observedReview = source.review.value;
-  let visibleIndex: number | undefined;
+  let visible: Visit | undefined;
 
   function saveVisible() {
     const region = scroller();
-    if (region !== null && visibleIndex !== undefined && history.current()?.index === visibleIndex) {
+    if (region !== null && visible !== undefined && history.current() === visible) {
       history.save({ top: region.scrollTop, left: region.scrollLeft });
     }
   }
@@ -79,26 +95,33 @@ export function wireReviewHistory(
     const ready = contentReady();
     if (observedReview !== review) {
       observedReview = review;
-      visibleIndex = undefined;
+      visible = undefined;
       history.clear();
     }
     if (pending || index === undefined) {
-      visibleIndex = undefined;
+      visible = undefined;
       return;
     }
-    history.visit(index);
+    if (history.current()?.index !== index) history.visit(index);
+    const destination = history.active();
     if (!ready) {
-      visibleIndex = undefined;
+      visible = undefined;
       return;
     }
-    if (visibleIndex === index) return;
-    const destination = history.current();
-    if (destination === undefined) return;
+    if (destination === undefined || visible === destination) return;
     const frame = requestAnimationFrame(() => {
       const region = scroller();
       if (region === null) return;
-      visibleIndex = index;
-      region.scrollTo({ ...destination.position, behavior: 'instant' });
+      visible = destination;
+      if (destination.position !== null) {
+        region.scrollTo({ ...destination.position, behavior: 'instant' });
+      } else {
+        const target = region.querySelector<HTMLElement>('[data-definition-target]');
+        if (target !== null) {
+          const top = target.getBoundingClientRect().top - region.getBoundingClientRect().top + region.scrollTop;
+          region.scrollTo({ top: top - region.clientHeight / 3, left: 0, behavior: 'instant' });
+        }
+      }
     });
     return () => {
       cancelAnimationFrame(frame);
@@ -111,11 +134,27 @@ export function wireReviewHistory(
     void beforeMove().then((saved) => {
       if (abort.aborted || !saved || source.pending.value || history.current() !== visit) return;
       saveVisible();
-      const destination = history.move(direction);
-      if (destination === undefined) return;
-      visibleIndex = undefined;
+      batch(() => {
+        const destination = history.move(direction);
+        if (destination === undefined) return;
+        visible = undefined;
+        source.fileActionStatus.value = '';
+        source.selected.value = destination.index;
+      });
+    });
+  }
+
+  async function reveal(definition: Definition) {
+    const visit = history.current();
+    const index = source.selected.value;
+    const current = () =>
+      !abort.aborted && !source.pending.value && history.current() === visit && source.selected.value === index;
+    if (index === undefined || !current() || !(await beforeMove()) || !current()) return;
+    saveVisible();
+    batch(() => {
+      history.visitDefinition(index, definition);
       source.fileActionStatus.value = '';
-      source.selected.value = destination.index;
+      source.selected.value = definition.index ?? index;
     });
   }
 
@@ -130,12 +169,18 @@ export function wireReviewHistory(
     'click',
     (event) => {
       if (!(event.target instanceof Element)) return;
-      const action = event.target.closest<HTMLElement>('[data-action]')?.dataset.action;
+      const control = event.target.closest<HTMLElement>('[data-action]');
+      const action = control?.dataset.action;
       if (action === 'review-history-back' || action === 'review-history-forward') {
         event.stopImmediatePropagation();
         move(action === 'review-history-back' ? -1 : 1);
       } else if (action === 'review-file-select') {
         saveVisible();
+        const row = control?.dataset.itemId ?? control?.closest<HTMLElement>('[data-item-id]')?.dataset.itemId;
+        const index = source.selected.value;
+        if (history.current()?.definition !== undefined && index !== undefined && row === `file:${index}`) {
+          history.visit(index);
+        }
       }
     },
     { signal: abort, capture: true },
@@ -164,8 +209,11 @@ export function wireReviewHistory(
     { signal: abort },
   );
 
-  return () => {
-    controller.abort();
-    stop();
+  return {
+    reveal,
+    dispose() {
+      controller.abort();
+      stop();
+    },
   };
 }

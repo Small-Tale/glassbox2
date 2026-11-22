@@ -88,6 +88,23 @@ export function TextDiffDemo() {
           inspector={<EmptyState title="No Discussion Selected" />}
         />
       </CatalogExample>
+      <CatalogExample label="Read-Only Definition" viewport={{ width: 'full' }}>
+        <TextDiff
+          hunks={[]}
+          path="src/bundle.ts"
+          state={state}
+          definition={{
+            path: 'src/bundle.ts',
+            side: 'before',
+            revision: 'fixture',
+            diff_revision: null,
+            line: 2,
+            index: null,
+            text: 'type ReviewId = string;\nexport function bundlePath(id: ReviewId) {\n  return id + ".md";\n}',
+          }}
+          snapshot
+        />
+      </CatalogExample>
     </CatalogExampleStack>
   );
 }
