@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -213,6 +213,43 @@ test('built workbench reviews Git and direct files with persistent preferences',
   await withWorkbench(exerciseWorkbench);
 });
 
+test('changed-file clipboard preserves spaces and paths for deleted Git entries', { timeout: 60_000 }, async () => {
+  await withWorkbench(async (page, url, { repo }) => {
+    const live = 'source with spaces.txt';
+    const deleted = 'removed with spaces.txt';
+    const checkout = await realpath(repo);
+    const git = (...args) =>
+      execFileSync('git', ['-c', 'commit.gpgsign=false', '-c', 'core.autocrlf=false', ...args], {
+        cwd: repo,
+        windowsHide: true,
+      });
+    await writeFile(join(repo, live), 'before\n');
+    await writeFile(join(repo, deleted), 'before removal\n');
+    git('add', live, deleted);
+    git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'clipboard fixtures');
+    await writeFile(join(repo, live), 'after\n');
+    await rm(join(repo, deleted));
+
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: url });
+    await page.goto(url);
+    const button = (name) => page.getByRole('button', { name, exact: true });
+    await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(repo);
+    await button('Open Comparison').click();
+    for (const name of [live, deleted]) {
+      await page.getByRole('treeitem', { name: new RegExp(name.replaceAll('.', '\\.')) }).click();
+      await button('Copy Relative Path').click();
+      await page.getByRole('status').filter({ hasText: 'Relative path copied.' }).waitFor();
+      assert.equal(await page.evaluate(() => navigator.clipboard.readText()), name);
+      await button('Copy Absolute Path').click();
+      await page.getByRole('status').filter({ hasText: 'Absolute path copied.' }).waitFor();
+      const copied = await page.evaluate(() => navigator.clipboard.readText());
+      assert.equal(copied.replaceAll('\\', '/'), join(checkout, name).replaceAll('\\', '/'));
+    }
+    await button('Open in Default Editor').click();
+    await page.getByRole('status').filter({ hasText: 'There is no live file at the comparison path.' }).waitFor();
+  });
+});
+
 test('definition navigation restores diff and read-only destinations with history', { timeout: 60_000 }, async () => {
   await withWorkbench(async (page, url, { repo }) => {
     const git = (...args) =>
@@ -381,12 +418,20 @@ test(
   },
 );
 
-test('built workbench opens the only file supplied by Git difftool', { timeout: 60_000 }, async () => {
+test('built workbench opens a Git difftool snapshot with relative clipboard only', { timeout: 60_000 }, async () => {
   await withWorkbench(
     async (page, url) => {
+      await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: url });
       await page.goto(url);
       await page.getByRole('heading', { name: 'after.txt', exact: true }).waitFor();
       await page.locator('.text-diff').getByText('after', { exact: true }).waitFor();
+      const button = (name) => page.getByRole('button', { name, exact: true });
+      for (const action of ['Copy Absolute Path', 'Reveal in File Manager', 'Open in Default Editor']) {
+        assert(await button(action).isDisabled(), action);
+      }
+      await button('Copy Relative Path').click();
+      await page.getByRole('status').filter({ hasText: 'Relative path copied.' }).waitFor();
+      assert.equal(await page.evaluate(() => navigator.clipboard.readText()), 'after.txt');
       await capture(page, 'workbench-difftool');
     },
     { launchArgs: ({ before, after }) => ['--difftool', before, after] },

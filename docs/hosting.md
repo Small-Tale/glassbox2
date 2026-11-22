@@ -38,7 +38,9 @@ dependencies listed in the [Tauri prerequisites](https://v2.tauri.app/start/prer
 Each native matrix job also runs the built web workbench in Chromium on
 an isolated Glassbox host. It exercises Git and direct path comparisons,
 text layout and comments, keyboard SVG regions, saved appearance, and
-wide-to-narrow-to-wide resizing. CI uploads the responsive captures as
+wide-to-narrow-to-wide resizing. They also verify exact clipboard values for
+live and deleted paths containing spaces and relative-only copy for Git
+difftool snapshots (`HS2-4E49SH`). CI uploads the responsive captures as
 workbench artifacts (`HS2-DYXD3G`). To run the browser check locally:
 
 ```sh
