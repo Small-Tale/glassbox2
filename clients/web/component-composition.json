@@ -94,6 +94,94 @@
       }
     },
     {
+      "key": "glassbox2:analysis-settings-dialog",
+      "package": "glassbox2",
+      "id": "analysis-settings-dialog",
+      "name": "AI Settings",
+      "kind": "composition",
+      "purpose": "Select a host-approved AI provider and model, and set Code Guidance topics.",
+      "publicExports": [
+        {
+          "name": "AnalysisSettingsAction"
+        },
+        {
+          "name": "AnalysisSettingsDialog"
+        },
+        {
+          "name": "wireAnalysisSettingsDialog"
+        }
+      ],
+      "sourceLinks": [
+        "src/components/settings/analysis-settings-dialog.tsx"
+      ],
+      "source": "src/components/settings/analysis-settings-dialog.tsx",
+      "parents": {
+        "mode": "any",
+        "entries": []
+      },
+      "contexts": [
+        "application-ui"
+      ],
+      "zones": [],
+      "children": {
+        "mode": "any",
+        "concepts": [],
+        "requiredConcepts": []
+      },
+      "state": [],
+      "wiring": {
+        "required": true,
+        "helpers": [
+          "wireAnalysisSettingsDialog"
+        ],
+        "sources": [
+          {
+            "export": "wireAnalysisSettingsDialog",
+            "source": "src/components/settings/analysis-settings-dialog.tsx",
+            "returnsDisposer": true
+          }
+        ],
+        "obligations": [
+          "Wire explicit model discovery, route validated draft changes, and persist only on Save."
+        ]
+      },
+      "responsive": {
+        "owner": "component",
+        "behaviors": [
+          "wrap-storage-paths",
+          "pin-cleanup-actions",
+          "fit-compact-viewport"
+        ]
+      },
+      "layout": {
+        "roles": [
+          "content"
+        ],
+        "geometry": {
+          "margin": "none",
+          "border": "none",
+          "padding": "none"
+        }
+      },
+      "accessibility": {
+        "obligations": [
+          "Label provider and model controls, group guidance topics, and announce loading or errors."
+        ]
+      },
+      "boundaries": {
+        "rootClass": "analysis-settings",
+        "publicClasses": [
+          "analysis-settings"
+        ],
+        "publicTokens": []
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/settings/analysis-settings-dialog.tsx",
+        "composition": "src/components/settings/analysis-settings-dialog.tsx"
+      }
+    },
+    {
       "key": "glassbox2:appearance-menu",
       "package": "glassbox2",
       "id": "appearance-menu",

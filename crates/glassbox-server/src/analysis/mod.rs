@@ -1,5 +1,6 @@
 mod cache;
 mod input;
+pub(crate) mod preferences;
 mod provider;
 
 use std::collections::BTreeMap;

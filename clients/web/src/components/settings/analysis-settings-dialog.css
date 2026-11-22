@@ -1,0 +1,33 @@
+.analysis-settings,
+.analysis-settings section,
+.analysis-settings fieldset {
+  display: grid;
+  align-content: start;
+  gap: 0.5rem;
+}
+
+.analysis-settings {
+  gap: 1rem;
+  margin: 1rem;
+}
+
+.analysis-settings fieldset {
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.analysis-settings legend {
+  margin-block-end: 0.5rem;
+  font-weight: 600;
+}
+
+.analysis-settings section > button {
+  justify-self: start;
+}
+
+.analysis-settings :is(p, code) {
+  margin: 0;
+  overflow-wrap: anywhere;
+}

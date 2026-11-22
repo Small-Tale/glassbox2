@@ -788,6 +788,84 @@
       }
     },
     {
+      "id": "analysis-settings-dialog",
+      "name": "AI Settings",
+      "kind": "composition",
+      "purpose": "Select a host-approved AI provider and model, and set Code Guidance topics.",
+      "source": "src/components/settings/analysis-settings-dialog.tsx",
+      "publicExports": [
+        {
+          "name": "AnalysisSettingsAction"
+        },
+        {
+          "name": "AnalysisSettingsDialog"
+        },
+        {
+          "name": "wireAnalysisSettingsDialog"
+        }
+      ],
+      "sourceLinks": ["src/components/settings/analysis-settings-dialog.tsx"],
+      "composition": {
+        "parents": {
+          "mode": "any",
+          "entries": []
+        },
+        "contexts": ["application-ui"],
+        "zones": [],
+        "children": {
+          "mode": "any",
+          "concepts": [],
+          "requiredConcepts": []
+        },
+        "state": [],
+        "wiring": {
+          "required": true,
+          "helpers": ["wireAnalysisSettingsDialog"],
+          "sources": [
+            {
+              "export": "wireAnalysisSettingsDialog",
+              "source": "src/components/settings/analysis-settings-dialog.tsx",
+              "returnsDisposer": true
+            }
+          ],
+          "obligations": ["Wire explicit model discovery, route validated draft changes, and persist only on Save."]
+        },
+        "responsive": {
+          "owner": "component",
+          "behaviors": ["wrap-storage-paths", "pin-cleanup-actions", "fit-compact-viewport"]
+        },
+        "layout": {
+          "roles": ["content"],
+          "geometry": {
+            "margin": "none",
+            "border": "none",
+            "padding": "none"
+          }
+        }
+      },
+      "boundaries": {
+        "rootClass": "analysis-settings",
+        "publicClasses": ["analysis-settings"],
+        "publicTokens": []
+      },
+      "accessibility": {
+        "obligations": ["Label provider and model controls, group guidance topics, and announce loading or errors."]
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/settings/analysis-settings-dialog.tsx",
+        "composition": "src/components/settings/analysis-settings-dialog.tsx"
+      },
+      "selection": {
+        "useWhen": ["Choose a host-approved provider or change Code Guidance topics."],
+        "avoidWhen": ["Start an analysis on the current comparison."],
+        "styleSources": ["src/components/settings/analysis-settings-dialog.css"],
+        "demoSource": "src/ux-demo/demos/settings/analysis-settings-dialog.tsx",
+        "documentation": "docs/ui-conventions.md",
+        "uses": ["button", "checkbox", "lucide-icon", "select", "toolbar-control-group", "workbench-dialog"]
+      }
+    },
+    {
       "id": "storage-dialog",
       "name": "Feedback Storage",
       "kind": "composition",

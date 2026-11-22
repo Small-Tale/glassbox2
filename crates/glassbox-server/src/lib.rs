@@ -136,6 +136,14 @@ fn router(
             get(|| async { Json(ServiceHealth::ready()) }),
         )
         .route("/api/v1/settings", get(settings).put(save_appearance))
+        .route(
+            "/api/v1/settings/analysis",
+            get(analysis::preferences::get).put(analysis::preferences::save),
+        )
+        .route(
+            "/api/v1/settings/analysis/models",
+            post(analysis::preferences::models),
+        )
         .route("/api/v1/feedback/storage", get(storage::usage))
         .route("/api/v1/feedback/storage/cleanup", post(storage::cleanup))
         .route(

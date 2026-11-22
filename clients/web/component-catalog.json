@@ -38,6 +38,41 @@
       "documentation": "docs/ui-conventions.md"
     },
     {
+      "id": "analysis-settings-dialog",
+      "name": "AI Settings",
+      "kind": "composition",
+      "purpose": "Select a host-approved AI provider and model, and set Code Guidance topics.",
+      "useWhen": [
+        "Choose a host-approved provider or change Code Guidance topics."
+      ],
+      "avoidWhen": [
+        "Start an analysis on the current comparison."
+      ],
+      "publicClasses": [
+        "analysis-settings"
+      ],
+      "publicTokens": [],
+      "uses": [
+        "button",
+        "checkbox",
+        "lucide-icon",
+        "select",
+        "toolbar-control-group",
+        "workbench-dialog"
+      ],
+      "source": "src/components/settings/analysis-settings-dialog.tsx",
+      "styleSources": [
+        "src/components/settings/analysis-settings-dialog.css"
+      ],
+      "demoSource": "src/ux-demo/demos/settings/analysis-settings-dialog.tsx",
+      "geometry": {
+        "margin": "none",
+        "border": "none",
+        "padding": "none"
+      },
+      "documentation": "docs/ui-conventions.md"
+    },
+    {
       "id": "appearance-menu",
       "name": "Appearance Menu",
       "kind": "component",

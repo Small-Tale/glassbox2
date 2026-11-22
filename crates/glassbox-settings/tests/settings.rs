@@ -3,7 +3,7 @@ use std::sync::Barrier;
 use std::thread;
 
 use glassbox_model::{Appearance, ApplicationSettings};
-use glassbox_settings::{SettingsError, SettingsStore};
+use glassbox_settings::{AnalysisPreferences, GuidanceTopic, SettingsError, SettingsStore};
 use serde_json::Value;
 use tempfile::tempdir;
 
@@ -42,6 +42,31 @@ fn an_unversioned_document_preserves_other_fields_when_upgraded() {
     assert_eq!(stored["version"], 1);
     assert_eq!(stored["appearance"], "system");
     assert_eq!(stored["plugin_options"]["enabled"], true);
+}
+
+#[test]
+fn analysis_preferences_distinguish_launch_defaults_from_explicitly_disabled() {
+    let directory = tempdir().unwrap();
+    let store = SettingsStore::in_directory(directory.path());
+    assert_eq!(store.load_analysis().unwrap(), None);
+    let configured = AnalysisPreferences {
+        provider: Some("fixture".into()),
+        model: Some("model".into()),
+        guidance_topics: [GuidanceTopic::Testing].into(),
+    };
+    store.save_analysis(configured.clone()).unwrap();
+    store
+        .save(ApplicationSettings {
+            appearance: Appearance::Dark,
+        })
+        .unwrap();
+    assert_eq!(store.load_analysis().unwrap(), Some(configured));
+    store.save_analysis(AnalysisPreferences::default()).unwrap();
+    assert_eq!(
+        store.load_analysis().unwrap(),
+        Some(AnalysisPreferences::default())
+    );
+    assert_eq!(store.load().unwrap().appearance, Appearance::Dark);
 }
 
 #[test]

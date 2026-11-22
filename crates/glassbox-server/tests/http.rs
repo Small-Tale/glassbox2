@@ -49,6 +49,7 @@ impl RunningServer {
             .env_remove("GLASSBOX_ANALYSIS_CACHE_DIRECTORY")
             .env_remove("GLASSBOX_TEST_GENERATIONS")
             .env_remove("GLASSBOX_AI_PROVIDER_SETTINGS")
+            .env_remove("GLASSBOX_AI_TRUSTED_PROVIDERS")
             .env_remove("GLASSBOX_CONTENT_RENDERER");
         for (key, value) in environment {
             command.env(key, value);
@@ -687,6 +688,9 @@ fn analysis_uses_provider_jobs_with_progress_results_cancellation_stale_and_unav
     );
     let manifest = json!({"version":1,"id":"fixture","name":"Fixture","executable":program});
     std::fs::write(registry.join("fixture.json"), manifest.to_string()).unwrap();
+    let unapproved =
+        json!({"version":1,"id":"unapproved","name":"Unapproved","executable":program});
+    std::fs::write(registry.join("unapproved.json"), unapproved.to_string()).unwrap();
 
     let before = root.path().join("before.txt");
     let after = root.path().join("after.txt");
@@ -867,6 +871,60 @@ fn analysis_uses_provider_jobs_with_progress_results_cancellation_stale_and_unav
     let unavailable = start(disabled_address, "risk");
     assert_eq!(
         wait_for(disabled_address, &unavailable, done)["status"],
+        "unavailable"
+    );
+    let route = "/api/v1/settings/analysis";
+    let view = call(address, "GET", route, Value::Null);
+    assert_eq!(view["preferences"]["provider"], "fixture");
+    assert_eq!(view["providers"].as_array().unwrap().len(), 1);
+    let send = |method, endpoint: &str, input: Value| {
+        exchange(
+            address,
+            method,
+            endpoint,
+            &address.to_string(),
+            "Content-Type: application/json\r\n",
+            &input.to_string(),
+        )
+    };
+    for (method, path, input) in [
+        (
+            "POST",
+            "/api/v1/settings/analysis/models",
+            json!({"provider":"unapproved"}),
+        ),
+        (
+            "PUT",
+            route,
+            json!({"provider":"unapproved","model":null,"guidance_topics":[]}),
+        ),
+    ] {
+        assert!(send(method, path, input).starts_with("HTTP/1.1 400"));
+    }
+    assert_eq!(
+        call(
+            address,
+            "POST",
+            "/api/v1/settings/analysis/models",
+            json!({"provider":"fixture"})
+        ),
+        json!(["fixture"])
+    );
+    let preferences = json!({"provider":"fixture","model":"fixture","guidance_topics":["testing"]});
+    assert!(send("PUT", route, preferences.clone()).starts_with("HTTP/1.1 204"));
+    std::fs::write(&after, "after\n").unwrap();
+    let guided = wait_for(address, &start(address, "guidance"), done);
+    assert_eq!(
+        guided["result"]["files"][0]["analysis"]["overview"],
+        "Guidance emphasized testing."
+    );
+    assert_eq!(
+        call(restarted, "GET", route, Value::Null)["preferences"],
+        preferences
+    );
+    assert!(send("PUT", route, json!({"provider":null,"model":null})).starts_with("HTTP/1.1 204"));
+    assert_eq!(
+        wait_for(address, &start(address, "risk"), done)["status"],
         "unavailable"
     );
 }

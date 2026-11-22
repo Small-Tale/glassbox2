@@ -78,6 +78,15 @@ first advertised model is used. An optional `GLASSBOX_AI_PROVIDER_SETTINGS`
 JSON object supplies adapter options. For example, a local HTTP adapter can
 use `{"address":"127.0.0.1:1234"}`.
 
+`GLASSBOX_AI_TRUSTED_PROVIDERS` may list additional comma-separated provider
+IDs approved by the host for selection in **AI Settings**. Their adapters use
+their default options. The browser and Tauri settings can select a model,
+disable analysis providers, and choose topics for Code Guidance. Settings
+reads and saves never invoke adapters. The explicit Load Models request
+calls only the approved adapter's model listing and sends no review data.
+The dialog identifies the executable that receives text diffs when the user
+starts analysis. Each adapter controls any onward transmission.
+
 Send the active comparison source and `mode` (`risk`, `narrative`, or
 `guidance`) to `POST /api/v1/review/analysis`. The response identifies the
 analysis job. `GET /api/v1/review/analysis/{id}` reports progress and results,
@@ -91,6 +100,7 @@ structured generation for risk and guidance.
 Risk scores cover security, correctness, error handling, maintainability,
 architecture, and performance. The aggregate is the highest dimension.
 Guidance returns a file overview and line-specific teaching steps.
+Selected Code Guidance topics inform the guidance prompt and cache key.
 Narrative analysis gives the reviewer an ordered file list with a rationale
 for each step. Anchored notes cite only a valid line and side in the
 analyzed diff. Relevant observations and teaching steps appear as AI

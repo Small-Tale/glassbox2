@@ -37,6 +37,12 @@ import {
   ReviewWorkbench,
   wireReviewWorkbench,
 } from '../components/review/review-workbench.js';
+import {
+  AnalysisSettingsAction,
+  AnalysisSettingsDialog,
+  wireAnalysisSettingsDialog,
+} from '../components/settings/analysis-settings-dialog.js';
+import { createAnalysisSettingsState } from '../components/settings/analysis-settings-state.js';
 import { AppearanceMenu, wireAppearanceMenu } from '../components/settings/appearance-menu.js';
 import { createAppearanceState } from '../components/settings/appearance-state.js';
 import { StorageAction, StorageDialog, wireStorageDialog } from '../components/settings/storage-dialog.js';
@@ -89,6 +95,8 @@ const shareId = 'glassbox-share';
 const exportId = 'glassbox-export';
 const storageId = 'glassbox-storage';
 const storage = createStorageState();
+const analysisSettings = createAnalysisSettingsState();
+const analysisSettingsId = 'glassbox-analysis-settings';
 const delivery = createExportState();
 void effect(() => {
   const preference = appearance.appearance.value;
@@ -277,6 +285,7 @@ mount(root, () => {
               savedReviews
             />
             <AppearanceMenu id={appearanceId} state={appearance} />
+            <AnalysisSettingsAction id={analysisSettingsId} />
             <StorageAction id={storageId} />
           </>
         }
@@ -294,6 +303,7 @@ mount(root, () => {
       <ExportDialog id={exportId} state={delivery} />
       <StorageDialog id={storageId} state={storage} />
       <SavedReviewDialog id={savedReviewId} state={savedReviews} changedPaths={changedPaths()} />
+      <AnalysisSettingsDialog id={analysisSettingsId} state={analysisSettings} />
     </>
   );
 });
@@ -328,6 +338,7 @@ void wireMediaDiff(root, mediaId, mediaDiff, (side, target) => {
 });
 void wireAnalysisControls(root, analysisId, analysis, selectedAnalysis);
 void wireAppearanceMenu(root, appearanceId, appearance);
+void wireAnalysisSettingsDialog(root, analysisSettingsId, analysisSettings);
 void wireStorageDialog(root, storageId, storage);
 const exportDialog = wireExportDialog(root, exportId, delivery);
 const savedReviewDialog = wireSavedReviewDialog(

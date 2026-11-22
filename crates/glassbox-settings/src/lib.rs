@@ -1,5 +1,6 @@
 //! File-backed Glassbox application preferences shared by local clients.
 
+use std::collections::BTreeSet;
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
@@ -12,6 +13,37 @@ use serde_json::{Map, Value};
 use tempfile::NamedTempFile;
 
 const SETTINGS_VERSION: u32 = 1;
+const ANALYSIS: &str = "analysis";
+
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AnalysisPreferences {
+    pub provider: Option<String>,
+    pub model: Option<String>,
+    #[serde(default)]
+    pub guidance_topics: BTreeSet<GuidanceTopic>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GuidanceTopic {
+    Architecture,
+    Dependencies,
+    ErrorHandling,
+    Performance,
+    Testing,
+}
+
+impl GuidanceTopic {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Architecture => "architecture",
+            Self::Dependencies => "dependencies",
+            Self::ErrorHandling => "error handling",
+            Self::Performance => "performance",
+            Self::Testing => "testing",
+        }
+    }
+}
 
 #[derive(Debug)]
 pub enum SettingsError {
@@ -88,24 +120,48 @@ impl SettingsStore {
     }
 
     pub fn load(&self) -> Result<ApplicationSettings, SettingsError> {
+        Ok(self.load_document()?.settings)
+    }
+
+    pub fn load_analysis(&self) -> Result<Option<AnalysisPreferences>, SettingsError> {
+        self.load_document()?
+            .extra
+            .remove(ANALYSIS)
+            .map(serde_json::from_value)
+            .transpose()
+            .map_err(Into::into)
+    }
+
+    pub fn save_analysis(&self, preferences: AnalysisPreferences) -> Result<(), SettingsError> {
+        let preferences = serde_json::to_value(preferences)?;
+        self.update(|document| {
+            document.extra.insert(ANALYSIS.into(), preferences);
+        })
+    }
+
+    fn load_document(&self) -> Result<SettingsFile, SettingsError> {
         let lock = match self.open_lock() {
             Ok(lock) => lock,
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                return Ok(ApplicationSettings::default());
+                return Ok(SettingsFile::default());
             }
             Err(error) => return Err(error.into()),
         };
         FileExt::lock_shared(&lock)?;
-        Ok(self.read_file()?.settings)
+        self.read_file()
     }
 
     pub fn save(&self, settings: ApplicationSettings) -> Result<(), SettingsError> {
+        self.update(|document| document.settings = settings)
+    }
+
+    fn update(&self, change: impl FnOnce(&mut SettingsFile)) -> Result<(), SettingsError> {
         fs::create_dir_all(&self.directory)?;
         let lock = self.open_lock()?;
         FileExt::lock_exclusive(&lock)?;
         let mut document = self.read_file()?;
         document.version = SETTINGS_VERSION;
-        document.settings = settings;
+        change(&mut document);
 
         let mut temporary = NamedTempFile::new_in(&self.directory)?;
         serde_json::to_writer_pretty(&mut temporary, &document)?;

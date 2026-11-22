@@ -27,6 +27,8 @@ fn main() {
         r#"{\"scores\":{\"security\":0.1,\"correctness\":0.6,\"error_handling\":0.2,\"maintainability\":0.1,\"architecture\":0.1,\"performance\":0.1},\"rationale\":\"Check the changed behavior.\",\"observations\":[{\"side\":\"after\",\"line\":1,\"text\":\"Check the new value.\"},{\"side\":\"after\",\"line\":200,\"text\":\"Unmapped line.\"}]}"#
     } else if input.contains("Order these changed") {
         r#"[{\"index\":0,\"reason\":\"Read the modified file first.\"}]"#
+    } else if input.contains("Prioritize these guidance topics when relevant: testing.") {
+        r#"{\"overview\":\"Guidance emphasized testing.\",\"steps\":[{\"side\":\"after\",\"line\":1,\"text\":\"Read the new value.\"}]}"#
     } else {
         r#"{\"overview\":\"A change to the review example.\",\"steps\":[{\"side\":\"after\",\"line\":1,\"text\":\"Read the new value.\"},{\"side\":\"after\",\"line\":2,\"text\":\"Check the following line.\"}]}"#
     };

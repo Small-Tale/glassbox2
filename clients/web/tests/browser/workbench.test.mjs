@@ -126,7 +126,7 @@ async function exerciseWorkbench(page, url, paths, settings) {
   await page.locator('.text-diff').getByText('after', { exact: true }).waitFor();
 }
 
-async function withWorkbench(exercise, { launchArgs = () => [], renderer = false } = {}) {
+async function withWorkbench(exercise, { launchArgs = () => [], renderer = false, provider = false } = {}) {
   const scratch = await mkdtemp(join(tmpdir(), 'glassbox-browser-'));
   const settings = join(scratch, 'settings');
   let host;
@@ -140,6 +140,19 @@ async function withWorkbench(exercise, { launchArgs = () => [], renderer = false
       const fixture = join(root, 'crates', 'glassbox-server', 'tests', 'fixtures', 'diagram_renderer.rs');
       execFileSync('rustc', [fixture, '-o', rendererPath], { windowsHide: true });
     }
+    const providerHome = join(scratch, 'providers');
+    if (provider) {
+      await mkdir(providerHome);
+      const fixture = join(root, 'crates', 'glassbox-server', 'tests', 'fixtures', 'analysis_provider.rs');
+      const executable = join(providerHome, `analysis-fixture${process.platform === 'win32' ? '.exe' : ''}`);
+      execFileSync('rustc', ['--edition=2024', fixture, '-o', executable], { windowsHide: true });
+      for (const [id, name] of [
+        ['desktop', 'Desktop Fixture'],
+        ['unapproved', 'Unapproved Fixture'],
+      ]) {
+        await writeFile(join(providerHome, `${id}.json`), JSON.stringify({ version: 1, id, name, executable }));
+      }
+    }
     async function restart() {
       reader?.close();
       host?.kill();
@@ -151,6 +164,9 @@ async function withWorkbench(exercise, { launchArgs = () => [], renderer = false
           GLASSBOX_SETTINGS_DIRECTORY: settings,
           GLASSBOX_FEEDBACK_DIRECTORY: join(scratch, 'feedback'),
           GLASSBOX_CONTENT_RENDERER: rendererPath,
+          GLASSBOX_AI_PROVIDER_DIRECTORY: provider ? providerHome : '',
+          GLASSBOX_AI_PROVIDER: '',
+          GLASSBOX_AI_TRUSTED_PROVIDERS: provider ? 'desktop' : '',
         },
         stdio: ['ignore', 'pipe', 'inherit'],
         windowsHide: true,
@@ -195,6 +211,58 @@ async function withWorkbench(exercise, { launchArgs = () => [], renderer = false
 
 test('built workbench reviews Git and direct files with persistent preferences', { timeout: 60_000 }, async () => {
   await withWorkbench(exerciseWorkbench);
+});
+
+test('AI settings select an approved model and keep analysis opt-in', { timeout: 60_000 }, async () => {
+  await withWorkbench(
+    async (page, url, { repo }, settings) => {
+      const button = (name) => page.getByRole('button', { name, exact: true });
+      const combo = (name) => page.getByRole('combobox', { name, exact: true });
+      const option = (name) => page.getByRole('option', { name, exact: true });
+      const testing = page.getByRole('checkbox', { name: 'Testing', exact: true });
+      const requests = [];
+      page.on('request', (request) => requests.push(new URL(request.url()).pathname));
+      await page.goto(url);
+      await button('AI Settings').click();
+      await combo('Provider').click();
+      assert.equal(await option('Unapproved Fixture').count(), 0);
+      await option('Desktop Fixture').click();
+      await page.getByRole('region', { name: 'Provider Data Destination' }).waitFor();
+      assert(!requests.includes('/api/v1/settings/analysis/models'));
+      await button('Load Models').click();
+      await combo('Model').click();
+      await option('fixture').click();
+      await testing.check();
+      for (const width of [1440, 940, 390, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        await testing.waitFor();
+        assert(await testing.isChecked());
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
+        await capture(page, `ai-settings-${width}`);
+      }
+      await button('Save').click();
+      await page.getByRole('dialog', { name: 'AI Settings' }).waitFor({ state: 'hidden' });
+      assert.deepEqual(JSON.parse(await readFile(join(settings, 'settings.json'), 'utf8')).analysis, {
+        provider: 'desktop',
+        model: 'fixture',
+        guidance_topics: ['testing'],
+      });
+      assert(!requests.includes('/api/v1/review/analysis'));
+
+      await page.reload();
+      await button('AI Settings').click();
+      await combo('Model').waitFor();
+      assert(await testing.isChecked());
+      await button('Cancel').click();
+      await page.getByRole('dialog', { name: 'AI Settings' }).waitFor({ state: 'hidden' });
+      await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(repo);
+      await button('Open Comparison').click();
+      await page.getByRole('treeitem', { name: /bundle\.ts/ }).click();
+      await button('Code Guidance').click();
+      await page.getByText('Line 1 · Read the new value.', { exact: true }).waitFor();
+    },
+    { provider: true },
+  );
 });
 
 test(

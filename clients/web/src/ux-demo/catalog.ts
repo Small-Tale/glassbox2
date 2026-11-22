@@ -14,12 +14,14 @@ import { ShareMenuDemo } from './demos/handoff/share-menu.js';
 import { ReviewNavigatorDemo } from './demos/review/review-navigator.js';
 import { ReviewWorkbenchDemo } from './demos/review/review-workbench.js';
 import { SourceContextDemo } from './demos/review/source-context.js';
+import { AnalysisSettingsDialogDemo } from './demos/settings/analysis-settings-dialog.js';
 import { AppearanceMenuDemo } from './demos/settings/appearance-menu.js';
 import { StorageDialogDemo } from './demos/settings/storage-dialog.js';
 
 export const componentDemos = {
   'source-context': SourceContextDemo,
   'appearance-menu': AppearanceMenuDemo,
+  'analysis-settings-dialog': AnalysisSettingsDialogDemo,
   'text-diff': TextDiffDemo,
   'media-diff': MediaDiffDemo,
   'analysis-controls': AnalysisControlsDemo,

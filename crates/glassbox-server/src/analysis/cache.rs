@@ -52,6 +52,7 @@ impl Cache {
             FORMAT,
             provider.cache_identity()?,
             mode,
+            provider.guidance_topics(mode),
             files,
             &snapshot.skipped,
         ))

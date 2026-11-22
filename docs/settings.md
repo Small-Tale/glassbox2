@@ -24,3 +24,12 @@ explicit `appearance` value persists it. The client applies changes
 immediately and restores the last saved choice if a write fails.
 The host accepts `GLASSBOX_SETTINGS_DIRECTORY` to use a separate store,
 including during isolated desktop and browser verification.
+
+The workbench footer’s **AI Settings** action saves a provider, a model choice,
+and Code Guidance topics in the same file (`HS2-ZVZGNM`). These fields and
+appearance are updated independently using the shared lock. Before a choice
+is saved, the host's launch configuration supplies the default. Selecting
+Disabled explicitly overrides a launch default. The dialog loads the model
+list only when requested and displays the approved executable that receives
+analysis input. See [AI providers](ai-providers.md#optional-review-analysis)
+for the host approval boundary and cache behavior.
