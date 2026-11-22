@@ -62,6 +62,7 @@ const codeExtensions = new Set([
   'go',
   'h',
   'java',
+  'cjs',
   'js',
   'jsx',
   'mjs',
@@ -72,7 +73,7 @@ const codeExtensions = new Set([
   'mts',
   'cts',
 ]);
-const hashExtensions = new Set(['bash', 'py', 'rb', 'sh', 'toml', 'yaml', 'yml', 'zsh']);
+const hashExtensions = new Set(['bash', 'py', 'pyi', 'rb', 'sh', 'toml', 'yaml', 'yml', 'zsh']);
 const keywords = new Set(
   'async await break case class const continue def do else enum export false fn for from function if impl import in let match mod new nil none null pub return self static struct super switch this throw trait true try type use var void while'.split(
     ' ',

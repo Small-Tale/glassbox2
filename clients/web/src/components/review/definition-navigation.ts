@@ -33,7 +33,7 @@ async function lookup(
 }
 
 export function supportsDefinitions(path: string) {
-  return /\.(?:rs|ts|tsx|mts|cts)$/u.test(path);
+  return /\.(?:rs|[jt]sx?|[mc][jt]s|pyi?)$/u.test(path);
 }
 
 export function includesDefinition(hunks: readonly TextHunk[], destination: Definition) {

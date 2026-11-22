@@ -118,16 +118,20 @@ fn is_identifier(value: &str) -> bool {
 #[derive(Clone, Copy)]
 enum Syntax {
     Rust,
+    JavaScript,
     TypeScript,
     Tsx,
+    Python,
 }
 
 impl Syntax {
     fn from_path(path: &Path) -> Option<Self> {
         match path.extension()?.to_str()? {
             "rs" => Some(Self::Rust),
+            "js" | "jsx" | "mjs" | "cjs" => Some(Self::JavaScript),
             "ts" | "mts" | "cts" => Some(Self::TypeScript),
             "tsx" => Some(Self::Tsx),
+            "py" | "pyi" => Some(Self::Python),
             _ => None,
         }
     }
@@ -135,8 +139,20 @@ impl Syntax {
     fn language(self) -> Language {
         match self {
             Self::Rust => tree_sitter_rust::LANGUAGE.into(),
+            Self::JavaScript => tree_sitter_javascript::LANGUAGE.into(),
             Self::TypeScript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
             Self::Tsx => tree_sitter_typescript::LANGUAGE_TSX.into(),
+            Self::Python => tree_sitter_python::LANGUAGE.into(),
+        }
+    }
+
+    fn path_patterns(self) -> &'static [&'static str] {
+        match self {
+            Self::Rust => &["*.rs"],
+            Self::JavaScript | Self::TypeScript | Self::Tsx => &[
+                "*.js", "*.jsx", "*.mjs", "*.cjs", "*.ts", "*.tsx", "*.mts", "*.cts",
+            ],
+            Self::Python => &["*.py", "*.pyi"],
         }
     }
 
@@ -156,7 +172,7 @@ impl Syntax {
                     | "mod_item"
                     | "macro_definition"
             ),
-            Self::TypeScript | Self::Tsx => matches!(
+            Self::JavaScript | Self::TypeScript | Self::Tsx => matches!(
                 kind,
                 "function_declaration"
                     | "generator_function_declaration"
@@ -169,6 +185,7 @@ impl Syntax {
                     | "method_definition"
                     | "internal_module"
             ),
+            Self::Python => matches!(kind, "function_definition" | "class_definition"),
         }
     }
 }
@@ -215,10 +232,7 @@ fn search(
     let Some(syntax) = Syntax::from_path(&path) else {
         return Ok(Resolution::Unsupported);
     };
-    let extensions = match syntax {
-        Syntax::Rust => &["*.rs"][..],
-        Syntax::TypeScript | Syntax::Tsx => &["*.ts", "*.tsx", "*.mts", "*.cts"][..],
-    };
+    let extensions = syntax.path_patterns();
     let mut parser = Parser::new();
     if let Some(resolved) = search_paths(
         &mut parser,
@@ -321,6 +335,21 @@ mod tests {
     fn matches_definition_names_and_lines_from_the_navigation_baseline() {
         let fixtures = [
             (
+                Syntax::JavaScript,
+                include_str!("../tests/fixtures/symbols.jsx"),
+                &[
+                    ("View", 2),
+                    ("Controller", 3),
+                    ("resolve", 4),
+                    ("fetchValue", 6),
+                ][..],
+            ),
+            (
+                Syntax::Python,
+                include_str!("../tests/fixtures/symbols.py"),
+                &[("Controller", 2), ("resolve", 4), ("fetch_value", 7)][..],
+            ),
+            (
                 Syntax::TypeScript,
                 include_str!("../tests/fixtures/symbols.ts"),
                 &[
@@ -388,5 +417,22 @@ mod tests {
             .unwrap(),
             vec![1, 1]
         );
+        for (syntax, text) in [
+            (
+                Syntax::JavaScript,
+                "class A { method() {} } class B { method() {} }",
+            ),
+            (
+                Syntax::Python,
+                "class A:\n    def method(self): ...\nclass B:\n    def method(self): ...\n",
+            ),
+        ] {
+            assert_eq!(
+                definitions(&mut parser, syntax, text, "method")
+                    .unwrap()
+                    .len(),
+                2
+            );
+        }
     }
 }

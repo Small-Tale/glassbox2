@@ -1,7 +1,10 @@
 # Symbol navigation
 
-The shared host resolves Rust and TypeScript declarations for the selected
-side of a Git review (`HS2-PKF3GE`). Syntax trees identify declarations
+The shared host resolves Rust, TypeScript, JavaScript, and Python declarations
+for the selected side of a Git review (`HS2-PKF3GE`, `HS2-8BVWYT`).
+JavaScript and TypeScript share a search family, including JSX, TSX, and the
+ES module and CommonJS extensions. Python searches functions, methods, and
+classes in source and stub files. Syntax trees identify declarations
 without matching apparent declarations inside comments or strings. Lookup
 prefers a unique definition in the current file, then in changed files, then
 in tracked files outside the diff. Multiple matches in a tier are ambiguous.

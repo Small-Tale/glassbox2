@@ -314,6 +314,50 @@ test('definition navigation restores diff and read-only destinations with histor
   });
 });
 
+test('definition navigation resolves JavaScript and Python on the clicked Git side', { timeout: 60_000 }, async () => {
+  await withWorkbench(async (page, url, { repo }) => {
+    const git = (...args) =>
+      execFileSync('git', ['-c', 'commit.gpgsign=false', '-c', 'core.autocrlf=false', ...args], {
+        cwd: repo,
+        windowsHide: true,
+      });
+    await writeFile(join(repo, 'entry.cjs'), 'const revision = sharedValue();\n');
+    await writeFile(join(repo, 'shared.ts'), 'export function sharedValue() { return 1; }\n');
+    await writeFile(join(repo, 'entry.py'), 'revision = fetch_value()\n');
+    await writeFile(join(repo, 'shared.pyi'), 'def fetch_value() -> int: ...\n');
+    git('add', 'entry.cjs', 'shared.ts', 'entry.py', 'shared.pyi');
+    git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'definition fixtures');
+    await writeFile(join(repo, 'entry.cjs'), 'const revision = sharedValue() + 1;\n');
+    await writeFile(join(repo, 'entry.py'), 'revision = fetch_value() + 1\n');
+    await page.goto(url);
+    await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(repo);
+    await page.getByRole('button', { name: 'Open Comparison', exact: true }).click();
+    const modifiers = [process.platform === 'darwin' ? 'Meta' : 'Control'];
+    for (const { path, symbol, side, destination } of [
+      { path: 'entry.cjs', symbol: 'sharedValue', side: 'after', destination: 'shared.ts' },
+      { path: 'entry.py', symbol: 'fetch_value', side: 'before', destination: 'shared.pyi' },
+    ]) {
+      await page.getByRole('treeitem').filter({ hasText: path }).click();
+      await page
+        .locator(`[data-${side}-line="1"] [data-token="symbol"]`)
+        .getByText(symbol, { exact: true })
+        .click({ modifiers });
+      await page.getByRole('heading', { name: destination, exact: true }).waitFor();
+      assert.equal(await page.locator('[data-definition-target]').getAttribute(`data-${side}-line`), '1');
+    }
+    for (const [layout, width] of [
+      ['wide', 1440],
+      ['medium', 940],
+      ['narrow', 390],
+      ['restored-wide', 1440],
+    ]) {
+      await page.setViewportSize({ width, height: 900 });
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
+      await capture(page, `python-definition-${layout}`);
+    }
+  });
+});
+
 test('AI settings select an approved model and keep analysis opt-in', { timeout: 60_000 }, async () => {
   await withWorkbench(
     async (page, url, { repo }, settings) => {
