@@ -930,6 +930,148 @@ fn analysis_uses_provider_jobs_with_progress_results_cancellation_stale_and_unav
 }
 
 #[test]
+fn definition_lookup_preserves_git_sides_and_rejects_ambiguous_or_stale_results() {
+    use serde_json::{Value, json};
+
+    let fixture = tempfile::tempdir().unwrap();
+    let root = fixture.path();
+    let git = |args: &[&str]| {
+        let output = Command::new("git")
+            .current_dir(root)
+            .args(["-c", "commit.gpgsign=false", "-c", "core.autocrlf=false"])
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    };
+    let write = |path, text| std::fs::write(root.join(path), text).unwrap();
+    git(&["init", "-q", "--initial-branch=review"]);
+    write("current.rs", "fn local() {}\nfn caller() { local(); }\n");
+    write("changed.rs", "fn elsewhere() {}\n");
+    write(
+        "unchanged support.rs",
+        "// tracked base\npub fn stable_fn() {}\n",
+    );
+    write("duplicate-a.rs", "fn duplicate() {}\n");
+    write("duplicate-b.rs", "fn duplicate() {}\n");
+    git(&["add", "."]);
+    let commit = |message| {
+        git(&[
+            "-c",
+            "user.name=Fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "commit",
+            "-qm",
+            message,
+        ])
+    };
+    commit("base");
+    write(
+        "current.rs",
+        "// staged\n\nfn local() {}\nfn caller() { local(); }\n",
+    );
+    git(&["add", "current.rs"]);
+    write(
+        "current.rs",
+        "// working copy\nfn local() {}\nfn caller() { local(); }\n",
+    );
+    write("changed.rs", "// different revision\nfn elsewhere() {}\n");
+
+    let (_host, address) = RunningServer::start(None);
+    let post = |route: &str, input: Value| {
+        let response = exchange(
+            address,
+            "POST",
+            route,
+            &address.to_string(),
+            "Content-Type: application/json\r\n",
+            &input.to_string(),
+        );
+        let (headers, body) = response.split_once("\r\n\r\n").unwrap();
+        (headers[..12].to_string(), body.to_string())
+    };
+    let get_selection = |mode: Value| {
+        let source = json!({"kind":"git","directory":root,"mode":mode});
+        let (status, body) = post("/api/v1/review/files", source.clone());
+        assert_eq!(status, "HTTP/1.1 200", "{body}");
+        let files: Value = serde_json::from_str(&body).unwrap();
+        let index = files["files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .position(|file| file["path"] == "current.rs")
+            .unwrap();
+        let selection = json!({"source":source,"path":"current.rs","index":index});
+        let (status, body) = post("/api/v1/review/file", selection.clone());
+        assert_eq!(status, "HTTP/1.1 200", "{body}");
+        let diff: Value = serde_json::from_str(&body).unwrap();
+        (selection, diff["revision"].clone())
+    };
+    let lookup = |(selection, revision): &(Value, Value), side, symbol| {
+        let (status, result) = post(
+            "/api/v1/review/definition",
+            json!({"selection":selection,"revision":revision,"side":side,"symbol":symbol}),
+        );
+        assert_eq!(status, "HTTP/1.1 200", "{result}");
+        serde_json::from_str::<Value>(&result).unwrap()
+    };
+    let working = get_selection(json!({"kind":"working_tree"}));
+    let staged = get_selection(json!({"kind":"staged"}));
+    assert_eq!(
+        lookup(&working, "before", "local")["destination"]["line"],
+        1
+    );
+    assert_eq!(lookup(&working, "after", "local")["destination"]["line"], 2);
+    assert_eq!(lookup(&staged, "after", "local")["destination"]["line"], 3);
+    let changed = lookup(&working, "after", "elsewhere");
+    assert_eq!(changed["destination"]["path"], "changed.rs");
+    assert!(changed["destination"]["index"].is_number());
+    assert_eq!(changed["destination"]["line"], 2);
+    let stable = lookup(&staged, "before", "stable_fn");
+    assert_eq!(stable["destination"]["path"], "unchanged support.rs");
+    assert_eq!(stable["destination"]["line"], 2);
+    assert_eq!(stable["destination"]["side"], "before");
+    assert!(stable["destination"]["index"].is_null());
+    assert!(
+        stable["destination"]["text"]
+            .as_str()
+            .unwrap()
+            .contains("// tracked base")
+    );
+    assert_eq!(
+        lookup(&working, "after", "duplicate")["status"],
+        "ambiguous"
+    );
+    assert_eq!(lookup(&working, "after", "missing")["status"], "not_found");
+    assert_eq!(
+        post(
+            "/api/v1/review/definition",
+            json!({
+                "selection":working.0,"revision":"old","side":"after","symbol":"local"
+            })
+        )
+        .0,
+        "HTTP/1.1 409"
+    );
+
+    commit("staged definition");
+    let committed = get_selection(json!({"kind":"commit","revision":"HEAD"}));
+    let destination = lookup(&committed, "after", "local");
+    assert_eq!(destination["destination"]["line"], 3);
+    assert!(
+        destination["destination"]["text"]
+            .as_str()
+            .unwrap()
+            .starts_with("// staged")
+    );
+}
+
+#[test]
 fn feedback_cleanup_requires_confirmation_and_protects_active_bundles() {
     use glassbox_feedback::{BundleContext, BundleStore};
     use glassbox_model::feedback::ReviewFeedback;

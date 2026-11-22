@@ -19,6 +19,9 @@ tempfile.workspace = true
 glassbox-settings.workspace = true
 tokio.workspace = true
 tower-http.workspace = true
+tree-sitter = "0.25.10"
+tree-sitter-rust = "0.24"
+tree-sitter-typescript = "0.23.2"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["io-util"] }

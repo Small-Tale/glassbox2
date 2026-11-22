@@ -245,6 +245,12 @@ pub(crate) fn text_revision(hunks: &[TextHunk]) -> io::Result<String> {
 }
 
 impl Comparison {
+    pub(crate) fn git(&self) -> Option<&GitReview> {
+        match &self.entries {
+            Entries::Git(review) => Some(review),
+            Entries::Direct(_) => None,
+        }
+    }
     fn display_content(&self, index: usize) -> io::Result<ComparisonData> {
         let content = self.entries.content(index)?;
         if let ComparisonData::Media { before, after } = &content {

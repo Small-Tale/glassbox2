@@ -23,6 +23,7 @@ names for icon-only actions, and the Workbench's responsive toolbar layout.
 - [Application settings](docs/settings.md)
 - [Direct file and folder comparisons](docs/direct-comparison.md)
 - [Git review inputs](docs/git-review.md)
+- [Symbol navigation](docs/symbol-navigation.md)
 - [Text and media comparison content](docs/comparison-content.md)
 - [Diagram renderer plugins](docs/content-plugins.md)
 - [Review feedback](docs/feedback.md)

@@ -1,7 +1,10 @@
 use std::ffi::{OsStr, OsString};
-use std::path::{Path, PathBuf};
+use std::io::Read;
+use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use std::{fs, io};
+
+use glassbox_model::feedback::AnchorSide;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GitReviewMode<'a> {
@@ -54,6 +57,121 @@ pub(crate) struct GitFileBytes {
 }
 
 impl GitReview {
+    fn source(&self, side: AnchorSide) -> &GitSource {
+        match side {
+            AnchorSide::Before => &self.before,
+            AnchorSide::After => &self.after,
+        }
+    }
+
+    pub fn matching_text_paths(
+        &self,
+        side: AnchorSide,
+        needle: &str,
+        extensions: &[&str],
+    ) -> io::Result<Vec<PathBuf>> {
+        let mut arguments = vec![
+            "grep",
+            "--no-color",
+            "--no-textconv",
+            "--no-recurse-submodules",
+            "--full-name",
+            "--files-with-matches",
+            "--null",
+            "--fixed-strings",
+            "-e",
+            needle,
+        ];
+        let source = self.source(side);
+        if matches!(source, GitSource::Index) {
+            arguments.insert(1, "--cached");
+        }
+        if let GitSource::Tree(tree) = source {
+            arguments.push(tree);
+        }
+        arguments.push("--");
+        arguments.extend_from_slice(extensions);
+        let (bytes, status) = bounded_git(&self.root, arguments, 64 * 1024)?;
+        if status == Some(1) {
+            return Ok(Vec::new());
+        }
+        if status != Some(0) {
+            return Err(io::Error::other("Could not search the selected Git side"));
+        }
+        let prefix = match source {
+            GitSource::Tree(tree) => format!("{tree}:"),
+            _ => String::new(),
+        };
+        bytes
+            .split(|byte| *byte == 0)
+            .filter(|path| !path.is_empty())
+            .map(|entry| {
+                let path = entry
+                    .strip_prefix(prefix.as_bytes())
+                    .ok_or_else(|| io::Error::other("Unexpected Git search result"))?;
+                git_path(path)
+            })
+            .collect()
+    }
+
+    pub fn read_text_source(
+        &self,
+        side: AnchorSide,
+        path: &Path,
+        limit: usize,
+    ) -> io::Result<Option<String>> {
+        if path.as_os_str().is_empty()
+            || !path
+                .components()
+                .all(|part| matches!(part, Component::Normal(_)))
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Expected a repository-relative path",
+            ));
+        }
+        let bytes = match self.source(side) {
+            GitSource::Worktree => {
+                let root = self.root.canonicalize()?;
+                let worktree = root.join(path);
+                let Ok(metadata) = fs::symlink_metadata(&worktree) else {
+                    return Ok(None);
+                };
+                if !metadata.is_file() || metadata.len() > limit as u64 {
+                    return Ok(None);
+                }
+                let resolved = worktree.canonicalize()?;
+                if resolved.strip_prefix(&root).ok() != Some(path) {
+                    return Ok(None);
+                }
+                let mut bytes = Vec::new();
+                fs::File::open(resolved)?
+                    .take((limit as u64).saturating_add(1))
+                    .read_to_end(&mut bytes)?;
+                bytes
+            }
+            source => {
+                let mut revision = match source {
+                    GitSource::Tree(tree) => OsString::from(tree),
+                    _ => OsString::new(),
+                };
+                revision.push(":");
+                revision.push(path);
+                let arguments = [OsStr::new("cat-file"), OsStr::new("blob"), &revision];
+                match bounded_git(&self.root, arguments, limit) {
+                    Ok((bytes, Some(0))) => bytes,
+                    Ok(_) => return Ok(None),
+                    Err(error) if error.kind() == io::ErrorKind::FileTooLarge => return Ok(None),
+                    Err(error) => return Err(error),
+                }
+            }
+        };
+        if bytes.len() > limit || bytes.contains(&0) {
+            return Ok(None);
+        }
+        Ok(String::from_utf8(bytes).ok())
+    }
+
     pub fn branch_name(&self) -> io::Result<Option<String>> {
         let output = git(&self.root, ["symbolic-ref", "--quiet", "--short", "HEAD"])?;
         Ok(output
@@ -238,6 +356,10 @@ pub(crate) fn git(
     directory: &Path,
     args: impl IntoIterator<Item = impl AsRef<OsStr>>,
 ) -> io::Result<Output> {
+    git_command(directory, args).output()
+}
+
+fn git_command(directory: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> Command {
     let mut command = Command::new("git");
     command
         .current_dir(directory)
@@ -251,7 +373,37 @@ pub(crate) fn git(
             command.env_remove(name);
         }
     }
-    command.output()
+    command
+}
+
+fn bounded_git(
+    directory: &Path,
+    args: impl IntoIterator<Item = impl AsRef<OsStr>>,
+    limit: usize,
+) -> io::Result<(Vec<u8>, Option<i32>)> {
+    let mut child = git_command(directory, args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()?;
+    let mut bytes = Vec::new();
+    let read = child
+        .stdout
+        .take()
+        .expect("piped Git output")
+        .take((limit as u64).saturating_add(1))
+        .read_to_end(&mut bytes);
+    if read.is_err() || bytes.len() > limit {
+        let _ = child.kill();
+    }
+    let status = child.wait()?;
+    read?;
+    if bytes.len() > limit {
+        return Err(io::Error::new(
+            io::ErrorKind::FileTooLarge,
+            "Git lookup exceeded its output limit",
+        ));
+    }
+    Ok((bytes, status.code()))
 }
 
 fn checked_git(

@@ -26,6 +26,7 @@ mod discussion;
 mod export;
 mod review_files;
 mod storage;
+mod symbols;
 
 pub struct LocalHost {
     address: SocketAddr,
@@ -146,6 +147,10 @@ fn router(
         )
         .route("/api/v1/feedback/storage", get(storage::usage))
         .route("/api/v1/feedback/storage/cleanup", post(storage::cleanup))
+        .route(
+            "/api/v1/review/definition",
+            post(|Json(input)| symbols::lookup(input)),
+        )
         .route(
             "/api/v1/review/files",
             post(move |Json(source)| review_files::list(source, source_launch)),
