@@ -6,7 +6,7 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use base64::prelude::*;
 use glassbox_feedback::{
-    BundleContext, ExportRequest, FeedbackBundle, HotSheetClient, PreparedExport,
+    BundleContext, ExportRequest, FeedbackBundle, HotSheetClient, PreparedExport, SavedReview,
 };
 use glassbox_model::DifftoolInput;
 use glassbox_model::analysis::{AnalysisResult, FileAnalysis};
@@ -16,7 +16,7 @@ use glassbox_model::feedback::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::review_files::{self, ReviewSource, SelectedFile};
+use crate::review_files::{self, ReviewSource};
 
 #[derive(Default, Clone)]
 pub(crate) struct Discussion(Arc<Mutex<BTreeMap<String, Review>>>);
@@ -28,8 +28,28 @@ struct Review {
 
 #[derive(Deserialize)]
 pub(crate) struct DiscussionInput {
-    selection: SelectedFile,
+    selection: DiscussionSelection,
     operation: Option<Operation>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct DiscussionSelection {
+    source: ReviewSource,
+    index: Option<usize>,
+    path: String,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct SavedInput {
+    source: ReviewSource,
+    id: Option<String>,
+}
+
+#[derive(Serialize)]
+struct SavedView {
+    reviews: Vec<SavedReview>,
+    active: bool,
+    paths: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -91,6 +111,74 @@ pub(crate) async fn handoff(
     }
 }
 
+pub(crate) async fn saved_reviews(
+    workspace: Discussion,
+    input: SavedInput,
+    difftool: Option<DifftoolInput>,
+) -> Response {
+    match tokio::task::spawn_blocking(move || saved(&workspace, input, difftool)).await {
+        Ok(Ok(result)) => Json(result).into_response(),
+        Ok(Err((status, message))) => (status, message).into_response(),
+        Err(_) => storage_error("Could not open saved feedback").into_response(),
+    }
+}
+
+fn saved(
+    workspace: &Discussion,
+    input: SavedInput,
+    difftool: Option<DifftoolInput>,
+) -> Result<SavedView, ApiError> {
+    let source = input.source;
+    let key = serde_json::to_string(&source).map_err(bad_request)?;
+    let comparison = review_files::load(source.clone(), difftool.clone()).map_err(bad_request)?;
+    let context = comparison.bundle_context(&source, difftool.as_ref());
+    let identity = source_identity(&source, &context, difftool.as_ref())?;
+    let store = crate::storage::feedback_store().map_err(storage_error)?;
+    let reviews = store.saved_for_source(&identity).map_err(storage_error)?;
+    let mut current = workspace.0.lock().map_err(storage_error)?;
+    if let Some(id) = input.id {
+        if current.contains_key(&key) {
+            return Err((
+                StatusCode::CONFLICT,
+                "This comparison already has an active review.".into(),
+            ));
+        }
+        let restored =
+            store
+                .reopen_for_source(&id, &identity)
+                .map_err(|error| match error.kind() {
+                    std::io::ErrorKind::WouldBlock => (StatusCode::CONFLICT, error.to_string()),
+                    std::io::ErrorKind::NotFound => (StatusCode::NOT_FOUND, error.to_string()),
+                    std::io::ErrorKind::InvalidInput => bad_request(error),
+                    _ => storage_error(error),
+                })?;
+        let Some((bundle, saved)) = restored else {
+            return Err((
+                StatusCode::NOT_FOUND,
+                "Saved review is unavailable for this comparison.".into(),
+            ));
+        };
+        current.insert(key.clone(), Review { saved, bundle });
+    }
+    let active = current.get(&key);
+    Ok(SavedView {
+        reviews,
+        active: active.is_some(),
+        paths: active.map_or_else(Vec::new, |review| discussion_paths(&review.saved)),
+    })
+}
+
+fn discussion_paths(feedback: &ReviewFeedback) -> Vec<String> {
+    use std::collections::BTreeSet;
+    feedback
+        .threads()
+        .iter()
+        .map(|thread| thread.anchor.path.clone())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
 fn with_review<T>(
     workspace: &Discussion,
     source: &ReviewSource,
@@ -104,7 +192,8 @@ fn with_review<T>(
     }
     let comparison = review_files::load(source.clone(), difftool.clone()).map_err(bad_request)?;
     let context = comparison.bundle_context(source, difftool.as_ref());
-    let review = start_review(context, ReviewFeedback::default())?;
+    let identity = source_identity(source, &context, difftool.as_ref())?;
+    let review = start_review(context, ReviewFeedback::default(), &identity)?;
     let result = action(&review);
     reviews.insert(key, review);
     result
@@ -138,7 +227,7 @@ pub(crate) struct ThreadSelection {
 impl Discussion {
     pub(crate) fn diagram_attachment(
         &self,
-        selection: &SelectedFile,
+        selection: &DiscussionSelection,
         id: FeedbackId,
         attachment: FeedbackId,
     ) -> Result<Option<(crate::diagrams::DiagramFormat, Vec<u8>)>, ApiError> {
@@ -267,7 +356,8 @@ impl Discussion {
                 let comparison =
                     review_files::load(source.clone(), difftool.clone()).map_err(bad_request)?;
                 let context = comparison.bundle_context(source, difftool.as_ref());
-                reviews.insert(key, start_review(context, next)?);
+                let identity = source_identity(source, &context, difftool.as_ref())?;
+                reviews.insert(key, start_review(context, next, &identity)?);
             }
         }
         Ok(())
@@ -312,9 +402,39 @@ impl Discussion {
     }
 }
 
-fn start_review(context: BundleContext, saved: ReviewFeedback) -> Result<Review, ApiError> {
+fn source_identity(
+    source: &ReviewSource,
+    context: &BundleContext,
+    difftool: Option<&DifftoolInput>,
+) -> Result<String, ApiError> {
+    fn absolute(path: &std::path::Path) -> std::io::Result<std::path::PathBuf> {
+        std::fs::canonicalize(path).or_else(|_| std::path::absolute(path))
+    }
+    let identity = match source {
+        ReviewSource::Git { directory, mode } => serde_json::to_string(&(
+            "git",
+            absolute(context.project.as_deref().unwrap_or(directory)).map_err(bad_request)?,
+            mode,
+        )),
+        ReviewSource::Paths { before, after } => serde_json::to_string(&(
+            "paths",
+            absolute(before).map_err(bad_request)?,
+            absolute(after).map_err(bad_request)?,
+        )),
+        ReviewSource::Difftool => serde_json::to_string(&("difftool", difftool)),
+    };
+    identity.map_err(bad_request)
+}
+
+fn start_review(
+    context: BundleContext,
+    saved: ReviewFeedback,
+    identity: &str,
+) -> Result<Review, ApiError> {
     let store = crate::storage::feedback_store().map_err(storage_error)?;
-    let bundle = store.create(context, &saved).map_err(storage_error)?;
+    let bundle = store
+        .create_for_source(context, &saved, identity)
+        .map_err(storage_error)?;
     Ok(Review { saved, bundle })
 }
 
@@ -333,7 +453,7 @@ fn edit(
     input: DiscussionInput,
     difftool: Option<DifftoolInput>,
 ) -> Result<DiscussionView, ApiError> {
-    let SelectedFile {
+    let DiscussionSelection {
         source,
         index,
         path,
@@ -347,8 +467,7 @@ fn edit(
     let Some(operation) = input.operation else {
         return Ok(view(&next, &path));
     };
-    let comparison = review_files::load(source.clone(), difftool.clone()).map_err(bad_request)?;
-    review_files::validate_selection(&comparison, index, &path).map_err(bad_request)?;
+    let mut new_context = None;
     match operation {
         Operation::Create {
             anchor,
@@ -356,6 +475,14 @@ fn edit(
             author,
             markdown,
         } => {
+            let index = index
+                .ok_or_else(|| bad_request("Choose a changed file before adding a comment."))?;
+            let comparison =
+                review_files::load(source.clone(), difftool.clone()).map_err(bad_request)?;
+            review_files::validate_selection(&comparison, index, &path).map_err(bad_request)?;
+            if current.is_none() {
+                new_context = Some(comparison.bundle_context(&source, difftool.as_ref()));
+            }
             if matches!(anchor.target, AnchorTarget::ImageRegion { .. }) {
                 let revision = comparison
                     .media_revision(index, anchor.side)
@@ -430,8 +557,10 @@ fn edit(
         review.bundle.publish(&next).map_err(storage_error)?;
         review.saved = next.clone();
     } else {
-        let context = comparison.bundle_context(&source, difftool.as_ref());
-        reviews.insert(key, start_review(context, next.clone())?);
+        let context =
+            new_context.ok_or_else(|| bad_request("The selected discussion is unavailable."))?;
+        let identity = source_identity(&source, &context, difftool.as_ref())?;
+        reviews.insert(key, start_review(context, next.clone(), &identity)?);
     }
     Ok(view(&next, &path))
 }

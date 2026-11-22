@@ -22,6 +22,7 @@ use tempfile::{Builder, NamedTempFile};
 pub use hotsheet::{
     ExportReceipt, ExportRequest, ExportTarget, HotSheetClient, PreparedExport, RecentTicket,
 };
+pub use snapshots::SavedReview;
 pub use storage::{CleanupProblem, CleanupReport, CleanupScope, ProjectStorage, StorageUsage};
 
 const HANDOFF: &str = "review.md";
@@ -55,8 +56,26 @@ impl BundleStore {
 
     pub fn create(
         &self,
+        context: BundleContext,
+        feedback: &ReviewFeedback,
+    ) -> io::Result<FeedbackBundle> {
+        self.create_bundle(context, feedback, None)
+    }
+
+    pub fn create_for_source(
+        &self,
+        context: BundleContext,
+        feedback: &ReviewFeedback,
+        source: &str,
+    ) -> io::Result<FeedbackBundle> {
+        self.create_bundle(context, feedback, Some(source))
+    }
+
+    fn create_bundle(
+        &self,
         mut context: BundleContext,
         feedback: &ReviewFeedback,
+        source: Option<&str>,
     ) -> io::Result<FeedbackBundle> {
         let root = std::path::absolute(&self.root)?;
         context.project = context.project.map(std::path::absolute).transpose()?;
@@ -70,6 +89,9 @@ impl BundleStore {
         };
         let context_json = serde_json::to_vec_pretty(&bundle.context)?;
         write_replace(&bundle.directory, CONTEXT, &context_json)?;
+        if let Some(source) = source {
+            snapshots::write_source(&bundle.directory, source)?;
+        }
         bundle.publish(feedback)?;
         let _ = directory.keep();
         Ok(bundle)

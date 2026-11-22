@@ -286,7 +286,7 @@ fn discussion_publishes_edits_replies_and_attachments_and_rejects_stale_anchors(
     let after = directory.path().join("after.txt");
     std::fs::write(&before, "before\n").unwrap();
     std::fs::write(&after, "after\n").unwrap();
-    let (_host, address) = RunningServer::start_configured(None, &[], Some(directory.path()));
+    let (host, address) = RunningServer::start_configured(None, &[], Some(directory.path()));
     let selection = json!({"source":{"kind":"paths","before":before,"after":after},"path":"after.txt","index":0});
     let post = |route: &str, value: Value| {
         let response = exchange(
@@ -375,6 +375,42 @@ fn discussion_publishes_edits_replies_and_attachments_and_rejects_stale_anchors(
         markdown.contains("First")
             && markdown.contains("Second")
             && markdown.contains("evidence.txt")
+    );
+
+    drop(host);
+    let (_restarted, address) = RunningServer::start_configured(None, &[], Some(directory.path()));
+    let post = |route: &str, value: Value| {
+        let response = exchange(
+            address,
+            "POST",
+            route,
+            &address.to_string(),
+            "Content-Type: application/json\r\n",
+            &value.to_string(),
+        );
+        let (header, body) = response.split_once("\r\n\r\n").unwrap();
+        (
+            header[..12].to_string(),
+            serde_json::from_str::<Value>(body).unwrap(),
+        )
+    };
+    let source = &selection["source"];
+    let reversed = json!({"kind":"paths","before":after,"after":before});
+    let (_, reversed_reviews) = post("/api/v1/review/saved", json!({"source":reversed}));
+    assert_eq!(reversed_reviews["reviews"], json!([]));
+    let (status, saved_reviews) = post("/api/v1/review/saved", json!({"source":source}));
+    assert_eq!(status, "HTTP/1.1 200");
+    assert_eq!(saved_reviews["active"], false);
+    let id = &saved_reviews["reviews"][0]["id"];
+    let (status, restored) = post("/api/v1/review/saved", json!({"source":source,"id":id}));
+    assert_eq!(status, "HTTP/1.1 200");
+    assert_eq!(restored["active"], true);
+    assert_eq!(restored["paths"], json!(["after.txt"]));
+    let (_, result) = post("/api/v1/review/discussion", json!({"selection":selection}));
+    assert_eq!(result["threads"], list["threads"]);
+    assert_eq!(
+        post("/api/v1/review/handoff", source.clone()).1,
+        Value::String(instruction)
     );
 }
 

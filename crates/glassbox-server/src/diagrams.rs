@@ -148,7 +148,7 @@ pub(crate) struct ComparisonInput {
 
 #[derive(Deserialize)]
 pub(crate) struct ArtifactInput {
-    selection: SelectedFile,
+    selection: crate::discussion::DiscussionSelection,
     thread: FeedbackId,
     attachment: FeedbackId,
 }

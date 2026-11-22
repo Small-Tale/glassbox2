@@ -140,35 +140,42 @@ async function withWorkbench(exercise, { launchArgs = () => [], renderer = false
       const fixture = join(root, 'crates', 'glassbox-server', 'tests', 'fixtures', 'diagram_renderer.rs');
       execFileSync('rustc', [fixture, '-o', rendererPath], { windowsHide: true });
     }
-    host = spawn(executable, ['--assets', join(root, 'clients', 'web', 'dist'), ...launchArgs(paths)], {
-      cwd: root,
-      env: {
-        ...process.env,
-        GLASSBOX_SETTINGS_DIRECTORY: settings,
-        GLASSBOX_FEEDBACK_DIRECTORY: join(scratch, 'feedback'),
-        GLASSBOX_CONTENT_RENDERER: rendererPath,
-      },
-      stdio: ['ignore', 'pipe', 'inherit'],
-      windowsHide: true,
-    });
-    exited = new Promise((resolve) => {
-      host.once('close', resolve);
-    });
-    reader = createInterface({ input: host.stdout });
-    const [address] = await Promise.race([
-      once(reader, 'line', { signal: AbortSignal.timeout(10_000) }),
-      once(host, 'exit').then(([code]) => {
-        throw new Error(`Glassbox host exited before readiness with code ${code}`);
-      }),
-    ]);
-    assert.match(address, /^127\.0\.0\.1:\d+$/u);
+    async function restart() {
+      reader?.close();
+      host?.kill();
+      await exited;
+      host = spawn(executable, ['--assets', join(root, 'clients', 'web', 'dist'), ...launchArgs(paths)], {
+        cwd: root,
+        env: {
+          ...process.env,
+          GLASSBOX_SETTINGS_DIRECTORY: settings,
+          GLASSBOX_FEEDBACK_DIRECTORY: join(scratch, 'feedback'),
+          GLASSBOX_CONTENT_RENDERER: rendererPath,
+        },
+        stdio: ['ignore', 'pipe', 'inherit'],
+        windowsHide: true,
+      });
+      exited = new Promise((resolve) => {
+        host.once('close', resolve);
+      });
+      reader = createInterface({ input: host.stdout });
+      const [address] = await Promise.race([
+        once(reader, 'line', { signal: AbortSignal.timeout(10_000) }),
+        once(host, 'exit').then(([code]) => {
+          throw new Error(`Glassbox host exited before readiness with code ${code}`);
+        }),
+      ]);
+      assert.match(address, /^127\.0\.0\.1:\d+$/u);
+      return `http://${address}`;
+    }
+    const url = await restart();
     browser = await chromium.launch();
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, colorScheme: 'light' });
     page.setDefaultTimeout(8000);
     const errors = [];
     page.on('pageerror', (error) => errors.push(error));
     try {
-      await exercise(page, `http://${address}`, paths, settings);
+      await exercise(page, url, paths, settings, restart);
       assert.deepEqual(errors, []);
     } catch (error) {
       await capture(page, 'workbench-failure');
@@ -189,6 +196,58 @@ async function withWorkbench(exercise, { launchArgs = () => [], renderer = false
 test('built workbench reviews Git and direct files with persistent preferences', { timeout: 60_000 }, async () => {
   await withWorkbench(exerciseWorkbench);
 });
+
+test(
+  'saved reviews restore editable discussions after restart when the file leaves the diff',
+  { timeout: 60_000 },
+  async () => {
+    await withWorkbench(async (page, url, { repo }, _settings, restart) => {
+      const button = (name) => page.getByRole('button', { name, exact: typeof name === 'string' });
+      const comment = page.getByRole('textbox', { name: 'Comment', exact: true });
+      async function openRepository(address) {
+        await page.goto(address);
+        await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(repo);
+        await button('Open Comparison').click();
+      }
+      const savedReviewDialog = page.getByRole('dialog', { name: 'Saved Reviews', exact: true });
+      await openRepository(url);
+      await page.getByRole('treeitem', { name: /bundle\.ts/ }).click();
+      await button('Add Comment to After Line 1').click();
+      await comment.fill('Keep this discussion after the file is unchanged.');
+      const created = page.waitForResponse(
+        (response) =>
+          response.url().endsWith('/discussion') && response.request().postDataJSON().operation?.kind === 'create',
+      );
+      await button('Add Comment').click();
+      assert((await created).ok());
+      await writeFile(join(repo, 'bundle.ts'), 'export const revision = 1;\n');
+
+      await openRepository(await restart());
+      await page.getByRole('treeitem', { name: /flow\.dot/ }).waitFor();
+      assert.equal(await page.getByRole('treeitem', { name: /bundle\.ts/ }).count(), 0);
+      await button('Share Feedback').click();
+      await page.getByRole('menuitem', { name: 'Saved Reviews…', exact: true }).click();
+      await savedReviewDialog.getByRole('button', { name: /review-/ }).click();
+      await savedReviewDialog.getByRole('button', { name: 'bundle.ts', exact: true }).waitFor();
+      for (const width of [1440, 940, 390, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        await savedReviewDialog.getByRole('button', { name: 'bundle.ts', exact: true }).waitFor();
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
+        await capture(page, `saved-reviews-${width}`);
+      }
+      await savedReviewDialog.getByRole('button', { name: 'bundle.ts', exact: true }).click();
+      await button(/Keep this discussion after the file is unchanged/).click();
+      assert.equal(await comment.inputValue(), 'Keep this discussion after the file is unchanged.');
+      await page.getByRole('status').filter({ hasText: 'This comment refers to an earlier version' }).waitFor();
+      const edited = page.waitForResponse(
+        (response) =>
+          response.url().endsWith('/discussion') && response.request().postDataJSON().operation?.kind === 'apply',
+      );
+      await comment.fill('Edited after restart.');
+      assert((await edited).ok());
+    });
+  },
+);
 
 test('built workbench opens the only file supplied by Git difftool', { timeout: 60_000 }, async () => {
   await withWorkbench(

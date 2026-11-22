@@ -61,8 +61,21 @@ include a versioned editable snapshot with the thread IDs, revisions, anchors,
 messages, and attachments (`HS2-NG98A2`). The Markdown replacement commits
 the associated snapshot. The store can reopen that snapshot with the
 same writer lease and Markdown path. Earlier bundles retain their
-Markdown handoff. Application controls for finding and reopening saved
-reviews are tracked in `HS2-KXCFZF`.
+Markdown handoff.
+
+Open the comparison and choose **Share Feedback → Saved Reviews** to reopen
+one of its saved discussions (`HS2-KXCFZF`). Git matching uses the repository
+and comparison mode with its requested revisions. Direct comparison matching
+uses the ordered input paths. A saved review can be opened when the comparison
+has no active feedback bundle. The dialog also lists active discussions whose
+files have left the changed-file list. Choose a path to read or edit its stale
+threads in the Inspector. Cleanup removes the editable snapshot and its
+Markdown together, and skips a reopened bundle while it is active.
+
+Filesystem tests exercise snapshot recovery and cleanup protection. The real
+loopback test restores direct-comparison threads, replies, attachments, and
+the existing instruction after a restart. The built workbench test restores a
+Git review, then opens and edits a stale discussion as the viewport changes.
 
 ## Durable AI handoff
 

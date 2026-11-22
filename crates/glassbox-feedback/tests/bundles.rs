@@ -157,6 +157,24 @@ fn legacy_handoffs_remain_readable_and_malformed_snapshot_references_fail() {
 }
 
 #[test]
+fn saved_review_lookup_and_restore_require_the_comparison_identity() {
+    let directory = tempfile::tempdir().unwrap();
+    let store = BundleStore::in_directory(directory.path());
+    let (state, _) = feedback("Saved for the unstaged comparison");
+    let bundle = store
+        .create_for_source(context(directory.path()), &state, "unstaged")
+        .unwrap();
+    let id = bundle.id().to_owned();
+    drop(bundle);
+    assert!(store.saved_for_source("staged").unwrap().is_empty());
+    assert_eq!(store.saved_for_source("unstaged").unwrap().len(), 1);
+    assert!(store.reopen_for_source(&id, "staged").unwrap().is_none());
+    let (bundle, restored) = store.reopen_for_source(&id, "unstaged").unwrap().unwrap();
+    assert_eq!(bundle.id(), id);
+    assert_eq!(restored, state);
+}
+
+#[test]
 fn edits_after_handoff_update_the_same_document_and_keep_original_evidence() {
     let directory = tempfile::tempdir().unwrap();
     let (mut state, thread) = feedback("Initial text");

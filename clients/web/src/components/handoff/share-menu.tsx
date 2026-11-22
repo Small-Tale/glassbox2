@@ -14,11 +14,13 @@ export function ShareMenu({
   state,
   ready,
   exportReady = false,
+  savedReviews = false,
 }: {
   id: string;
   state: HandoffState;
   ready: boolean;
   exportReady?: boolean;
+  savedReviews?: boolean;
 }) {
   return (
     <ToolbarControlGroup
@@ -38,6 +40,7 @@ export function ShareMenu({
         items={[
           { label: 'Send to Hot Sheet 2…', value: 'export', disabled: !exportReady },
           { label: 'Copy AI Instruction', value: 'copy' },
+          ...(savedReviews ? [{ label: 'Saved Reviews…', value: 'saved' }] : []),
         ]}
         rootAttributes={{ 'data-share-menu': id }}
       />
@@ -61,6 +64,7 @@ export function wireShareMenu(
   getSource: () => ReviewSource | null,
   save: () => Promise<boolean>,
   openExport?: () => void,
+  openSavedReviews?: () => void,
 ) {
   const controller = new AbortController();
   root.addEventListener(
@@ -74,6 +78,7 @@ export function wireShareMenu(
       if (source === null) return;
       if (detail.value === 'copy') void state.copyInstruction(source, save);
       if (detail.value === 'export') openExport?.();
+      if (detail.value === 'saved') openSavedReviews?.();
     },
     { signal: controller.signal },
   );

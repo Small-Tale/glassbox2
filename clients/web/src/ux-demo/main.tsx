@@ -13,6 +13,7 @@ import { wireAnalysisControlsDemo } from './demos/analysis/analysis-controls.js'
 import { wireMediaDiffDemo } from './demos/diff/media-diff.js';
 import { wireTextDiffDemo } from './demos/diff/text-diff.js';
 import { wireDiscussionDemo } from './demos/discussion/discussion.js';
+import { wireSavedReviewDialogDemo } from './demos/discussion/saved-review-dialog.js';
 import { wireExportDialogDemo } from './demos/handoff/export-dialog.js';
 import { wireShareMenuDemo } from './demos/handoff/share-menu.js';
 import { wireReviewNavigatorDemo } from './demos/review/review-navigator.js';
@@ -109,6 +110,7 @@ void wireMediaDiffDemo(root);
 void wireAnalysisControlsDemo(root);
 
 void wireDiscussionDemo(root);
+void wireSavedReviewDialogDemo(root);
 
 void wireShareMenuDemo(root);
 

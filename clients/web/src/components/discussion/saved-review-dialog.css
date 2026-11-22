@@ -1,0 +1,18 @@
+.saved-review-dialog {
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+  margin: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.saved-review-dialog :is(h3, p, ul) {
+  margin: 0;
+}
+
+.saved-review-dialog ul {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0;
+  list-style: none;
+}

@@ -239,6 +239,37 @@
       "documentation": "docs/ui-conventions.md"
     },
     {
+      "id": "saved-review-dialog",
+      "name": "Saved Reviews",
+      "kind": "composition",
+      "purpose": "Restore a saved editable review and open discussions outside the changed-file list.",
+      "useWhen": [
+        "Reopen a saved review or find a discussion on an unchanged file."
+      ],
+      "avoidWhen": [
+        "Delete saved feedback or send a review to Hot Sheet."
+      ],
+      "publicClasses": [
+        "saved-review-dialog"
+      ],
+      "publicTokens": [],
+      "uses": [
+        "button",
+        "workbench-dialog"
+      ],
+      "source": "src/components/discussion/saved-review-dialog.tsx",
+      "styleSources": [
+        "src/components/discussion/saved-review-dialog.css"
+      ],
+      "demoSource": "src/ux-demo/demos/discussion/saved-review-dialog.tsx",
+      "geometry": {
+        "margin": "none",
+        "border": "none",
+        "padding": "none"
+      },
+      "documentation": "docs/ui-conventions.md"
+    },
+    {
       "id": "share-menu",
       "name": "Share Feedback",
       "kind": "component",

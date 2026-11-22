@@ -20,6 +20,11 @@ import {
   wireDiscussion,
 } from '../components/discussion/discussion.js';
 import { createDiscussionState } from '../components/discussion/discussion-state.js';
+import {
+  createSavedReviewState,
+  SavedReviewDialog,
+  wireSavedReviewDialog,
+} from '../components/discussion/saved-review-dialog.js';
 import { ExportDialog, wireExportDialog } from '../components/handoff/export-dialog.js';
 import { createExportState } from '../components/handoff/export-state.js';
 import { createHandoffState } from '../components/handoff/handoff-state.js';
@@ -58,6 +63,9 @@ void effect(() => {
   }
 });
 const discussion = createDiscussionState(source);
+const savedReviews = createSavedReviewState();
+const savedReviewId = 'glassbox-saved-reviews';
+const changedPaths = () => new Set(source.review.value?.files.map(({ path }) => path));
 const analysis = createAnalysisState(() => {
   void discussion.refreshCurrent();
 });
@@ -261,7 +269,13 @@ mount(root, () => {
         footerStatus={handoff.status.value === '' ? undefined : <ShareStatus state={handoff} />}
         footerSettings={
           <>
-            <ShareMenu id={shareId} state={handoff} ready={source.activeSource.value !== null} exportReady />
+            <ShareMenu
+              id={shareId}
+              state={handoff}
+              ready={source.activeSource.value !== null}
+              exportReady
+              savedReviews
+            />
             <AppearanceMenu id={appearanceId} state={appearance} />
             <StorageAction id={storageId} />
           </>
@@ -269,7 +283,7 @@ mount(root, () => {
         inspector={
           <DiscussionInspector
             state={discussion}
-            path={file?.path}
+            path={file?.path ?? discussion.staleFile.value?.path}
             revision={result?.kind === 'text' ? result.revision : undefined}
             mediaRevisions={
               result?.kind === 'media' ? { before: result.before?.revision, after: result.after?.revision } : undefined
@@ -279,6 +293,7 @@ mount(root, () => {
       />
       <ExportDialog id={exportId} state={delivery} />
       <StorageDialog id={storageId} state={storage} />
+      <SavedReviewDialog id={savedReviewId} state={savedReviews} changedPaths={changedPaths()} />
     </>
   );
 });
@@ -315,6 +330,21 @@ void wireAnalysisControls(root, analysisId, analysis, selectedAnalysis);
 void wireAppearanceMenu(root, appearanceId, appearance);
 void wireStorageDialog(root, storageId, storage);
 const exportDialog = wireExportDialog(root, exportId, delivery);
+const savedReviewDialog = wireSavedReviewDialog(
+  root,
+  savedReviewId,
+  savedReviews,
+  () => source.activeSource.value,
+  changedPaths,
+  () => void discussion.refreshCurrent(),
+  async (active, path) => {
+    if (!(await discussion.saveEdit()) || source.activeSource.value !== active) return false;
+    source.selected.value = undefined;
+    discussion.staleFile.value = { source: active, path };
+    workbench.inspector.collapsed.value = false;
+    return true;
+  },
+);
 void wireShareMenu(
   root,
   shareId,
@@ -325,6 +355,7 @@ void wireShareMenu(
     const active = source.activeSource.value;
     if (active !== null) exportDialog.open(active, discussion.saveEdit);
   },
+  savedReviewDialog.open,
 );
 void wireDiscussion(
   root,

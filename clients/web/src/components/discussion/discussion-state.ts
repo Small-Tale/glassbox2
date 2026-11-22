@@ -31,7 +31,7 @@ export type Thread = {
   opening: Message;
   replies: { id: number; message: Message }[];
 };
-type Selection = { source: ReviewSource; index: number; path: string };
+type Selection = { source: ReviewSource; index?: number; path: string };
 type Operation = Record<string, unknown>;
 type ArtifactPreview = { source: string; url?: string };
 
@@ -60,6 +60,7 @@ export function createDiscussionState(source: ReviewSourceState, load = request)
   const reply = signal('');
   const pending = signal(false);
   const error = signal('');
+  const staleFile = signal<{ source: ReviewSource; path: string } | null>(null);
   const artifact = signal<{ id: number; label: string; preview?: ArtifactPreview; message?: string } | null>(null);
   let artifactRequest: AbortController | undefined;
   let current: Selection | null = null;
@@ -85,8 +86,15 @@ export function createDiscussionState(source: ReviewSourceState, load = request)
     const active = source.activeSource.value;
     const index = source.selected.value;
     const file = index === undefined ? undefined : source.review.value?.files[index];
+    const stale = staleFile.value;
     const selection =
-      active === null || index === undefined || file === undefined ? null : { source: active, index, path: file.path };
+      active === null
+        ? null
+        : file !== undefined
+          ? { source: active, index, path: file.path }
+          : stale?.source === active
+            ? { source: active, path: stale.path }
+            : null;
     current = selection;
     resetEditor();
     threads.value = [];
@@ -258,6 +266,7 @@ export function createDiscussionState(source: ReviewSourceState, load = request)
   }
 
   return {
+    staleFile,
     threads,
     threadId,
     adding,

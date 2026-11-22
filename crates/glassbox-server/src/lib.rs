@@ -122,6 +122,8 @@ fn router(
     let discussion = discussion::Discussion::default();
     let artifact_discussion = discussion.clone();
     let handoff = discussion.clone();
+    let saved_discussion = discussion.clone();
+    let saved_launch = difftool.clone();
     let delivery = export::Delivery::new(discussion.clone(), difftool.clone());
     let preview_delivery = delivery.clone();
     let analysis = analysis::Analysis::new(discussion.clone(), difftool.clone());
@@ -158,6 +160,12 @@ fn router(
             "/api/v1/review/diagram/attachment",
             post(move |Json(input)| {
                 diagrams::artifact(artifact_renderer, artifact_discussion, input)
+            }),
+        )
+        .route(
+            "/api/v1/review/saved",
+            post(move |Json(input)| {
+                discussion::saved_reviews(saved_discussion, input, saved_launch)
             }),
         )
         .route(

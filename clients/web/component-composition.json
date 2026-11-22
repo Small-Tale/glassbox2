@@ -614,6 +614,94 @@
       }
     },
     {
+      "key": "glassbox2:saved-review-dialog",
+      "package": "glassbox2",
+      "id": "saved-review-dialog",
+      "name": "Saved Reviews",
+      "kind": "composition",
+      "purpose": "Restore a saved editable review and open discussions outside the changed-file list.",
+      "publicExports": [
+        {
+          "name": "SavedReviewDialog"
+        },
+        {
+          "name": "createSavedReviewState"
+        },
+        {
+          "name": "wireSavedReviewDialog"
+        }
+      ],
+      "sourceLinks": [
+        "src/components/discussion/saved-review-dialog.tsx"
+      ],
+      "source": "src/components/discussion/saved-review-dialog.tsx",
+      "parents": {
+        "mode": "any",
+        "entries": []
+      },
+      "contexts": [
+        "application-ui"
+      ],
+      "zones": [],
+      "children": {
+        "mode": "any",
+        "concepts": [],
+        "requiredConcepts": []
+      },
+      "state": [],
+      "wiring": {
+        "required": true,
+        "helpers": [
+          "wireSavedReviewDialog"
+        ],
+        "sources": [
+          {
+            "export": "wireSavedReviewDialog",
+            "source": "src/components/discussion/saved-review-dialog.tsx",
+            "returnsDisposer": false
+          }
+        ],
+        "obligations": [
+          "Load and restore saved feedback for the current comparison."
+        ]
+      },
+      "responsive": {
+        "owner": "component",
+        "behaviors": [
+          "wrap-storage-paths",
+          "pin-cleanup-actions",
+          "fit-compact-viewport"
+        ]
+      },
+      "layout": {
+        "roles": [
+          "content"
+        ],
+        "geometry": {
+          "margin": "none",
+          "border": "none",
+          "padding": "none"
+        }
+      },
+      "accessibility": {
+        "obligations": [
+          "Name the dialog and announce loading and recovery errors."
+        ]
+      },
+      "boundaries": {
+        "rootClass": "saved-review-dialog",
+        "publicClasses": [
+          "saved-review-dialog"
+        ],
+        "publicTokens": []
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/discussion/saved-review-dialog.tsx",
+        "composition": "src/components/discussion/saved-review-dialog.tsx"
+      }
+    },
+    {
       "key": "glassbox2:share-menu",
       "package": "glassbox2",
       "id": "share-menu",

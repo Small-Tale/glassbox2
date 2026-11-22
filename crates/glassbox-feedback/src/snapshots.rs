@@ -2,8 +2,10 @@ use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader, BufWriter, Write};
 use std::path::Path;
 use std::sync::Mutex;
+use std::time::UNIX_EPOCH;
 
 use glassbox_model::feedback::ReviewFeedback;
+use serde::Serialize;
 use tempfile::Builder;
 
 use super::{
@@ -13,10 +15,78 @@ use super::{
 
 const SNAPSHOT_PREFIX: &str = "threads-v1-";
 const MARKER: &str = "<!-- Glassbox editable snapshot ";
+const SOURCE: &str = "source-v1.txt";
+
+#[derive(Serialize)]
+pub struct SavedReview {
+    id: String,
+    updated_at: u64,
+}
 
 impl BundleStore {
+    pub fn saved_for_source(&self, source: &str) -> io::Result<Vec<SavedReview>> {
+        let entries = match fs::read_dir(&self.root) {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(error) => return Err(error),
+        };
+        let mut saved = Vec::new();
+        for entry in entries {
+            let entry = entry?;
+            let Ok(id) = entry.file_name().into_string() else {
+                continue;
+            };
+            if !valid_name(&id, BUNDLE_PREFIX) || !entry.file_type()?.is_dir() {
+                continue;
+            }
+            let directory = entry.path();
+            if !source_matches(&directory, source) {
+                continue;
+            }
+            let Ok(updated) = directory
+                .join(HANDOFF)
+                .metadata()
+                .and_then(|file| file.modified())
+            else {
+                continue;
+            };
+            if matches!(committed_snapshot(&directory), Ok(Some(_))) {
+                saved.push(SavedReview {
+                    id,
+                    updated_at: updated
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs(),
+                });
+            }
+        }
+        saved.sort_by(|left, right| {
+            right
+                .updated_at
+                .cmp(&left.updated_at)
+                .then(left.id.cmp(&right.id))
+        });
+        Ok(saved)
+    }
+
+    pub fn reopen_for_source(
+        &self,
+        id: &str,
+        source: &str,
+    ) -> io::Result<Option<(FeedbackBundle, ReviewFeedback)>> {
+        self.reopen_bundle(id, Some(source))
+    }
+
     /// Reopen a bundle by its store-local ID. A legacy handoff has no editable document.
     pub fn reopen(&self, id: &str) -> io::Result<Option<(FeedbackBundle, ReviewFeedback)>> {
+        self.reopen_bundle(id, None)
+    }
+
+    fn reopen_bundle(
+        &self,
+        id: &str,
+        source: Option<&str>,
+    ) -> io::Result<Option<(FeedbackBundle, ReviewFeedback)>> {
         if !valid_name(id, BUNDLE_PREFIX) {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -34,6 +104,9 @@ impl BundleStore {
         }
         let lease = storage::try_open_bundle_lease(&directory)?;
         drop(cleanup_lock);
+        if source.is_some_and(|source| !source_matches(&directory, source)) {
+            return Ok(None);
+        }
         let Some(snapshot) = committed_snapshot(&directory)? else {
             return Ok(None);
         };
@@ -62,6 +135,14 @@ impl BundleStore {
         };
         Ok(Some((bundle, feedback)))
     }
+}
+
+fn source_matches(directory: &Path, source: &str) -> bool {
+    matches!(fs::read_to_string(directory.join(SOURCE)), Ok(saved) if saved == source)
+}
+
+pub(super) fn write_source(directory: &Path, source: &str) -> io::Result<()> {
+    write_replace(directory, SOURCE, source.as_bytes())
 }
 
 fn valid_name(name: &str, prefix: &str) -> bool {
