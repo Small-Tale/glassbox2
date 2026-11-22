@@ -121,6 +121,7 @@ fn router(
     let discussion_launch = difftool.clone();
     let handoff_launch = difftool.clone();
     let discussion = discussion::Discussion::default();
+    let source_link_discussion = discussion.clone();
     let artifact_discussion = discussion.clone();
     let handoff = discussion.clone();
     let saved_discussion = discussion.clone();
@@ -150,6 +151,10 @@ fn router(
         .route(
             "/api/v1/review/definition",
             post(|Json(input)| symbols::lookup(input)),
+        )
+        .route(
+            "/api/v1/review/discussion/source-link",
+            post(move |Json(input)| discussion::follow_source_link(source_link_discussion, input)),
         )
         .route(
             "/api/v1/review/files",

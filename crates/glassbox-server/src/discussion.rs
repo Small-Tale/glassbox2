@@ -17,6 +17,7 @@ use glassbox_model::feedback::{
 use serde::{Deserialize, Serialize};
 
 use crate::review_files::{self, ReviewSource};
+use crate::symbols;
 
 #[derive(Default, Clone)]
 pub(crate) struct Discussion(Arc<Mutex<BTreeMap<String, Review>>>);
@@ -37,6 +38,81 @@ pub(crate) struct DiscussionSelection {
     source: ReviewSource,
     index: Option<usize>,
     path: String,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct SourceLinkInput {
+    selection: review_files::SelectedFile,
+    thread: FeedbackId,
+    index: usize,
+}
+
+pub(crate) async fn follow_source_link(workspace: Discussion, input: SourceLinkInput) -> Response {
+    match tokio::task::spawn_blocking(move || resolve_source_link(workspace, input)).await {
+        Ok(Ok(destination)) => Json(destination).into_response(),
+        Ok(Err((status, message))) => (status, message).into_response(),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
+fn resolve_source_link(
+    workspace: Discussion,
+    input: SourceLinkInput,
+) -> Result<symbols::Destination, ApiError> {
+    let selection = input.selection;
+    let key = serde_json::to_string(&selection.source).map_err(bad_request)?;
+    let unavailable = || {
+        (
+            StatusCode::NOT_FOUND,
+            "This source link is unavailable.".into(),
+        )
+    };
+    let stale = || {
+        (
+            StatusCode::CONFLICT,
+            "This source link refers to an earlier version.".into(),
+        )
+    };
+    let (anchor, location) = {
+        let reviews = workspace.0.lock().map_err(storage_error)?;
+        let thread = reviews
+            .get(&key)
+            .and_then(|review| {
+                review.saved.threads().iter().find(|thread| {
+                    thread.id == input.thread && thread.anchor.path == selection.path
+                })
+            })
+            .ok_or_else(unavailable)?;
+        let ThreadOrigin::Ai {
+            related_locations, ..
+        } = &thread.origin
+        else {
+            return Err(unavailable());
+        };
+        let location = related_locations
+            .get(input.index)
+            .and_then(Option::as_ref)
+            .ok_or_else(unavailable)?;
+        (thread.anchor.clone(), location.clone())
+    };
+    let comparison = review_files::load(selection.source, None).map_err(bad_request)?;
+    review_files::validate_selection(&comparison, selection.index, &selection.path)
+        .map_err(|_| stale())?;
+    let hunks = comparison
+        .text_hunks(selection.index)
+        .map_err(bad_request)?;
+    let revision = review_files::text_revision(&hunks).map_err(storage_error)?;
+    if anchor.is_stale(Some(&revision)) {
+        return Err(stale());
+    }
+    let git = comparison.git().ok_or_else(unavailable)?;
+    let mut destination =
+        symbols::source_location(git, anchor.side, &location).ok_or_else(stale)?;
+    if location.revision.as_deref() != Some(destination.revision()) {
+        return Err(stale());
+    }
+    destination.set_diff_revision(&comparison);
+    Ok(destination)
 }
 
 #[derive(Deserialize)]
@@ -335,6 +411,7 @@ impl Discussion {
                 let origin = ThreadOrigin::Ai {
                     tags: vec![tag.into()],
                     risk,
+                    related_locations: observation.related_locations.clone(),
                 };
                 if next.threads().iter().any(|thread| {
                     thread.anchor == anchor

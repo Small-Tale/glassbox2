@@ -172,6 +172,35 @@ impl GitReview {
         Ok(String::from_utf8(bytes).ok())
     }
 
+    pub fn read_tracked_text_source(
+        &self,
+        side: AnchorSide,
+        path: &Path,
+        limit: usize,
+    ) -> io::Result<Option<String>> {
+        if matches!(self.source(side), GitSource::Worktree) {
+            let (paths, status) = bounded_git(
+                &self.root,
+                [
+                    OsStr::new("--literal-pathspecs"),
+                    OsStr::new("ls-files"),
+                    OsStr::new("-z"),
+                    OsStr::new("--"),
+                    path.as_os_str(),
+                ],
+                64 * 1024,
+            )?;
+            if status != Some(0)
+                || !paths.split(|byte| *byte == 0).any(|entry| {
+                    !entry.is_empty() && git_path(entry).is_ok_and(|tracked| tracked == path)
+                })
+            {
+                return Ok(None);
+            }
+        }
+        self.read_text_source(side, path, limit)
+    }
+
     pub fn branch_name(&self) -> io::Result<Option<String>> {
         let output = git(&self.root, ["symbolic-ref", "--quiet", "--short", "HEAD"])?;
         Ok(output

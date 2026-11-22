@@ -106,6 +106,11 @@ for each step. Anchored notes cite only a valid line and side in the
 analyzed diff. Relevant observations and teaching steps appear as AI
 discussion notes and publish into the feedback bundle without removing
 reviewer replies. A changed comparison invalidates an in-flight result.
+Risk and guidance observations may include a `related_locations` array of
+repository-relative `path` and one-based `line` objects. Numbered references
+in the note use zero-based array indices. The host validates up to eight
+locations per note and 64 per analysis, hashes the tracked Git-side text,
+and caches the pinned revisions with the result. See [source navigation](symbol-navigation.md).
 
 Analysis passes only bounded text diff inputs to the selected provider.
 Results identify omitted media, oversized changes, and files beyond the
@@ -114,7 +119,7 @@ working-tree changes while inference was running. See the [latency baseline and 
 
 ## Exact-input reuse
 
-The host caches complete results for matching files, revisions, analysis
+The host caches complete results for matching comparison sources, files, revisions, analysis
 mode, and resolved provider settings. Adapter changes and model changes
 produce a fresh result. Set `GLASSBOX_AI_MODEL_REVISION` only when the
 configured model has a known revision. With a revision, entries can

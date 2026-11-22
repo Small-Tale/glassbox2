@@ -29,6 +29,17 @@ the matching revision and line. Otherwise it shows a read-only source
 excerpt on the resolved side. Use the existing back and forward buttons
 or keyboard shortcuts to revisit either view and its scroll position.
 
+AI discussions can link to source on the note's Git side (`HS2-VES1BF`).
+An observation can include numbered references such as `[initialization](0)`
+with a matching `related_locations` entry containing a repository-relative
+path and one-based line. Glassbox resolves valid tracked text locations and
+saves their content revisions with the note. Unusable references remain
+literal text and preserve their array positions. The host checks both the
+note's diff revision and the destination's content revision before opening a
+link. Changed-file locations use the diff when the matching line is visible.
+Other locations open read-only source. Both use the same back and forward
+history as a definition lookup.
+
 The benchmark fixtures from `HS2-HQCQXH` compare exact name and line
 against hand-labeled TypeScript and Rust declarations. Unit tests reuse
 those fixtures. The host parser matched all 11 TypeScript and 9 Rust

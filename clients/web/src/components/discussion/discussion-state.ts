@@ -1,5 +1,6 @@
 import { effect, signal } from 'kerfjs';
 
+import type { Definition } from '../review/definition-navigation.js';
 import type { ReviewSource, ReviewSourceState } from '../review/review-source.js';
 
 export const categories = [
@@ -22,18 +23,49 @@ export type Anchor = {
   target: { kind: 'line'; start: number; end: number } | ImageRegion;
 };
 type Message = { author: string; markdown: string; attachments: { id: number; filename: string }[] };
+type SourceLocation = { path: string; line: number; revision?: string };
 export type Thread = {
   id: number;
   revision: number;
   anchor: Anchor;
   origin:
-    { kind: 'reviewer'; category: Category } | { kind: 'ai'; tags: string[]; risk: 'low' | 'medium' | 'high' | null };
+    | { kind: 'reviewer'; category: Category }
+    | {
+        kind: 'ai';
+        tags: string[];
+        risk: 'low' | 'medium' | 'high' | null;
+        related_locations?: (SourceLocation | null)[];
+      };
   opening: Message;
   replies: { id: number; message: Message }[];
 };
 type Selection = { source: ReviewSource; index?: number; path: string };
 type Operation = Record<string, unknown>;
 type ArtifactPreview = { source: string; url?: string };
+
+export function sourceLinkParts(markdown: string, locations: readonly (SourceLocation | null)[]) {
+  const parts: (string | { label: string; index: number })[] = [];
+  let offset = 0;
+  for (const match of markdown.matchAll(/(?<![!\\])\[([^\][\n]+)\]\((\d+)\)/gu)) {
+    const [reference, label, target] = match;
+    const index = Number(target);
+    if (label === undefined || locations[index]?.revision === undefined) continue;
+    parts.push(markdown.slice(offset, match.index), { label, index });
+    offset = match.index + reference.length;
+  }
+  parts.push(markdown.slice(offset));
+  return parts;
+}
+
+async function followSourceLink(selection: Selection, thread: number, index: number): Promise<Definition> {
+  const response = await fetch('/api/v1/review/discussion/source-link', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ selection, thread, index }),
+  });
+  if (!response.ok) throw new Error(await response.text());
+  return (await response.json()) as Definition;
+}
 
 export function isDiagramAttachment(filename: string): boolean {
   return /\.(?:dot|gv|mmd|mermaid|puml|plantuml)$/iu.test(filename);
@@ -65,11 +97,27 @@ export function createDiscussionState(source: ReviewSourceState, load = request)
   let artifactRequest: AbortController | undefined;
   let current: Selection | null = null;
   let refreshSequence = 0;
+  let sourceLinkSequence = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let writing: { selection: Selection; done: Promise<Thread[]> } | undefined;
 
   function activeThread() {
     return threads.value.find(({ id }) => id === threadId.value);
+  }
+
+  async function openSourceLink(index: number, reveal: (destination: Definition) => Promise<void>) {
+    const selection = current;
+    const thread = activeThread();
+    if (selection?.index === undefined || thread?.origin.kind !== 'ai') return;
+    const sequence = ++sourceLinkSequence;
+    const active = () => sequence === sourceLinkSequence && selection === current && thread === activeThread();
+    error.value = '';
+    try {
+      const destination = await followSourceLink(selection, thread.id, index);
+      if (active()) await reveal(destination);
+    } catch (failure) {
+      if (active()) error.value = failure instanceof Error ? failure.message : 'Could not open the source link.';
+    }
   }
 
   function resetEditor() {
@@ -266,6 +314,7 @@ export function createDiscussionState(source: ReviewSourceState, load = request)
   }
 
   return {
+    openSourceLink,
     staleFile,
     threads,
     threadId,

@@ -431,6 +431,7 @@ void wireDiscussion(
   () => {
     workbench.inspector.collapsed.value = false;
   },
+  historyNavigation.reveal,
 );
 void appearance.load();
 void source.openDifftool();

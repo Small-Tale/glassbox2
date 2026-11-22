@@ -1,4 +1,4 @@
-use crate::feedback::AnchorSide;
+use crate::feedback::{AnchorSide, SourceLocation};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -41,6 +41,8 @@ pub struct Observation {
     pub side: AnchorSide,
     pub line: u32,
     pub text: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub related_locations: Vec<Option<SourceLocation>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

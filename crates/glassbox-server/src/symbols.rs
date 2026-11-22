@@ -8,7 +8,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use glassbox_comparison::GitReview;
-use glassbox_model::feedback::AnchorSide;
+use glassbox_model::feedback::{AnchorSide, SourceLocation};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tree_sitter::{Language, Parser};
@@ -37,7 +37,7 @@ enum Resolution {
 }
 
 #[derive(Serialize)]
-struct Destination {
+pub(crate) struct Destination {
     path: PathBuf,
     side: AnchorSide,
     revision: String,
@@ -45,6 +45,68 @@ struct Destination {
     index: Option<usize>,
     line: usize,
     text: String,
+}
+
+pub(crate) fn source_location(
+    review: &GitReview,
+    side: AnchorSide,
+    location: &SourceLocation,
+) -> Option<Destination> {
+    if location.path.len() > 4096
+        || location.path.contains(['\\', '\0'])
+        || location
+            .path
+            .split('/')
+            .any(|part| matches!(part, "" | "." | ".."))
+        || location.path.as_bytes().get(1) == Some(&b':')
+    {
+        return None;
+    }
+    let path = PathBuf::from(&location.path);
+    let text = review
+        .read_tracked_text_source(side, &path, MAX_TEXT_BYTES)
+        .ok()??;
+    text.lines().nth(location.line.checked_sub(1)?)?;
+    let revision = format!("{:x}", Sha256::digest(text.as_bytes()));
+    let index = review.changes.iter().position(|change| {
+        let path_on_side = match side {
+            AnchorSide::Before => &change.before_path,
+            AnchorSide::After => &change.after_path,
+        };
+        path_on_side.as_ref() == Some(&path)
+    });
+    Some(Destination {
+        path,
+        side,
+        revision,
+        diff_revision: None,
+        index,
+        line: location.line,
+        text,
+    })
+}
+
+pub(crate) fn pin_location(
+    review: &GitReview,
+    side: AnchorSide,
+    location: &mut SourceLocation,
+) -> bool {
+    location.revision =
+        source_location(review, side, location).map(|destination| destination.revision);
+    location.revision.is_some()
+}
+
+impl Destination {
+    pub(crate) fn revision(&self) -> &str {
+        &self.revision
+    }
+
+    pub(crate) fn set_diff_revision(&mut self, comparison: &review_files::Comparison) {
+        self.diff_revision = self
+            .index
+            .and_then(|index| comparison.text_hunks(index).ok())
+            .and_then(|hunks| review_files::text_revision(&hunks).ok());
+    }
 }
 
 pub(crate) async fn lookup(input: Lookup) -> Response {
@@ -97,10 +159,7 @@ fn resolve(input: Lookup) -> Result<Resolution, (StatusCode, String)> {
     };
     let mut result = search(review, selection.index, side, &symbol).map_err(bad_request)?;
     if let Resolution::Found { destination } = &mut result {
-        destination.diff_revision = destination
-            .index
-            .and_then(|index| comparison.text_hunks(index).ok())
-            .and_then(|hunks| review_files::text_revision(&hunks).ok());
+        destination.set_diff_revision(&comparison);
     }
     Ok(result)
 }

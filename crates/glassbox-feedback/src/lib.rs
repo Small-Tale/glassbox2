@@ -243,7 +243,7 @@ fn write_origin(output: &mut impl Write, origin: &ThreadOrigin) -> io::Result<()
             };
             writeln!(output, "- Category: {name}")
         }
-        ThreadOrigin::Ai { tags, risk } => {
+        ThreadOrigin::Ai { tags, risk, .. } => {
             writeln!(output, "- Origin: AI")?;
             if !tags.is_empty() {
                 let tags: Vec<_> = tags.iter().map(|tag| quoted(tag)).collect();

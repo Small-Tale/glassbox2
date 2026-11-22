@@ -11,12 +11,14 @@ import { TextField } from '@kerfjs/ui/text-field';
 import { wireFilePickers } from '@kerfjs/ui/wire-file-pickers';
 import { MessageSquarePlus } from 'lucide';
 
+import type { Definition } from '../review/definition-navigation.js';
 import {
   type Anchor,
   categories,
   type DiscussionState,
   isDiagramAttachment,
   type Side,
+  sourceLinkParts,
   type Thread,
 } from './discussion-state.js';
 
@@ -90,7 +92,13 @@ export function LineDiscussion({
               </span>
             )}
           </span>
-          <span>{thread.opening.markdown}</span>
+          <span>
+            {thread.origin.kind === 'ai'
+              ? sourceLinkParts(thread.opening.markdown, thread.origin.related_locations ?? [])
+                  .map((part) => (typeof part === 'string' ? part : part.label))
+                  .join('')
+              : thread.opening.markdown}
+          </span>
           {thread.replies[0] === undefined ? null : (
             <span class="discussion-inline__preview">{thread.replies[0].message.markdown}</span>
           )}
@@ -178,7 +186,24 @@ export function DiscussionInspector({
           <TextField name="discussion-text" label="Comment" multiline rows={3} value={state.text.value} />
         </>
       ) : (
-        <p>{thread?.opening.markdown}</p>
+        <p>
+          {thread?.origin.kind === 'ai'
+            ? sourceLinkParts(thread.opening.markdown, thread.origin.related_locations ?? []).map((part) =>
+                typeof part === 'string' ? (
+                  part
+                ) : (
+                  <Button
+                    action={`discussion-source-link:${part.index}`}
+                    emphasis="link"
+                    tone="brand"
+                    disabled={isStale}
+                  >
+                    {part.label}
+                  </Button>
+                ),
+              )
+            : thread?.opening.markdown}
+        </p>
       )}
       {isDraft ? (
         <div class="discussion-inspector__actions">
@@ -234,6 +259,7 @@ export function wireDiscussion(
   state: DiscussionState,
   anchorFor: (side: Anchor['side'], line: number) => Anchor | undefined,
   showInspector: () => void,
+  reveal?: (destination: Definition) => Promise<void>,
 ) {
   const controller = new AbortController();
   const { signal } = controller;
@@ -315,6 +341,7 @@ export function wireDiscussion(
       }
       if (kind === 'discussion-cancel') state.resetEditor();
       if (kind === 'discussion-artifact') void state.previewArtifact(Number(first));
+      if (kind === 'discussion-source-link' && reveal !== undefined) void state.openSourceLink(Number(first), reveal);
       if (kind === 'discussion-submit') void state.submitComment();
       if (kind === 'discussion-reply')
         void state.apply({ kind: 'reply', author: state.author.value, markdown: state.reply.value }).then((saved) => {

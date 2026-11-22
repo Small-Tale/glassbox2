@@ -31,6 +31,16 @@ pub enum RiskLevel {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SourceLocation {
+    #[serde(default)]
+    pub path: String,
+    #[serde(default)]
+    pub line: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revision: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ThreadOrigin {
     Reviewer {
@@ -39,6 +49,8 @@ pub enum ThreadOrigin {
     Ai {
         tags: Vec<String>,
         risk: Option<RiskLevel>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        related_locations: Vec<Option<SourceLocation>>,
     },
 }
 

@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use glassbox_comparison::{GitChange, GitReviewMode, review_git};
+use glassbox_model::feedback::AnchorSide;
 use tempfile::{TempDir, tempdir};
 
 struct Repository(TempDir);
@@ -47,6 +48,36 @@ impl Repository {
         self.git(["add", "-A"]);
         self.git(["commit", "-q", "-m", message]);
         self.git(["rev-parse", "HEAD"]).trim().to_owned()
+    }
+}
+
+#[test]
+fn a_tracked_source_read_requires_the_exact_worktree_path() {
+    let repo = Repository::new();
+    repo.write("tracked file.txt", "committed\n");
+    repo.commit("Initial");
+    repo.write("tracked file.txt", "working\n");
+    repo.write("untracked.txt", "private\n");
+    let review = review_git(repo.path(), GitReviewMode::WorkingTree).unwrap();
+    for (side, text) in [
+        (AnchorSide::Before, "committed\n"),
+        (AnchorSide::After, "working\n"),
+    ] {
+        assert_eq!(
+            review
+                .read_tracked_text_source(side, Path::new("tracked file.txt"), 128)
+                .unwrap()
+                .as_deref(),
+            Some(text)
+        );
+    }
+    for path in ["untracked.txt", ".git/config", "tracked*.txt"] {
+        assert_eq!(
+            review
+                .read_tracked_text_source(AnchorSide::After, Path::new(path), 128)
+                .unwrap(),
+            None
+        );
     }
 }
 

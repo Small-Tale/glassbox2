@@ -54,6 +54,7 @@ fn one_line_supports_independent_reviewer_threads_and_ai_threads_through_round_t
             ThreadOrigin::Ai {
                 tags: vec!["Risk".into(), "Concurrency".into()],
                 risk: Some(RiskLevel::Medium),
+                related_locations: vec![],
             },
             "Analyzer".into(),
             "Two writes can race.".into(),

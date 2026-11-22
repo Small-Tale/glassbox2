@@ -3,7 +3,7 @@
 - `crates/glassbox-cli` runs Git difftool and forwards its two paths to the selected Glassbox client.
 - `crates/glassbox-feedback` publishes the durable Markdown handoff and its attachments, manages editable snapshots and storage leases, and delivers feedback to Hot Sheet.
 - `crates/glassbox-model` owns client-neutral types, the readiness wire shape, and the versioned feedback model under `src/feedback`.
-- `crates/glassbox-server/src/symbols.rs` resolves definitions from bounded Git-side source through the shared host API.
+- `crates/glassbox-server/src/symbols.rs` resolves definitions and AI note source destinations from bounded Git-side source. `discussion.rs` verifies the note's stored link before opening it.
 - `crates/glassbox-ai` owns [provider discovery and the subprocess protocol](../ai-providers.md), plus the local HTTP adapter. The Apple adapter lives in `plugins/ai/apple-foundation`.
 - `crates/glassbox-render-local` provides the optional Graphviz, Mermaid, and PlantUML subprocess adapter.
 - `crates/glassbox-server` owns the shared loopback HTTP host, frontend hosting, review source endpoints, optional diagram rendering and analysis jobs, and real-process tests.

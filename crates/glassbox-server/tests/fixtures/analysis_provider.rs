@@ -23,6 +23,8 @@ fn main() {
         || (input.contains("INVALID_ONCE") && !input.contains("Return a minimal object"))
     {
         "not JSON"
+    } else if input.contains("Assess this diff") && input.contains("LINK_FIXTURE") {
+        r#"{\"scores\":{\"security\":0.1,\"correctness\":0.6,\"error_handling\":0.2,\"maintainability\":0.1,\"architecture\":0.1,\"performance\":0.1},\"rationale\":\"Check the changed behavior.\",\"observations\":[{\"side\":\"after\",\"line\":1,\"text\":\"See [changed destination](0), [invalid](1), [tracked source](2), and [private file](3).\",\"related_locations\":[{\"path\":\"destination.ts\",\"line\":1},{\"path\":\"../invalid\",\"line\":1},{\"path\":\"linked.ts\",\"line\":1},{\"path\":\".git/config\",\"line\":1}]}]}"#
     } else if input.contains("Assess this diff") {
         r#"{\"scores\":{\"security\":0.1,\"correctness\":0.6,\"error_handling\":0.2,\"maintainability\":0.1,\"architecture\":0.1,\"performance\":0.1},\"rationale\":\"Check the changed behavior.\",\"observations\":[{\"side\":\"after\",\"line\":1,\"text\":\"Check the new value.\"},{\"side\":\"after\",\"line\":200,\"text\":\"Unmapped line.\"}]}"#
     } else if input.contains("Order these changed") {

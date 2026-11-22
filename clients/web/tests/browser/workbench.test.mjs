@@ -358,6 +358,77 @@ test('definition navigation resolves JavaScript and Python on the clicked Git si
   });
 });
 
+test('AI note source links open tracked Git locations and reject stale revisions', { timeout: 60_000 }, async () => {
+  await withWorkbench(
+    async (page, url, { repo }, settings) => {
+      const git = (...args) =>
+        execFileSync('git', ['-c', 'commit.gpgsign=false', '-c', 'core.autocrlf=false', ...args], {
+          cwd: repo,
+          windowsHide: true,
+        });
+      await writeFile(join(repo, 'destination.ts'), 'export const destination = 1;\n');
+      await writeFile(join(repo, 'linked.ts'), 'export const linked = true;\n');
+      git('add', 'destination.ts', 'linked.ts');
+      git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'linked sources');
+      await writeFile(join(repo, 'bundle.ts'), 'export const LINK_FIXTURE = true;\n');
+      await writeFile(join(repo, 'destination.ts'), 'export const destination = 2;\n');
+      await mkdir(settings, { recursive: true });
+      await writeFile(
+        join(settings, 'settings.json'),
+        JSON.stringify({
+          version: 1,
+          appearance: 'system',
+          analysis: { provider: 'desktop', model: 'fixture', guidance_topics: [] },
+        }),
+      );
+      const button = (name) => page.getByRole('button', { name, exact: typeof name === 'string' });
+      const heading = (name) => page.getByRole('heading', { name, exact: true });
+      await page.goto(url);
+      await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(repo);
+      await button('Open Comparison').click();
+      await page.getByRole('treeitem', { name: /bundle\.ts/ }).click();
+      await button('Risk Analysis').click();
+      const note = button(/AI note.*See/);
+      await note.click();
+      await button('changed destination').waitFor();
+      assert.equal(await button('invalid').count(), 0);
+      assert.equal(await button('private file').count(), 0);
+      await capture(page, 'ai-source-note');
+      await button('changed destination').click();
+      await heading('destination.ts').waitFor();
+      const target = page.locator('[data-definition-target]');
+      await target.filter({ hasText: 'destination = 2' }).waitFor();
+      await button('Previous File Visit').click();
+      await heading('bundle.ts').waitFor();
+      await note.click();
+      await button('tracked source').click();
+      await heading('linked.ts').waitFor();
+      await target.filter({ hasText: 'linked = true' }).waitFor();
+      for (const [layout, width] of [
+        ['wide', 1440],
+        ['medium', 940],
+        ['narrow', 390],
+        ['restored-wide', 1440],
+      ]) {
+        await page.setViewportSize({ width, height: 900 });
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
+        await capture(page, `ai-source-link-${layout}`);
+      }
+      await button('Previous File Visit').click();
+      await heading('bundle.ts').waitFor();
+      await button('Next File Visit').click();
+      await heading('linked.ts').waitFor();
+      await button('Previous File Visit').click();
+      await heading('bundle.ts').waitFor();
+      await writeFile(join(repo, 'linked.ts'), 'export const linked = false;\n');
+      await note.click();
+      await button('tracked source').click();
+      await page.getByRole('alert').filter({ hasText: 'This source link refers to an earlier version.' }).waitFor();
+    },
+    { provider: true },
+  );
+});
+
 test('AI settings select an approved model and keep analysis opt-in', { timeout: 60_000 }, async () => {
   await withWorkbench(
     async (page, url, { repo }, settings) => {

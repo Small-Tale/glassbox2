@@ -10,9 +10,11 @@ use sha2::{Digest, Sha256};
 use tempfile::NamedTempFile;
 use tokio::sync::{Mutex as Gate, OwnedMutexGuard};
 
+use crate::review_files::ReviewSource;
+
 use super::{input::Snapshot, provider::Provider};
 
-const FORMAT: u32 = 1;
+const FORMAT: u32 = 2;
 const ENTRY_BYTES: usize = 2 * 1024 * 1024;
 const DISK_BYTES: u64 = 64 * 1024 * 1024;
 const MEMORY_ENTRIES: usize = 16;
@@ -40,6 +42,7 @@ impl Cache {
 
     pub(super) fn key(
         provider: &Provider,
+        source: &ReviewSource,
         mode: AnalysisMode,
         snapshot: &Snapshot,
     ) -> Option<String> {
@@ -51,6 +54,7 @@ impl Cache {
         let value = serde_json::to_vec(&(
             FORMAT,
             provider.cache_identity()?,
+            source,
             mode,
             provider.guidance_topics(mode),
             files,

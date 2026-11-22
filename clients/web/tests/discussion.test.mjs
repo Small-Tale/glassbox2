@@ -2,9 +2,19 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { setTimeout } from 'node:timers/promises';
 
-import { createDiscussionState } from '../src/components/discussion/discussion-state.ts';
+import { createDiscussionState, sourceLinkParts } from '../src/components/discussion/discussion-state.ts';
 import { createReviewSourceState } from '../src/components/review/review-source.ts';
 
+test('AI source links preserve indices and render unusable references literally', () => {
+  const path = { path: 'src.ts', line: 1, revision: 'revision' };
+  const text = 'See [missing](1), [known](2), and [invalid](20).';
+  assert.deepEqual(sourceLinkParts(text, [path, null, path]), [
+    'See [missing](1), ',
+    { label: 'known', index: 2 },
+    ', and [invalid](20).',
+  ]);
+  assert.deepEqual(sourceLinkParts(text, []), [text]);
+});
 const path = 'src/bundle.ts';
 const comparison = {
   identity: 'Fieldnotes',

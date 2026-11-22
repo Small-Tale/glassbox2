@@ -169,7 +169,7 @@ impl Analysis {
                 total,
             },
         );
-        let key = Cache::key(&provider, request.mode, &snapshot);
+        let key = Cache::key(&provider, &request.source, request.mode, &snapshot);
         let persistent = provider.can_persist();
         let gate = match key.as_deref() {
             Some(key) => Some(self.cache.acquire(key).await),
@@ -197,6 +197,10 @@ impl Analysis {
         let analysis = self.clone();
         match tokio::task::spawn_blocking(move || {
             let _gate = gate;
+            let mut result = result;
+            if !was_cached {
+                pin_related_locations(&request.source, &mut result);
+            }
             let state = analysis.publish(id, request.source, result);
             if !was_cached {
                 if let (Some(key), AnalysisStatus::Complete { result }) = (key, &state) {
@@ -278,6 +282,43 @@ impl Analysis {
         };
         job.state = state.clone();
         state
+    }
+}
+
+fn pin_related_locations(source: &ReviewSource, result: &mut AnalysisResult) {
+    use glassbox_model::analysis::FileAnalysis;
+
+    let observations = result
+        .files
+        .iter_mut()
+        .flat_map(|file| match &mut file.analysis {
+            FileAnalysis::Risk { observations, .. } => observations,
+            FileAnalysis::Guidance { steps, .. } => steps,
+        });
+    let mut remaining = 64;
+    let comparison = std::cell::OnceCell::new();
+    for observation in observations {
+        observation.related_locations.truncate(8);
+        for entry in &mut observation.related_locations {
+            let Some(location) = entry else { continue };
+            let review = comparison.get_or_init(|| {
+                matches!(source, ReviewSource::Git { .. })
+                    .then(|| crate::review_files::load(source.clone(), None).ok())
+                    .flatten()
+            });
+            if remaining == 0 {
+                *entry = None;
+                continue;
+            }
+            remaining -= 1;
+            if !review
+                .as_ref()
+                .and_then(|review| review.git())
+                .is_some_and(|git| crate::symbols::pin_location(git, observation.side, location))
+            {
+                *entry = None;
+            }
+        }
     }
 }
 
