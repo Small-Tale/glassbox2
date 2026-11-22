@@ -91,19 +91,18 @@ fn view() -> Result<PreferencesView, String> {
 
 fn save_preferences(preferences: AnalysisPreferences) -> Result<(), (StatusCode, String)> {
     let invalid = |message: &str| (StatusCode::BAD_REQUEST, message.to_owned());
-    if let Some(id) = &preferences.provider
-        && !registry()
+    if let Some(id) = &preferences.provider {
+        registry()
             .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error))?
-            .contains_key(id)
-    {
-        return Err(invalid("The provider has not been approved by the host."));
+            .get(id)
+            .ok_or_else(|| invalid("The provider has not been approved by the host."))?;
     }
-    if let Some(model) = &preferences.model
-        && (preferences.provider.is_none()
+    if preferences.model.as_ref().is_some_and(|model| {
+        preferences.provider.is_none()
             || model.trim().is_empty()
             || model.len() > 256
-            || model.contains(char::is_control))
-    {
+            || model.contains(char::is_control)
+    }) {
         return Err(invalid(
             "Choose an available model for the selected provider.",
         ));
