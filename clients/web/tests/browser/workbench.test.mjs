@@ -8,11 +8,12 @@ import { createInterface } from 'node:readline';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { chromium } from 'playwright';
+import { chromium, webkit } from 'playwright';
 
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
 const executable = join(root, 'target', 'debug', `glassbox-server${process.platform === 'win32' ? '.exe' : ''}`);
 const captures = process.env.GLASSBOX_BROWSER_CAPTURES;
+const browserType = process.env.GLASSBOX_BROWSER === 'webkit' ? webkit : chromium;
 
 function svg(color) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="#e7eaef"/><circle cx="160" cy="90" r="62" fill="${color}"/><script>window.mediaScriptRan = true</script></svg>`;
@@ -185,7 +186,7 @@ async function withWorkbench(exercise, { launchArgs = () => [], renderer = false
       return `http://${address}`;
     }
     const url = await restart();
-    browser = await chromium.launch();
+    browser = await browserType.launch();
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, colorScheme: 'light' });
     page.setDefaultTimeout(8000);
     const errors = [];
@@ -211,6 +212,47 @@ async function withWorkbench(exercise, { launchArgs = () => [], renderer = false
 
 test('built workbench reviews Git and direct files with persistent preferences', { timeout: 60_000 }, async () => {
   await withWorkbench(exerciseWorkbench);
+});
+
+test('HS2-V6962Y keeps wrapped code within its diff row after a compact resize', { timeout: 60_000 }, async () => {
+  await withWorkbench(async (page, url, { repo }) => {
+    const text = 'export async function writeBundle(review: Review) { return bundlePath(review.id); }';
+    await writeFile(join(repo, 'bundle.ts'), `${text}\nconst nextLine = true;\n`);
+    const button = (name) => page.getByRole('button', { name, exact: true });
+    await page.goto(url);
+    await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(repo);
+    await button('Open Comparison').click();
+    await page.getByRole('treeitem', { name: /bundle\.ts/ }).click();
+    await button('Inline').click();
+    const cell = page.locator('.text-diff__cell[data-after-line="1"]');
+    await cell.getByText('writeBundle', { exact: false }).first().waitFor();
+    for (const width of [940, 390, 1440]) {
+      await page.setViewportSize({ width, height: 880 });
+      const bounds = await cell.evaluate((element) => {
+        const range = document.createRange();
+        const code = element.querySelector('code');
+        range.selectNodeContents(code);
+        const row = element.getBoundingClientRect();
+        const lines = range.getBoundingClientRect();
+        return {
+          lineCount: new Set(Array.from(range.getClientRects(), ({ top }) => top)).size,
+          row: row.bottom,
+          text: lines.bottom,
+          whitespace: getComputedStyle(code).whiteSpace,
+        };
+      });
+      if (width === 390) assert(bounds.lineCount > 1, 'Fixture should wrap in the compact view');
+      assert.equal(bounds.whitespace, 'break-spaces');
+      assert(bounds.text <= bounds.row, `Wrapped text extends below its row at ${width}px: ${JSON.stringify(bounds)}`);
+    }
+    await page.setViewportSize({ width: 390, height: 880 });
+    await button('Side by Side').click();
+    await button('Wrap').click();
+    const unwrapped = page.locator('.text-diff__cell[data-after-line="1"] code');
+    assert.equal(await unwrapped.evaluate((code) => getComputedStyle(code).whiteSpace), 'pre');
+    const diff = page.getByRole('region', { name: 'Text Diff', exact: true });
+    assert(await diff.evaluate((element) => element.scrollWidth > element.clientWidth));
+  });
 });
 
 test('changed-file clipboard preserves spaces and paths for deleted Git entries', { timeout: 60_000 }, async () => {

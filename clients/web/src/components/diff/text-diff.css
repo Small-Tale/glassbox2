@@ -69,7 +69,8 @@
 
 .text-diff[data-wrap='true'] .text-diff__cell code {
   overflow-wrap: anywhere;
-  white-space: pre-wrap;
+  /* WKWebView can retain single-line row heights for pre-wrap after resize. */
+  white-space: break-spaces;
 }
 
 .text-diff__number,

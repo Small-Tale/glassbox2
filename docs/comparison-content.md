@@ -33,7 +33,8 @@ The center panel renders selected text files as side-by-side or inline
 diffs (`HS2-RVP90A`). Both preserve before and after line numbers,
 added and removed lines, hunk ranges, and missing-final-newline markers.
 Common source files receive lightweight syntax cues. Wrap works in either
-layout. With Wrap off, long lines can scroll within the comparison.
+layout. Wrapped rows grow to fit all their code as the workbench narrows
+(`HS2-V6962Y`). With Wrap off, long lines can scroll within the comparison.
 
 The workbench requests selected content using
 `POST /api/v1/review/file`. The service checks the selected index and
