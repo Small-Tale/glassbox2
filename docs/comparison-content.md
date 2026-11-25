@@ -50,7 +50,14 @@ side's current revision.
 
 Raster and SVG comparisons open side by side. The toolbar offers stacked,
 single-side, difference, slice, and metadata views. SVGs can also be read
-as source. Rendered SVGs load as images through opaque data URLs that
+as source. A file opens in the mode you last chose, orientation included
+(`HS2-Q3X4BX`): choose Over and Under once and later pairs open stacked.
+When the next file lacks an input the mode needs (an added or removed image
+cannot be stacked, differenced or sliced, and a raster image has no source),
+the viewer shows Side by Side with a status line naming the unavailable mode.
+Your choice returns on the next file that supports it, and picking a mode
+clears the line. Zoom, slice position and region drawing still reset for each
+file. Rendered SVGs load as images through opaque data URLs that
 preserve the original asset bytes. Zoomed views can be panned with
 scrolling. Select Add Region Comment and drag on a before or after image
 to open a region discussion in the shared inspector. With the tool active,

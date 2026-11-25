@@ -10,7 +10,14 @@ import { ChevronLeft, ChevronRight, Code, GitCompareArrows, Workflow } from 'luc
 
 import { AnalysisContext, AnalysisControls, wireAnalysisControls } from '../components/analysis/analysis-controls.js';
 import { createAnalysisState } from '../components/analysis/analysis-state.js';
-import { createMediaDiffState, MediaDiff, MediaDiffToolbar, wireMediaDiff } from '../components/diff/media-diff.js';
+import {
+  createMediaDiffState,
+  MediaDiff,
+  MediaDiffToolbar,
+  mediaModeLabel,
+  wireMediaDiff,
+} from '../components/diff/media-diff.js';
+import { modeForImages } from '../components/diff/media-mode.js';
 import { selectedDiff } from '../components/diff/selected-diff.js';
 import { createTextDiffState, TextDiff, TextDiffToolbar, wireTextDiffToolbar } from '../components/diff/text-diff.js';
 import {
@@ -72,8 +79,13 @@ const mediaDiff = createMediaDiffState();
 const mediaId = 'glassbox-media-diff';
 void effect(() => {
   const result = diff.result.value;
+  if (result?.kind === 'media') {
+    // HS2-Q3X4BX: keep the chosen mode and orientation across files when this pair supports it.
+    const { mode, fellBack } = modeForImages(mediaDiff.preferred.peek(), result);
+    mediaDiff.fallback.value = fellBack ? mediaModeLabel(mediaDiff.preferred.peek()) : null;
+    mediaDiff.mode.value = mode;
+  }
   if (result?.kind === 'loading') {
-    mediaDiff.mode.value = 'split';
     mediaDiff.zoom.value = 100;
     mediaDiff.slice.value = 50;
     mediaDiff.drawing.value = false;

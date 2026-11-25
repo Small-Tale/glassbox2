@@ -781,6 +781,64 @@ test('HS2-42A696 saved reviews delete one confirmed review and keep the others',
   });
 });
 
+test(
+  'HS2-Q3X4BX image comparison keeps its mode across files and falls back clearly when unsupported',
+  { timeout: 60_000 },
+  async () => {
+    await withWorkbench(async (page, url, _paths, settings) => {
+      const media = join(dirname(settings), 'Media');
+      await mkdir(media);
+      const git = (...args) =>
+        execFileSync('git', ['-c', 'commit.gpgsign=false', '-c', 'core.autocrlf=false', ...args], {
+          cwd: media,
+          windowsHide: true,
+        });
+      git('init', '-q', '--initial-branch=review');
+      for (const name of ['a.svg', 'c.svg']) await writeFile(join(media, name), svg('#506b91'));
+      git('add', '.');
+      git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'initial');
+      for (const name of ['a.svg', 'b.svg', 'c.svg']) await writeFile(join(media, name), svg('#3b7c68'));
+      git('add', 'b.svg');
+
+      const button = (name) => page.getByRole('button', { name, exact: true });
+      const mode = async (name) => (await button(name).getAttribute('aria-pressed')) === 'true';
+      const notice = page.getByRole('status').filter({ hasText: 'is not available for this image' });
+      const open = (name) => page.getByRole('treeitem', { name: new RegExp(`${name}`) }).click();
+      await page.goto(url);
+      await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(media);
+      await button('Open Comparison').click();
+
+      await open('a\\.svg');
+      await button('Over and Under').click();
+      assert(await mode('Over and Under'));
+      await open('c\\.svg');
+      await button('Over and Under').waitFor();
+      assert(await mode('Over and Under'), 'a supported pair keeps the chosen orientation');
+      assert.equal(await notice.count(), 0);
+
+      await open('b\\.svg');
+      await notice.waitFor();
+      assert.equal(await button('Over and Under').count(), 0, 'an added image cannot be stacked');
+      assert(await mode('Side by Side'), 'unsupported modes fall back to Side by Side');
+      await capture(page, 'media-mode-fallback');
+
+      await open('c\\.svg');
+      await button('Over and Under').waitFor();
+      assert(await mode('Over and Under'), 'the choice returns when the next pair supports it');
+      assert.equal(await notice.count(), 0, 'the fallback notice is cleared');
+      await button('Before Image').click();
+      await open('b\\.svg');
+      await notice.waitFor();
+      assert(await mode('Side by Side'));
+      await button('After Image').click();
+      assert.equal(await notice.count(), 0, 'choosing a mode clears the notice');
+      await open('a\\.svg');
+      await button('Before Image').waitFor();
+      assert(await mode('After Image'), 'the last explicit choice follows to the next file');
+    });
+  },
+);
+
 test('built workbench opens a Git difftool snapshot with relative clipboard only', { timeout: 60_000 }, async () => {
   await withWorkbench(
     async (page, url) => {

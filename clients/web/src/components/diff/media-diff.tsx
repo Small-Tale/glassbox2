@@ -6,6 +6,7 @@ import { signal } from 'kerfjs';
 import { Blend, Code, Columns2, Info, PanelLeft, PanelRight, Rows2, Scan, Split, ZoomIn, ZoomOut } from 'lucide';
 
 import type { ImageRegion, Side } from '../discussion/discussion-state.js';
+import { type MediaMode, modeAvailable } from './media-mode.js';
 import { changeRegion, initialRegion, regionAnchor, type RegionBounds } from './media-region.js';
 import type { MediaImage } from './selected-diff.js';
 import type { MediaSides } from './text-diff-model.js';
@@ -21,7 +22,11 @@ const modes = [
   { key: 'source', label: 'SVG Source', icon: Code, name: 'code' },
 ] as const;
 
-type Mode = (typeof modes)[number]['key'];
+type Mode = MediaMode;
+
+export function mediaModeLabel(mode: MediaMode): string {
+  return modes.find(({ key }) => key === mode)?.label ?? mode;
+}
 type Images = MediaSides<MediaImage>;
 const sides = ['before', 'after'] as const;
 const labels = { before: 'Before', after: 'After' };
@@ -29,9 +34,13 @@ const labels = { before: 'Before', after: 'After' };
 export function createMediaDiffState() {
   return {
     mode: signal<Mode>('split'),
+    // The mode the user chose last. `mode` is what the current image can show (HS2-Q3X4BX).
+    preferred: signal<Mode>('split'),
     zoom: signal(100),
     slice: signal(50),
     drawing: signal(false),
+    // Label of the mode that was unavailable for the last file, shown until the user picks one.
+    fallback: signal<string | null>(null),
     keyboardRegion: signal<{ side: Side; bounds: RegionBounds } | null>(null),
   };
 }
@@ -53,16 +62,11 @@ export function MediaDiffToolbar({
   state: State;
   allowRegions?: boolean;
 }) {
-  const both = images.before !== null && images.after !== null;
   return (
     <>
       <ToolbarControlGroup label="Image Comparison" content="icon" overflow="wrap">
         {modes
-          .filter(({ key }) => {
-            if (key === 'source') return images.before?.source !== undefined || images.after?.source !== undefined;
-            if (key === 'before' || key === 'after') return images[key] !== null;
-            return both || key === 'split' || key === 'metadata';
-          })
+          .filter(({ key }) => modeAvailable(key, images))
           .map(({ key, label, icon, name }) => (
             <ToolbarButton
               action={`${id}:${key}`}
@@ -119,6 +123,11 @@ export function MediaDiff({
   const keyboardRegion = drawing ? state.keyboardRegion.value : null;
   return (
     <div class="media-diff" data-media-diff={id} data-mode={mode} data-drawing={String(drawing)}>
+      {state.fallback.value === null ? null : (
+        <div class="media-diff__instructions" role="status">
+          {state.fallback.value} is not available for this image, so Side by Side is shown.
+        </div>
+      )}
       {drawing ? (
         <div class="media-diff__instructions" id={`${id}-region-help`}>
           Drag on an image, or focus it and use arrow keys to move the region. Hold Shift to resize. Press Enter to add
@@ -236,6 +245,8 @@ export function wireMediaDiff(
       const mode = modes.find((entry) => entry.key === key);
       if (mode !== undefined) {
         state.mode.value = mode.key;
+        state.preferred.value = mode.key;
+        state.fallback.value = null;
         endRegion();
       }
       if (key === 'in') state.zoom.value = Math.min(400, state.zoom.value + 25);
