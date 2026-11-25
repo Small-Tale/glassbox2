@@ -1,11 +1,78 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::io;
 use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
 
 use glassbox_server::{DifftoolInput, LocalHost};
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::webview::NewWindowResponse;
+use tauri::{Manager, Url, WebviewUrl, WebviewWindowBuilder};
+
+/// What the review window does with a navigation or a new-window request (HS2-E6C9C9).
+#[derive(Debug, PartialEq, Eq)]
+enum Navigation {
+    /// The local review client itself.
+    Stay,
+    /// A web link: hand it to the system default browser and keep the review window in place.
+    OpenInBrowser,
+    /// Anything else (other schemes, files, scripts) goes nowhere.
+    Block,
+}
+
+fn navigation(target: &Url, local: &Url) -> Navigation {
+    if target.origin() == local.origin() {
+        Navigation::Stay
+    } else if matches!(target.scheme(), "http" | "https") && target.has_host() {
+        Navigation::OpenInBrowser
+    } else {
+        Navigation::Block
+    }
+}
+
+#[cfg(target_os = "macos")]
+const BROWSER_OPENER: &str = "open";
+#[cfg(all(unix, not(target_os = "macos")))]
+const BROWSER_OPENER: &str = "xdg-open";
+#[cfg(windows)]
+const BROWSER_OPENER: &str = "rundll32";
+
+fn open_in_browser(url: &Url) -> io::Result<()> {
+    open_with(BROWSER_OPENER, url)
+}
+
+fn open_with(opener: impl AsRef<OsStr>, url: &Url) -> io::Result<()> {
+    let mut command = Command::new(opener);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command
+            .arg("url.dll,FileProtocolHandler")
+            .creation_flags(0x0800_0000);
+    }
+    let mut child = command
+        .arg(url.as_str())
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()?;
+    // Reap the launcher without blocking the webview's navigation callback.
+    std::thread::spawn(move || child.wait());
+    Ok(())
+}
+
+fn route_external(target: &Url, local: &Url) -> bool {
+    match navigation(target, local) {
+        Navigation::Stay => true,
+        Navigation::OpenInBrowser => {
+            if let Err(error) = open_in_browser(target) {
+                eprintln!("Could not open {target} in the default browser: {error}");
+            }
+            false
+        }
+        Navigation::Block => false,
+    }
+}
 
 fn main() -> tauri::Result<()> {
     let args: Vec<_> = std::env::args_os().skip(1).collect();
@@ -19,10 +86,15 @@ fn main() -> tauri::Result<()> {
             };
             let host = start_host(&assets, difftool)?;
             let url: tauri::Url = format!("http://{}/", host.address()).parse()?;
-            let origin = url.origin();
+            let local = url.clone();
             app.manage(host);
+            let window_local = url.clone();
             WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url))
-                .on_navigation(move |target| target.origin() == origin)
+                .on_navigation(move |target| route_external(target, &local))
+                .on_new_window(move |target, _| {
+                    route_external(&target, &window_local);
+                    NewWindowResponse::Deny
+                })
                 .title("Glassbox")
                 .inner_size(1200.0, 800.0)
                 .build()?;
@@ -67,6 +139,83 @@ mod tests {
         connection.read_to_string(&mut response).unwrap();
         assert!(response.starts_with("HTTP/1.1 200 OK"), "{response}");
         response.split_once("\r\n\r\n").unwrap().1.to_owned()
+    }
+
+    fn url(value: &str) -> Url {
+        value.parse().unwrap()
+    }
+
+    #[test]
+    fn only_web_links_leave_the_review_window_for_the_default_browser() {
+        let local = url("http://127.0.0.1:4100/");
+        for stay in [
+            "http://127.0.0.1:4100/",
+            "http://127.0.0.1:4100/api/v1/health?x=1#a",
+        ] {
+            assert_eq!(navigation(&url(stay), &local), Navigation::Stay, "{stay}");
+        }
+        for web in [
+            "https://example.com/docs?a=1&b=2",
+            "http://example.com",
+            "http://127.0.0.1:4101/",
+            "http://localhost:4100/",
+            "https://user@example.com/",
+        ] {
+            assert_eq!(
+                navigation(&url(web), &local),
+                Navigation::OpenInBrowser,
+                "{web}"
+            );
+        }
+        for blocked in [
+            "file:///etc/passwd",
+            "javascript:alert(1)",
+            "data:text/html,hi",
+            "mailto:someone@example.com",
+            "ftp://example.com/",
+            "about:blank",
+            "tauri://localhost/",
+        ] {
+            assert_eq!(
+                navigation(&url(blocked), &local),
+                Navigation::Block,
+                "{blocked}"
+            );
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_launcher_gets_the_exact_url_as_one_argument_and_failures_are_reported() {
+        use std::os::unix::fs::PermissionsExt;
+        let directory =
+            std::env::temp_dir().join(format!("glassbox-opener-{}", std::process::id()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let log = directory.join("log");
+        let script = directory.join("opener");
+        std::fs::write(
+            &script,
+            format!(
+                "#!/bin/sh\nprintf '%s|%s' \"$#\" \"$1\" > '{}'\n",
+                log.display()
+            ),
+        )
+        .unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let link = url("https://example.com/a b?x=1&y=$(touch pwned)");
+        open_with(&script, &link).unwrap();
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        let logged = loop {
+            if let Ok(text) = std::fs::read_to_string(&log) {
+                break text;
+            }
+            assert!(std::time::Instant::now() < deadline, "the opener never ran");
+            std::thread::sleep(Duration::from_millis(20));
+        };
+        assert_eq!(logged, format!("1|{}", link.as_str()));
+        assert!(!directory.join("pwned").exists());
+        assert!(open_with(directory.join("missing"), &link).is_err());
+        std::fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]

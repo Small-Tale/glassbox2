@@ -14,6 +14,16 @@ web assets. The window is scoped to the local service origin and does not use
 a separate native transport for review data. Closing the native application
 ends the embedded task.
 
+External links (`HS2-E6C9C9`): a navigation or new-window request to an
+`http` or `https` address outside the local origin, such as a clicked link or
+`window.open`, opens in the system default browser (`open`, `xdg-open`, or
+`rundll32 url.dll,FileProtocolHandler`) and the review window stays on the
+local client. The address is passed as one argument, never through a shell.
+Other schemes (`file:`, `mailto:`, `javascript:`, `data:`) go nowhere. The
+decision lives in `clients/web/src-tauri/src/main.rs` and is unit tested, and
+the opener is exercised with a recording launcher; the Linux WebKitGTK window
+was also driven with real link clicks.
+
 The host binds IPv4 loopback on a port chosen by the OS. It accepts the bound
 Host value and rejects requests with a foreign Origin or cross-site API
 fetch metadata. Client contracts remain independent of the webview implementation.
