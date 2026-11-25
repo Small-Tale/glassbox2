@@ -145,7 +145,9 @@ current Hot Sheet 2 CLI is installed.
 Glassbox measures bundle counts and logical file bytes per project
 and across the local store (`HS2-D518Y2`). Reports include evidence,
 unassigned bundles, and open reviews. Existing project paths are
-grouped by their canonical location.
+grouped by their canonical location and shown in their ordinary form, so
+Windows lists `C:\Users\me\project`, not `\\?\C:\Users\me\project`
+(`HS2-SX3Q6R`).
 
 First-release retention is manual. A 30-day expiry would make saved
 instructions stop working as they aged. Explicit cleanup can clear one

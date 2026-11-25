@@ -238,8 +238,33 @@ fn has_header(path: &Path) -> io::Result<bool> {
     }
 }
 
+/// The project path used to group, compare and show saved bundles. It is never written to disk or opened.
 fn project_identity(project: &Path) -> io::Result<PathBuf> {
-    fs::canonicalize(project).or_else(|_| std::path::absolute(project))
+    let resolved = fs::canonicalize(project).or_else(|_| std::path::absolute(project))?;
+    Ok(simplify_verbatim(&resolved))
+}
+
+/// `canonicalize` returns `\\?\C:\dir` on Windows. Use the ordinary `C:\dir` (and `\\server\share\dir`) form so the
+/// path reads normally and old and new records agree (HS2-SX3Q6R). A path with no ordinary form, such as
+/// `\\?\Volume{id}\dir`, is returned unchanged.
+fn simplify_verbatim(path: &Path) -> PathBuf {
+    let Some(text) = path.to_str() else {
+        return path.to_owned();
+    };
+    if let Some(share) = text.strip_prefix(r"\\?\UNC\") {
+        return PathBuf::from(format!(r"\\{share}"));
+    }
+    if let Some(drive_path) = text.strip_prefix(r"\\?\") {
+        let bytes = drive_path.as_bytes();
+        if bytes.len() >= 2
+            && bytes[0].is_ascii_alphabetic()
+            && bytes[1] == b':'
+            && bytes.get(2).is_none_or(|&b| b == b'\\')
+        {
+            return PathBuf::from(drive_path);
+        }
+    }
+    path.to_owned()
 }
 
 fn directory_size(path: &Path) -> io::Result<u64> {
@@ -266,4 +291,53 @@ fn directory_size(path: &Path) -> io::Result<u64> {
         }
     }
     Ok(bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn simplified(text: &str) -> String {
+        simplify_verbatim(Path::new(text))
+            .to_str()
+            .unwrap()
+            .to_owned()
+    }
+
+    #[test]
+    fn verbatim_drive_and_unc_paths_become_ordinary_paths() {
+        assert_eq!(
+            simplified(r"\\?\C:\Users\me\project"),
+            r"C:\Users\me\project"
+        );
+        assert_eq!(
+            simplified(r"\\?\c:\Users\native ev\Field Notes repo"),
+            r"c:\Users\native ev\Field Notes repo"
+        );
+        assert_eq!(simplified(r"\\?\D:\"), r"D:\");
+        assert_eq!(simplified(r"\\?\D:"), "D:");
+        assert_eq!(
+            simplified(r"\\?\UNC\server\share\dir"),
+            r"\\server\share\dir"
+        );
+    }
+
+    #[test]
+    fn paths_without_an_ordinary_form_are_left_alone() {
+        for path in [
+            r"C:\Users\me\project",
+            r"\\server\share\dir",
+            r"\\?\Volume{0123}\dir",
+            r"\\?\GLOBALROOT\Device\x",
+            r"\\.\C:\dir",
+            r"\\?\",
+            r"\\?\1:\dir",
+            r"\\?\CD:\dir",
+            "/home/me/project",
+            "relative/path",
+            "",
+        ] {
+            assert_eq!(simplified(path), path, "{path}");
+        }
+    }
 }

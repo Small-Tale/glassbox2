@@ -18,6 +18,59 @@ fn context(project: Option<&Path>) -> BundleContext {
     }
 }
 
+/// What a person expects to see: Windows' `canonicalize` returns `\\?\C:\dir` and the UI shows `C:\dir` (HS2-SX3Q6R).
+fn ordinary(path: PathBuf) -> PathBuf {
+    match path.to_str().and_then(|text| text.strip_prefix(r"\\?\")) {
+        Some(rest) if rest.as_bytes().get(1) == Some(&b':') => PathBuf::from(rest),
+        _ => path,
+    }
+}
+
+#[test]
+fn listed_projects_use_ordinary_paths_and_clear_by_the_shown_path() {
+    let fixture = tempdir().unwrap();
+    let project = fixture.path().join("native ev").join("Field Notes repo");
+    fs::create_dir_all(&project).unwrap();
+    let store = BundleStore::in_directory(fixture.path().join("feedback"));
+    let bundle = store
+        .create(context(Some(&project)), &ReviewFeedback::default())
+        .unwrap();
+    drop(bundle);
+
+    let listed = store.usage().unwrap().projects;
+    assert_eq!(listed.len(), 1);
+    let shown = listed[0].project.clone().unwrap();
+    assert!(!shown.to_string_lossy().starts_with(r"\\?\"), "{shown:?}");
+    assert_eq!(shown, ordinary(fs::canonicalize(&project).unwrap()));
+
+    let report = store.cleanup(CleanupScope::Project(shown)).unwrap();
+    assert_eq!(report.removed_bundles, 1);
+    assert_eq!(store.usage().unwrap().bundles, 0);
+}
+
+#[test]
+fn a_project_folder_that_was_deleted_is_still_listed_and_cleared_by_its_shown_path() {
+    let fixture = tempdir().unwrap();
+    let project = fixture.path().join("gone project");
+    fs::create_dir(&project).unwrap();
+    let store = BundleStore::in_directory(fixture.path().join("feedback"));
+    drop(
+        store
+            .create(context(Some(&project)), &ReviewFeedback::default())
+            .unwrap(),
+    );
+    fs::remove_dir(&project).unwrap();
+
+    let listed = store.usage().unwrap().projects;
+    assert_eq!(listed.len(), 1);
+    let shown = listed[0].project.clone().unwrap();
+    assert!(!shown.to_string_lossy().starts_with(r"\\?\"), "{shown:?}");
+
+    let report = store.cleanup(CleanupScope::Project(shown)).unwrap();
+    assert_eq!(report.removed_bundles, 1);
+    assert_eq!(store.usage().unwrap().bundles, 0);
+}
+
 #[test]
 fn usage_and_cleanup_route_by_project_and_keep_active_bundles() {
     let fixture = tempdir().unwrap();
@@ -61,7 +114,8 @@ fn usage_and_cleanup_route_by_project_and_keep_active_bundles() {
         usage
             .projects
             .iter()
-            .find(|project| project.project == Some(fs::canonicalize(&first_project).unwrap()))
+            .find(|project| project.project
+                == Some(ordinary(fs::canonicalize(&first_project).unwrap())))
             .unwrap()
             .bundles,
         2
