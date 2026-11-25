@@ -453,36 +453,9 @@ pub(crate) async fn file_action(
 }
 
 fn launch_desktop(path: &Path, reveal: bool) -> io::Result<()> {
-    use std::process::{Command, Stdio};
+    use std::process::Stdio;
 
-    let mut command = if cfg!(target_os = "macos") {
-        let mut command = Command::new("/usr/bin/open");
-        if reveal {
-            command.arg("-R");
-        }
-        command.arg(path);
-        command
-    } else if cfg!(target_os = "windows") {
-        let mut command = Command::new("explorer.exe");
-        if reveal {
-            let mut argument = std::ffi::OsString::from("/select,");
-            argument.push(path);
-            command.arg(argument);
-        } else {
-            command.arg(path);
-        }
-        command
-    } else {
-        let mut command = Command::new("xdg-open");
-        command.arg(if reveal {
-            path.parent().unwrap_or(path)
-        } else {
-            path
-        });
-        command
-    };
-
-    let mut child = command
+    let mut child = desktop_command(path, reveal)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -491,6 +464,56 @@ fn launch_desktop(path: &Path, reveal: bool) -> io::Result<()> {
         let _ = child.wait();
     });
     Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn desktop_command(path: &Path, reveal: bool) -> std::process::Command {
+    let mut command = std::process::Command::new("/usr/bin/open");
+    if reveal {
+        command.arg("-R");
+    }
+    command.arg(path);
+    command
+}
+
+#[cfg(windows)]
+fn desktop_command(path: &Path, reveal: bool) -> std::process::Command {
+    use std::os::windows::process::CommandExt;
+
+    let mut command = std::process::Command::new("explorer.exe");
+    if reveal {
+        // Explorer parses its own command line, so the argument is passed raw
+        // instead of letting Rust quote the whole `/select,` token (HS2-P42M03).
+        command.raw_arg(explorer_select_argument(path));
+    } else {
+        command.arg(path);
+    }
+    command
+}
+
+#[cfg(not(any(target_os = "macos", windows)))]
+fn desktop_command(path: &Path, reveal: bool) -> std::process::Command {
+    let mut command = std::process::Command::new("xdg-open");
+    command.arg(if reveal {
+        path.parent().unwrap_or(path)
+    } else {
+        path
+    });
+    command
+}
+
+/// The exact `explorer.exe` argument that selects `path`: `/select,"<path>"`.
+///
+/// Explorer only honors the selection when the quotes surround the path alone.
+/// `"/select,<path>"`, which `Command::arg` produces for a path with spaces,
+/// makes it open Documents with nothing selected (HS2-P42M03). Windows paths
+/// cannot contain `"`, so wrapping in quotes is always safe.
+#[cfg(any(windows, test))]
+fn explorer_select_argument(path: &Path) -> std::ffi::OsString {
+    let mut argument = std::ffi::OsString::from("/select,\"");
+    argument.push(path);
+    argument.push("\"");
+    argument
 }
 
 async fn blocking<T: Serialize + Send + 'static>(
@@ -595,4 +618,38 @@ fn display_path(path: &Path) -> String {
         .map(|component| component.as_os_str().to_string_lossy())
         .collect::<Vec<_>>()
         .join("/")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn explorer_select_quotes_only_the_path() {
+        for (path, expected) in [
+            (
+                r"C:\Users\me\native ev\Field Notes repo\source with spaces.txt",
+                r#"/select,"C:\Users\me\native ev\Field Notes repo\source with spaces.txt""#,
+            ),
+            (r"C:\plain\file.txt", r#"/select,"C:\plain\file.txt""#),
+            (
+                r"C:\Users\mé\ünï cödé.txt",
+                r#"/select,"C:\Users\mé\ünï cödé.txt""#,
+            ),
+            (
+                r"\\server\share name\a b.txt",
+                r#"/select,"\\server\share name\a b.txt""#,
+            ),
+        ] {
+            assert_eq!(explorer_select_argument(Path::new(path)), expected);
+        }
+    }
+
+    #[test]
+    fn explorer_select_never_wraps_the_flag_in_the_quotes() {
+        let argument = explorer_select_argument(Path::new("a b"));
+        let argument = argument.to_string_lossy();
+        assert!(argument.starts_with("/select,\""), "{argument}");
+        assert!(!argument.starts_with('"'), "{argument}");
+    }
 }
