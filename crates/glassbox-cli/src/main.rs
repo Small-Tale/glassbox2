@@ -38,6 +38,7 @@ fn run(args: Vec<OsString>) -> io::Result<ExitStatus> {
         ));
     }
 
+    reject_tool_overrides(&args)?;
     let executable = env::current_exe()?;
     #[cfg(windows)]
     let executable = executable.to_string_lossy().replace('\\', "/");
@@ -52,4 +53,121 @@ fn run(args: Vec<OsString>) -> io::Result<ExitStatus> {
         ])
         .args(args)
         .status()
+}
+
+/// Git difftool long options that choose a tool other than the one Glassbox selects, or that
+/// stop it from launching one (HS2-40BYH7). Git accepts any unambiguous abbreviation of a long
+/// option, so a name that is a prefix of one of these is rejected too.
+const TOOL_LONG_OPTIONS: [&str; 5] = ["tool", "tool-help", "extcmd", "gui", "no-gui"];
+/// Short options that choose a tool (`-t`, `-x`, `-g`).
+const TOOL_SHORT_OPTIONS: [u8; 3] = [b't', b'x', b'g'];
+/// Short options whose attached text is a value, not further options (`-Ofile`, `-U5`).
+const VALUE_SHORT_OPTIONS: &[u8] = b"UOSGMCBlI";
+
+/// Refuse arguments that would replace the Glassbox tool. Everything after `--` is a pathspec.
+fn reject_tool_overrides(args: &[OsString]) -> io::Result<()> {
+    for arg in args {
+        let bytes = arg.as_encoded_bytes();
+        if bytes == b"--" {
+            break;
+        }
+        let overrides = if let Some(name) = bytes.strip_prefix(b"--") {
+            let name = name.split(|byte| *byte == b'=').next().unwrap_or_default();
+            !name.is_empty()
+                && TOOL_LONG_OPTIONS
+                    .iter()
+                    .any(|option| option.as_bytes().starts_with(name))
+        } else if let Some(cluster) = bytes.strip_prefix(b"-") {
+            cluster
+                .iter()
+                .take_while(|byte| !VALUE_SHORT_OPTIONS.contains(byte))
+                .any(|byte| TOOL_SHORT_OPTIONS.contains(byte))
+        } else {
+            false
+        };
+        if overrides {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "{} would replace the Glassbox tool; -t/--tool, -x/--extcmd, -g/--gui and \
+                     --tool-help are not accepted",
+                    arg.to_string_lossy()
+                ),
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn check(args: &[&str]) -> io::Result<()> {
+        reject_tool_overrides(&args.iter().map(OsString::from).collect::<Vec<_>>())
+    }
+
+    #[test]
+    fn options_that_choose_another_tool_are_rejected_in_every_spelling() {
+        for args in [
+            &["--tool=vimdiff"][..],
+            &["--tool", "vimdiff"],
+            &["--to=vimdiff"],
+            &["--t=vimdiff"],
+            &["-t", "vimdiff"],
+            &["-tvimdiff"],
+            &["-dt", "vimdiff"],
+            &["--extcmd=true"],
+            &["--ext", "true"],
+            &["-x", "true"],
+            &["-xtrue"],
+            &["--gui"],
+            &["-g"],
+            &["--no-gui"],
+            &["--tool-help"],
+            &["--dir-diff", "-y", "--tool=other"],
+            &["HEAD~1..HEAD", "--extcmd=sh"],
+        ] {
+            let error = check(args).unwrap_err();
+            assert_eq!(error.kind(), io::ErrorKind::InvalidInput, "{args:?}");
+            assert!(error.to_string().contains("replace the Glassbox tool"));
+        }
+    }
+
+    #[test]
+    fn ordinary_difftool_and_diff_arguments_pass_through() {
+        for args in [
+            &[][..],
+            &["--no-prompt", "HEAD", "--", "src/"],
+            &["--dir-diff", "main", "HEAD"],
+            &["-d", "-y", "main...HEAD"],
+            &["--no-prompt", "--no-symlinks", "--trust-exit-code"],
+            &[
+                "--diff-filter=AM",
+                "--stat",
+                "-U5",
+                "-Ox.txt",
+                "-Sfoo",
+                "-Gtext",
+            ],
+            &["--no-p", "HEAD"],
+            &["--name-only", "--cached"],
+            &["-"],
+            &["spaced name.txt"],
+        ] {
+            check(args).unwrap_or_else(|error| panic!("{args:?}: {error}"));
+        }
+    }
+
+    #[test]
+    fn pathspecs_after_the_separator_are_never_options() {
+        for args in [
+            &["--", "--tool=vimdiff"][..],
+            &["HEAD", "--", "-t", "-x", "--gui", "--extcmd=sh"],
+            &["--dir-diff", "--", "-tfile"],
+        ] {
+            check(args).unwrap_or_else(|error| panic!("{args:?}: {error}"));
+        }
+        assert!(check(&["--tool=vimdiff", "--", "src"]).is_err());
+    }
 }

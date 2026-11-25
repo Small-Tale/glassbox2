@@ -125,3 +125,86 @@ fn real_git_passes_live_paths_preserves_arguments_and_reports_child_failure() {
         "another-tool"
     );
 }
+
+#[test]
+fn real_git_accepts_revisions_ranges_and_pathspecs_but_never_another_tool() {
+    let scratch = tempfile::tempdir().unwrap();
+    let root = scratch.path().join("repo with spaces");
+    fs::create_dir_all(root.join("sub folder")).unwrap();
+    git(&root, &["init", "-q", "--initial-branch=main"]);
+    git(&root, &["config", "user.email", "fixture@example.invalid"]);
+    git(&root, &["config", "user.name", "Fixture"]);
+    git(&root, &["config", "core.autocrlf", "false"]);
+    let file = "sub folder/a & b.txt";
+    for (revision, text) in [("first", "one\n"), ("second", "two\n")] {
+        fs::write(root.join(file), text).unwrap();
+        fs::write(
+            root.join("-t"),
+            format!("{revision} pathspec named like an option\n"),
+        )
+        .unwrap();
+        git(&root, &["add", "."]);
+        git(&root, &["commit", "-qm", revision]);
+    }
+    let client = fixture_client(scratch.path());
+    let record = scratch.path().join("record");
+    let cli = |args: &[&str]| {
+        let _ = fs::remove_file(&record);
+        Command::new(env!("CARGO_BIN_EXE_glassbox-cli"))
+            .current_dir(&root)
+            .env("GLASSBOX_DIFFTOOL_CLIENT", &client)
+            .env("DIFFTOOL_TEST_OUTPUT", &record)
+            .args(args)
+            .output()
+            .unwrap()
+    };
+    let compared = |args: &[&str]| {
+        assert_success(cli(args));
+        fs::read_to_string(&record).unwrap()
+    };
+
+    // A revision, a range, a three-dot range and a pathspec after `--` all reach the client.
+    for args in [
+        &["--no-prompt", "HEAD~1", "HEAD", "--", file][..],
+        &["--no-prompt", "HEAD~1..HEAD", "--", file],
+        &["--no-prompt", "HEAD~1...HEAD", "--", file],
+        &["--no-prompt", "HEAD~1", "--", file],
+    ] {
+        let captured = compared(args);
+        assert!(
+            captured.lines().next().unwrap().ends_with("a & b.txt"),
+            "{args:?}"
+        );
+        assert!(captured.ends_with("one\ntwo\n"), "{args:?}: {captured}");
+    }
+    // A pathspec that looks like an option is a path once it follows `--`.
+    let named = compared(&["--no-prompt", "HEAD~1", "--", "-t"]);
+    assert!(
+        named.contains("first pathspec named like an option"),
+        "{named}"
+    );
+    assert!(
+        named.ends_with("second pathspec named like an option\n"),
+        "{named}"
+    );
+
+    // Another tool cannot be selected: the wrapper stops before Git or the client runs.
+    for args in [
+        &["--tool=vimdiff", "HEAD~1"][..],
+        &["-t", "vimdiff", "HEAD~1"],
+        &["--to=vimdiff", "HEAD~1"],
+        &["--extcmd=exit 0", "HEAD~1"],
+        &["-x", "exit 0", "HEAD~1"],
+        &["--gui", "HEAD~1"],
+        &["--tool-help"],
+    ] {
+        let output = cli(args);
+        assert!(!output.status.success(), "{args:?}");
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains("would replace the Glassbox tool"),
+            "{args:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(!record.exists(), "{args:?} launched a client");
+    }
+}

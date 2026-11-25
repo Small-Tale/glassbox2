@@ -37,7 +37,19 @@ host prints its loopback address. Stop it from the terminal when done.
 Git invokes the client once per file or once for an entire directory diff.
 The client runs in the foreground so Git's temporary inputs stay valid until
 the client exits. The wrapper defaults to real directory copies and reports
-client failures. Git's own flags can override those defaults.
+client failures. Git's other flags, such as `--symlinks`, can override those
+defaults.
+
+Glassbox is always the selected tool (`HS2-40BYH7`). `glassbox-cli` forwards
+its arguments to `git difftool` in order, after its own fixed options, and
+Git interprets revisions, ranges, `--cached` and similar, pathspecs after `--`
+and paths with spaces exactly as it does for `git difftool`. It rejects, before
+Git or the client runs, the options that would choose a different tool or stop
+a tool from launching: `-t`, `--tool`, `-x`, `--extcmd`, `-g`, `--gui`,
+`--no-gui` and `--tool-help`, in any spelling Git accepts, including
+unambiguous long-option abbreviations (`--to=vimdiff`) and short-option
+clusters (`-dt vimdiff`). Everything after `--` is a pathspec and is never
+read as an option, so a file named `-t` can still be compared.
 
 To use plain `git difftool --tool=glassbox`, configure the following tool
 entry in the desired Git config scope. The wrapper needs no persistent config.
@@ -52,7 +64,6 @@ The shared host exposes the current launch paths through
 The workbench opens that source automatically and lists the changed files
 (`HS2-KGVXT8`). It displays the comparison immediately when difftool
 supplies exactly one changed file (`HS2-Y8769S`).
-
 
 ## Changed-file actions
 
