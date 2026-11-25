@@ -9,6 +9,8 @@
 .text-diff__lines {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  /* WebKitGTK keeps the old height of `auto` rows when the width shrinks, which clips wrapped code (HS2-JEM47K). */
+  grid-auto-rows: min-content;
 }
 
 .text-diff[data-layout='split'] .text-diff__lines {

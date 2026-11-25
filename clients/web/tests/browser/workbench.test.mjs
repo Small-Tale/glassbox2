@@ -255,6 +255,82 @@ test('HS2-V6962Y keeps wrapped code within its diff row after a compact resize',
   });
 });
 
+test(
+  'HS2-JEM47K keeps every wrapped diff cell inside its row across split and inline resizes',
+  { timeout: 90_000 },
+  async () => {
+    await withWorkbench(async (page, url, { repo }) => {
+      const wrapped = (name) => `export async function ${name}(review: Review) { return bundlePath(review.id); }`;
+      await writeFile(
+        join(repo, 'bundle.ts'),
+        [
+          'const first = 1;',
+          wrapped('writeBundle'),
+          'const second = path + ".tmp";',
+          wrapped('readBundle'),
+          'const third = 3;',
+        ]
+          .join('\n')
+          .concat('\n'),
+      );
+      const button = (name) => page.getByRole('button', { name, exact: true });
+      await page.goto(url);
+      await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(repo);
+      await button('Open Comparison').click();
+      await page.getByRole('treeitem', { name: /bundle\.ts/ }).click();
+      await page.getByText('writeBundle', { exact: false }).first().waitFor();
+      // A comment card sits between rows, as in the reviewed layouts.
+      await button('Add Comment to After Line 2').focus();
+      await page.keyboard.press('Enter');
+      const inspector = page.getByRole('region', { name: 'Discussion', exact: true });
+      await inspector.getByRole('textbox', { name: 'Comment', exact: true }).fill('Check the name.');
+      const created = page.waitForResponse(
+        (response) =>
+          response.url().endsWith('/discussion') && response.request().postDataJSON().operation?.kind === 'create',
+      );
+      await inspector.getByRole('button', { name: 'Add Comment', exact: true }).click();
+      assert((await created).ok());
+
+      const clippedCells = () =>
+        page.evaluate(() => {
+          const clipped = [];
+          let wrappedCells = 0;
+          for (const cell of document.querySelectorAll('.text-diff__cell')) {
+            const code = cell.querySelector('code');
+            if (!code) continue;
+            const range = document.createRange();
+            range.selectNodeContents(code);
+            const lines = new Set(Array.from(range.getClientRects(), ({ top }) => Math.round(top))).size;
+            if (lines > 1) wrappedCells += 1;
+            if (range.getBoundingClientRect().bottom > cell.getBoundingClientRect().bottom + 1) {
+              clipped.push({ line: cell.dataset.afterLine ?? cell.dataset.beforeLine, side: cell.dataset.side, lines });
+            }
+          }
+          return {
+            clipped,
+            wrappedCells,
+            gridAutoRows: getComputedStyle(document.querySelector('.text-diff__lines')).gridAutoRows,
+          };
+        });
+      const resizeThrough = async (label, widths) => {
+        for (const width of widths) {
+          await page.setViewportSize({ width, height: 880 });
+          await page.waitForTimeout(150);
+          const result = await clippedCells();
+          assert.equal(result.gridAutoRows, 'min-content', `${label} rows must size to their content at ${width}px`);
+          assert.deepEqual(result.clipped, [], `${label} clips wrapped code at ${width}px`);
+          if (width === 390) assert(result.wrappedCells > 0, `${label} fixture should wrap at 390px`);
+        }
+      };
+
+      await resizeThrough('Side by Side', [1440, 940, 390, 1440, 390]);
+      await page.setViewportSize({ width: 1440, height: 880 });
+      await button('Inline').click();
+      await resizeThrough('Inline', [940, 390, 1440, 390]);
+    });
+  },
+);
+
 test('changed-file clipboard preserves spaces and paths for deleted Git entries', { timeout: 60_000 }, async () => {
   await withWorkbench(async (page, url, { repo }) => {
     const live = 'source with spaces.txt';
