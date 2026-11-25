@@ -117,6 +117,24 @@ fn exchange(
 }
 
 #[test]
+fn requests_without_a_host_header_are_forbidden() {
+    // HTTP/1.0 lets a request omit Host, so it reaches the origin guard (HS2-FG6AH2).
+    let (_server, address) = RunningServer::start(None);
+    let timeout = Duration::from_secs(5);
+    let mut connection = TcpStream::connect_timeout(&address, timeout).unwrap();
+    connection.set_read_timeout(Some(timeout)).unwrap();
+    connection.set_write_timeout(Some(timeout)).unwrap();
+    write!(connection, "GET /api/v1/health HTTP/1.0\r\n\r\n").unwrap();
+    let mut response = String::new();
+    connection.read_to_string(&mut response).unwrap();
+    assert!(
+        response.starts_with("HTTP/1.0 403 Forbidden")
+            || response.starts_with("HTTP/1.1 403 Forbidden"),
+        "{response}"
+    );
+}
+
+#[test]
 fn health_is_available_through_the_real_loopback_service() {
     let (_server, address) = RunningServer::start(None);
     assert!(IpAddr::is_loopback(&address.ip()));

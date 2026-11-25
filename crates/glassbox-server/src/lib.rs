@@ -273,7 +273,7 @@ async fn guard_local_origin(
     let host = headers.get(header::HOST);
     let origin = headers.get(header::ORIGIN);
     let fetch_site = headers.get("sec-fetch-site");
-    if !host.is_some_and(|value| value.as_bytes() == local.host.as_bytes())
+    if host.is_none_or(|value| value.as_bytes() != local.host.as_bytes())
         || origin.is_some_and(|value| value.as_bytes() != local.origin.as_bytes())
         || (request.uri().path().starts_with("/api/")
             && fetch_site.is_some_and(|value| value.as_bytes() == b"cross-site"))
