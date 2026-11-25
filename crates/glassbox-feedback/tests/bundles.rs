@@ -331,3 +331,95 @@ fn publication_retries_while_an_external_reader_holds_the_document() {
             .contains("the next snapshot")
     );
 }
+
+#[test]
+fn deleting_one_saved_review_removes_only_that_bundle_and_refuses_open_or_foreign_ones() {
+    use std::io::ErrorKind::{InvalidInput, NotFound, WouldBlock};
+    let directory = tempfile::tempdir().unwrap();
+    let store = BundleStore::in_directory(directory.path());
+    let (mut state, thread) = feedback("Saved for the unstaged comparison");
+    state.apply(thread, 1, with_attachment(&[1, 2, 3])).unwrap();
+    let make = |source: &str| {
+        let bundle = store
+            .create_for_source(context(directory.path()), &state, source)
+            .unwrap();
+        let (id, path) = (bundle.id().to_owned(), bundle.path());
+        drop(bundle);
+        (id, path)
+    };
+    let (doomed, doomed_path) = make("unstaged");
+    let (sibling, sibling_path) = make("unstaged");
+    let (foreign, foreign_path) = make("staged");
+
+    assert_eq!(
+        store
+            .delete_for_source(&foreign, "unstaged")
+            .unwrap_err()
+            .kind(),
+        NotFound,
+        "a review of another comparison is not deletable here"
+    );
+    assert!(foreign_path.exists());
+    assert_eq!(
+        store
+            .delete_for_source("../outside", "unstaged")
+            .unwrap_err()
+            .kind(),
+        InvalidInput
+    );
+    assert_eq!(
+        store
+            .delete_for_source("review-missing", "unstaged")
+            .unwrap_err()
+            .kind(),
+        NotFound
+    );
+
+    let (open, _) = store
+        .reopen_for_source(&sibling, "unstaged")
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        store
+            .delete_for_source(&sibling, "unstaged")
+            .unwrap_err()
+            .kind(),
+        WouldBlock,
+        "a review open in Glassbox is protected"
+    );
+    assert!(sibling_path.exists());
+    drop(open);
+
+    let reclaimed = store.delete_for_source(&doomed, "unstaged").unwrap();
+    assert!(reclaimed > 0);
+    assert!(!doomed_path.exists());
+    assert!(sibling_path.exists() && foreign_path.exists());
+    assert_eq!(
+        store
+            .delete_for_source(&doomed, "unstaged")
+            .unwrap_err()
+            .kind(),
+        NotFound,
+        "deleting twice is a not-found, not a crash"
+    );
+    let remaining: Vec<_> = store
+        .saved_for_source("unstaged")
+        .unwrap()
+        .into_iter()
+        .map(|saved| {
+            serde_json::to_value(saved).unwrap()["id"]
+                .as_str()
+                .unwrap()
+                .to_owned()
+        })
+        .collect();
+    assert_eq!(remaining, std::slice::from_ref(&sibling));
+    let (_bundle, restored) = store
+        .reopen_for_source(&sibling, "unstaged")
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        restored, state,
+        "the sibling and its attachments are intact"
+    );
+}

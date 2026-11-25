@@ -16,3 +16,11 @@
   padding: 0;
   list-style: none;
 }
+
+/* HS2-42A696: each saved review pairs its restore action with a delete action. */
+.saved-review-dialog li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}

@@ -121,6 +121,13 @@ pub(crate) struct SavedInput {
     id: Option<String>,
 }
 
+#[derive(Deserialize)]
+pub(crate) struct DeleteSavedInput {
+    source: ReviewSource,
+    id: String,
+    confirmed: bool,
+}
+
 #[derive(Serialize)]
 struct SavedView {
     reviews: Vec<SavedReview>,
@@ -236,6 +243,57 @@ fn saved(
         };
         current.insert(key.clone(), Review { saved, bundle });
     }
+    let active = current.get(&key);
+    Ok(SavedView {
+        reviews,
+        active: active.is_some(),
+        paths: active.map_or_else(Vec::new, |review| discussion_paths(&review.saved)),
+    })
+}
+
+pub(crate) async fn delete_saved_review(
+    workspace: Discussion,
+    input: DeleteSavedInput,
+    difftool: Option<DifftoolInput>,
+) -> Response {
+    match tokio::task::spawn_blocking(move || delete_saved(&workspace, input, difftool)).await {
+        Ok(Ok(result)) => Json(result).into_response(),
+        Ok(Err((status, message))) => (status, message).into_response(),
+        Err(_) => storage_error("Could not delete the saved review").into_response(),
+    }
+}
+
+/// Delete one saved review of this comparison after confirmation (HS2-42A696).
+fn delete_saved(
+    workspace: &Discussion,
+    input: DeleteSavedInput,
+    difftool: Option<DifftoolInput>,
+) -> Result<SavedView, ApiError> {
+    if !input.confirmed {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Confirm deleting the saved review before continuing.".into(),
+        ));
+    }
+    let source = input.source;
+    let key = serde_json::to_string(&source).map_err(bad_request)?;
+    let comparison = review_files::load(source.clone(), difftool.clone()).map_err(bad_request)?;
+    let context = comparison.bundle_context(&source, difftool.as_ref());
+    let identity = source_identity(&source, &context, difftool.as_ref())?;
+    let store = crate::storage::feedback_store().map_err(storage_error)?;
+    store
+        .delete_for_source(&input.id, &identity)
+        .map_err(|error| match error.kind() {
+            std::io::ErrorKind::WouldBlock => (
+                StatusCode::CONFLICT,
+                "This review is open in Glassbox. Close it before deleting.".into(),
+            ),
+            std::io::ErrorKind::NotFound => (StatusCode::NOT_FOUND, error.to_string()),
+            std::io::ErrorKind::InvalidInput => bad_request(error),
+            _ => storage_error(error),
+        })?;
+    let reviews = store.saved_for_source(&identity).map_err(storage_error)?;
+    let current = workspace.0.lock().map_err(storage_error)?;
     let active = current.get(&key);
     Ok(SavedView {
         reviews,

@@ -142,6 +142,16 @@ fn lock_file(path: &Path) -> io::Result<File> {
         .open(path)
 }
 
+/// Remove one bundle the caller has chosen. The caller holds the store cleanup lock, so
+/// reopen and other removals are excluded; a bundle whose lease is held is left alone.
+pub(super) fn remove_chosen_bundle(path: &Path) -> io::Result<u64> {
+    let lease = try_open_bundle_lease(path)?;
+    let bytes = directory_size(path)?;
+    drop(lease);
+    retire_bundle(path)?;
+    Ok(bytes)
+}
+
 fn remove_idle_bundle(path: &Path) -> io::Result<Option<u64>> {
     let lease = match try_open_bundle_lease(path) {
         Ok(lease) => lease,

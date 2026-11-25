@@ -4,48 +4,13 @@ import { Button } from '@kerfjs/ui/button';
 import { px } from '@kerfjs/ui/css-values';
 import { deviceClass } from '@kerfjs/ui/device-class';
 import { closeDialog, openDialog, WorkbenchDialog } from '@kerfjs/ui/workbench-dialog';
-import { signal } from 'kerfjs';
 
 import type { ReviewSource } from '../review/review-source.js';
+import { createSavedReviewState } from './saved-review-state.js';
 
-type SavedReview = { id: string; updated_at: number };
-type SavedView = { reviews: SavedReview[]; active: boolean; paths: string[] };
+export { createSavedReviewState };
+
 const device = deviceClass();
-
-async function request(source: ReviewSource, id?: string): Promise<SavedView> {
-  const response = await fetch('/api/v1/review/saved', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ source, id }),
-  });
-  if (!response.ok) throw new Error(await response.text());
-  return (await response.json()) as SavedView;
-}
-
-export function createSavedReviewState(load = request) {
-  const view = signal<SavedView | null>(null);
-  const pending = signal(false);
-  const error = signal('');
-  let sequence = 0;
-  async function update(source: ReviewSource, id?: string) {
-    const current = ++sequence;
-    pending.value = true;
-    error.value = '';
-    if (id === undefined) view.value = null;
-    try {
-      const result = await load(source, id);
-      if (sequence !== current) return false;
-      view.value = result;
-      return true;
-    } catch (failure) {
-      if (sequence === current) error.value = failure instanceof Error ? failure.message : String(failure);
-      return false;
-    } finally {
-      if (sequence === current) pending.value = false;
-    }
-  }
-  return { view, error, pending, update };
-}
 
 type SavedReviewState = ReturnType<typeof createSavedReviewState>;
 
@@ -64,6 +29,8 @@ export function SavedReviewDialog({
   const stale = view?.paths.filter((path) => !changedPaths.has(path)) ?? [];
   const pending = state.pending.value;
   const error = state.error.value;
+  const confirming = state.confirming.value;
+  const deleting = state.deleting.value;
   return (
     <WorkbenchDialog
       id={id}
@@ -77,23 +44,40 @@ export function SavedReviewDialog({
         <section class="saved-review-dialog" aria-label="Saved Feedback">
           {pending ? <p role="status">Loading saved feedback…</p> : null}
           {error === '' ? null : <p role="alert">{error}</p>}
-          {view?.active === true ? (
+          {confirming !== null ? (
+            <section aria-labelledby={`${id}-confirm`}>
+              <h3 id={`${id}-confirm`}>Delete Saved Review?</h3>
+              <p>{new Date(confirming.updated_at * 1000).toLocaleString() + ' · ' + confirming.id}</p>
+              <p>
+                Copied AI instructions for this review will stop working. Other saved reviews and open reviews are kept.
+              </p>
+            </section>
+          ) : view?.active === true ? (
             <p>This comparison has an open review.</p>
           ) : view !== null && view.reviews.length === 0 ? (
             <p>No editable reviews were saved for this comparison.</p>
           ) : null}
-          {view?.active === false && view.reviews.length > 0 ? (
+          {confirming === null && view?.active === false && view.reviews.length > 0 ? (
             <ul>
               {view.reviews.map((review) => (
                 <li>
                   <Button action={`${id}:restore:${review.id}`} disabled={pending} emphasis="plain">
                     {new Date(review.updated_at * 1000).toLocaleString() + ' · ' + review.id}
                   </Button>
+                  <Button
+                    action={`${id}:ask-delete:${review.id}`}
+                    ariaLabel={`Delete Saved Review ${review.id}`}
+                    disabled={pending}
+                    emphasis="plain"
+                    tone="danger"
+                  >
+                    Delete
+                  </Button>
                 </li>
               ))}
             </ul>
           ) : null}
-          {stale.length === 0 ? null : (
+          {confirming !== null || stale.length === 0 ? null : (
             <>
               <h3>Discussions Outside the Changed Files</h3>
               <ul>
@@ -111,7 +95,20 @@ export function SavedReviewDialog({
       }
       mainBottomToolbar={{
         label: 'Saved Review Actions',
-        trailing: <Button action={`${id}:close`}>Close</Button>,
+        leading:
+          confirming === null ? undefined : (
+            <Button action={`${id}:cancel-delete`} emphasis="secondary" disabled={deleting}>
+              Cancel
+            </Button>
+          ),
+        trailing:
+          confirming === null ? (
+            <Button action={`${id}:close`}>Close</Button>
+          ) : (
+            <Button action={`${id}:delete`} tone="danger" loading={deleting} disabled={deleting}>
+              Delete Review
+            </Button>
+          ),
       }}
     />
   );
@@ -137,6 +134,12 @@ export function wireSavedReviewDialog(
       const source = getSource();
       if (action === undefined || modal === null || source === null) return;
       if (action === `${id}:close`) closeDialog(modal);
+      if (action.startsWith(`${id}:ask-delete:`)) {
+        const review = state.view.value?.reviews.find((item) => item.id === action.slice(`${id}:ask-delete:`.length));
+        if (review !== undefined) state.confirmDelete(review);
+      }
+      if (action === `${id}:cancel-delete`) state.confirmDelete(null);
+      if (action === `${id}:delete`) void state.deleteConfirmed(source);
       if (action.startsWith(`${id}:restore:`)) {
         void state.update(source, action.slice(`${id}:restore:`.length)).then((opened) => {
           if (opened && getSource() === source) onRestore();
@@ -159,9 +162,17 @@ export function wireSavedReviewDialog(
     const modal = dialog();
     const source = getSource();
     if (modal === null || source === null) return;
+    state.confirmDelete(null);
     void state.update(source);
     openDialog(modal);
   };
+  root.addEventListener(
+    'kui-request-close',
+    (event) => {
+      if (event.target === dialog() && state.deleting.value) event.preventDefault();
+    },
+    { signal: controller.signal },
+  );
   return {
     open,
     dispose: () => {

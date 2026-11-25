@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -679,7 +679,7 @@ test(
       assert.equal(await page.getByRole('treeitem', { name: /bundle\.ts/ }).count(), 0);
       await button('Share Feedback').click();
       await page.getByRole('menuitem', { name: 'Saved Reviews…', exact: true }).click();
-      await savedReviewDialog.getByRole('button', { name: /review-/ }).click();
+      await savedReviewDialog.getByRole('button', { name: /^(?!Delete).*review-/ }).click();
       await savedReviewDialog.getByRole('button', { name: 'bundle.ts', exact: true }).waitFor();
       for (const width of [1440, 940, 390, 1440]) {
         await page.setViewportSize({ width, height: 900 });
@@ -700,6 +700,86 @@ test(
     });
   },
 );
+
+test('HS2-42A696 saved reviews delete one confirmed review and keep the others', { timeout: 60_000 }, async () => {
+  await withWorkbench(async (page, url, { repo }, settings, restart) => {
+    const button = (name) => page.getByRole('button', { name, exact: typeof name === 'string' });
+    const feedback = join(dirname(settings), 'feedback');
+    const bundles = async () => (await readdir(feedback)).filter((name) => name.startsWith('review-'));
+    const dialog = page.getByRole('dialog', { name: 'Saved Reviews', exact: true });
+    async function openRepository(address) {
+      await page.goto(address);
+      await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(repo);
+      await button('Open Comparison').click();
+    }
+    async function createReview(text) {
+      await page.getByRole('treeitem', { name: /bundle\.ts/ }).click();
+      await button('Add Comment to After Line 1').click();
+      await page.getByRole('textbox', { name: 'Comment', exact: true }).fill(text);
+      const created = page.waitForResponse(
+        (response) =>
+          response.url().endsWith('/discussion') && response.request().postDataJSON().operation?.kind === 'create',
+      );
+      await button('Add Comment').click();
+      assert((await created).ok());
+    }
+    async function openSaved() {
+      await button('Share Feedback').click();
+      await page.getByRole('menuitem', { name: 'Saved Reviews…', exact: true }).click();
+    }
+    await openRepository(url);
+    await createReview('First saved review.');
+    await openRepository(await restart());
+    await createReview('Second saved review.');
+    await openRepository(await restart());
+    assert.equal((await bundles()).length, 2);
+
+    await openSaved();
+    const restore = dialog.getByRole('button', { name: /review-/ });
+    await restore.first().waitFor();
+    assert.equal(await restore.count(), 4, 'two restore and two delete actions');
+    assert.equal(await dialog.getByRole('button', { name: /^Delete Saved Review review-/ }).count(), 2);
+    await capture(page, 'saved-reviews-delete-list');
+
+    // Choosing Delete asks first; Cancel keeps both reviews.
+    await dialog
+      .getByRole('button', { name: /^Delete Saved Review review-/ })
+      .first()
+      .click();
+    await dialog.getByRole('heading', { name: 'Delete Saved Review?' }).waitFor();
+    assert.equal(await restore.count(), 0, 'the list gives way to the confirmation');
+    for (const width of [1440, 940, 390, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
+      await capture(page, `saved-reviews-delete-confirm-${width}`);
+    }
+    await button('Cancel').click();
+    await dialog
+      .getByRole('button', { name: /review-/ })
+      .first()
+      .waitFor();
+    assert.equal((await bundles()).length, 2);
+
+    // Confirming removes exactly that review.
+    await dialog
+      .getByRole('button', { name: /^Delete Saved Review review-/ })
+      .first()
+      .click();
+    const removed = page.waitForResponse((response) => response.url().endsWith('/saved/delete'));
+    await button('Delete Review').click();
+    assert((await removed).ok());
+    await dialog.getByRole('button', { name: /^Delete Saved Review review-/ }).waitFor();
+    assert.equal(await dialog.getByRole('button', { name: /^Delete Saved Review review-/ }).count(), 1);
+    assert.equal((await bundles()).length, 1);
+    await capture(page, 'saved-reviews-delete-after');
+
+    // The remaining review still opens, and an open review offers no delete.
+    await dialog.getByRole('button', { name: /^(?!Delete)(?!Close).*review-/ }).click();
+    await dialog.getByText('This comparison has an open review.').waitFor();
+    assert.equal(await dialog.getByRole('button', { name: /^Delete Saved Review/ }).count(), 0);
+    assert.equal((await bundles()).length, 1);
+  });
+});
 
 test('built workbench opens a Git difftool snapshot with relative clipboard only', { timeout: 60_000 }, async () => {
   await withWorkbench(

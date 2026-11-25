@@ -72,10 +72,24 @@ files have left the changed-file list. Choose a path to read or edit its stale
 threads in the Inspector. Cleanup removes the editable snapshot and its
 Markdown together, and skips a reopened bundle while it is active.
 
+Choose **Delete** beside a saved review to remove just that review
+(`HS2-42A696`). The dialog first asks for confirmation (Cancel keeps it), then
+`POST /api/v1/review/saved/delete` removes the exact owned bundle: the
+review must belong to the current comparison and hold a committed snapshot, so
+another comparison's review or an unknown or malformed ID is refused (404 or
+400). A review open in any Glassbox process is refused with 409 and a message,
+and the dialog offers no Delete while this comparison has an open review. Other
+saved reviews, their attachments and the active comparison are untouched. The
+host requires `confirmed: true`, and the dialog stays on the confirmation with
+the host's message when a delete fails, so it can be retried.
+
 Filesystem tests exercise snapshot recovery and cleanup protection. The real
 loopback test restores direct-comparison threads, replies, attachments, and
 the existing instruction after a restart. The built workbench test restores a
-Git review, then opens and edits a stale discussion as the viewport changes.
+Git review, then opens and edits a stale discussion as the viewport changes. A
+second built workbench test cancels and confirms a single-review delete across
+viewport widths. Store, loopback HTTP and client state tests cover
+confirmation, ownership, an open review, repeats and retry.
 
 ## Durable AI handoff
 

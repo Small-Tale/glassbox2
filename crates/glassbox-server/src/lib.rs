@@ -126,6 +126,8 @@ fn router(
     let handoff = discussion.clone();
     let saved_discussion = discussion.clone();
     let saved_launch = difftool.clone();
+    let delete_discussion = discussion.clone();
+    let delete_launch = difftool.clone();
     let delivery = export::Delivery::new(discussion.clone(), difftool.clone());
     let preview_delivery = delivery.clone();
     let analysis = analysis::Analysis::new(discussion.clone(), difftool.clone());
@@ -184,6 +186,12 @@ fn router(
             "/api/v1/review/saved",
             post(move |Json(input)| {
                 discussion::saved_reviews(saved_discussion, input, saved_launch)
+            }),
+        )
+        .route(
+            "/api/v1/review/saved/delete",
+            post(move |Json(input)| {
+                discussion::delete_saved_review(delete_discussion, input, delete_launch)
             }),
         )
         .route(

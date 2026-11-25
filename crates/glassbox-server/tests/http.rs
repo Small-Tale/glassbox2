@@ -457,6 +457,49 @@ fn discussion_publishes_edits_replies_and_attachments_and_rejects_stale_anchors(
         post("/api/v1/review/handoff", source.clone()).1,
         Value::String(instruction)
     );
+
+    // HS2-42A696: deleting one saved review is confirmed, owned, and refused while open.
+    let text = |address: std::net::SocketAddr, value: Value| {
+        let response = exchange(
+            address,
+            "POST",
+            "/api/v1/review/saved/delete",
+            &address.to_string(),
+            "Content-Type: application/json\r\n",
+            &value.to_string(),
+        );
+        let (header, body) = response.split_once("\r\n\r\n").unwrap();
+        (header[..12].to_string(), body.to_string())
+    };
+    let unconfirmed = json!({"source":source,"id":id,"confirmed":false});
+    assert_eq!(text(address, unconfirmed).0, "HTTP/1.1 400");
+    let open = json!({"source":source,"id":id,"confirmed":true});
+    let (status, body) = text(address, open.clone());
+    assert_eq!(status, "HTTP/1.1 409", "{body}");
+    assert!(body.contains("open in Glassbox"), "{body}");
+    drop(_restarted);
+    let (_again, address) = RunningServer::start_configured(None, &[], Some(directory.path()));
+    let foreign = json!({"source":reversed,"id":id,"confirmed":true});
+    assert_eq!(text(address, foreign).0, "HTTP/1.1 404");
+    let invalid = json!({"source":source,"id":"../outside","confirmed":true});
+    assert_eq!(text(address, invalid).0, "HTTP/1.1 400");
+    let (status, body) = text(address, open.clone());
+    assert_eq!(status, "HTTP/1.1 200", "{body}");
+    let view: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(view["reviews"], json!([]));
+    let bundles = std::fs::read_dir(directory.path().join("feedback"))
+        .unwrap()
+        .filter(|entry| {
+            entry
+                .as_ref()
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .starts_with("review-")
+        })
+        .count();
+    assert_eq!(bundles, 0, "the chosen review's directory was removed");
+    assert_eq!(text(address, open).0, "HTTP/1.1 404");
 }
 
 #[test]

@@ -69,6 +69,43 @@ impl BundleStore {
         Ok(saved)
     }
 
+    /// Delete one saved review of `source` (HS2-42A696). Returns the bytes reclaimed.
+    ///
+    /// The review must belong to `source` and hold a committed snapshot. A review that is
+    /// open in any Glassbox process is refused with `WouldBlock`; other reviews, their
+    /// attachments and the active comparison are untouched. A missing or foreign review is
+    /// `NotFound` and an invalid ID is `InvalidInput`.
+    pub fn delete_for_source(&self, id: &str, source: &str) -> io::Result<u64> {
+        if !valid_name(id, BUNDLE_PREFIX) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Invalid review ID",
+            ));
+        }
+        let root = std::path::absolute(&self.root)?;
+        let _cleanup_lock = storage::lock_cleanup(&root)?;
+        let directory = root.join(id);
+        if !fs::symlink_metadata(&directory)?.is_dir() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Invalid review directory",
+            ));
+        }
+        let unavailable = || {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                "Saved review is unavailable for this comparison.",
+            )
+        };
+        if !source_matches(&directory, source) {
+            return Err(unavailable());
+        }
+        if !matches!(committed_snapshot(&directory), Ok(Some(_))) {
+            return Err(unavailable());
+        }
+        storage::remove_chosen_bundle(&directory)
+    }
+
     pub fn reopen_for_source(
         &self,
         id: &str,
