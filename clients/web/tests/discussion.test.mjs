@@ -69,3 +69,66 @@ test('switching threads waits for an in-flight edit and keeps their content inde
     state.stop();
   }
 });
+
+async function openedState(operations) {
+  const source = createReviewSourceState(comparison, () => Promise.resolve(comparison));
+  const first = thread(1, 'First draft');
+  const second = thread(2, 'Second comment');
+  const state = createDiscussionState(source, (selection, operation) => {
+    if (operation === undefined) return Promise.resolve([first, second]);
+    operations.push(operation);
+    return Promise.resolve([
+      { ...first, revision: first.revision + 1, opening: { ...first.opening, markdown: operation.change.markdown } },
+      second,
+    ]);
+  });
+  await source.open({ kind: 'paths', before: '/before', after: '/after' });
+  source.selected.value = 0;
+  await setTimeout(0);
+  await state.showThread(1);
+  return { state, source };
+}
+
+test('HS2-9RWAAQ rapid edits save once, 350 ms after the last edit, with the latest text', async () => {
+  const operations = [];
+  const { state } = await openedState(operations);
+  try {
+    state.edit('a');
+    await setTimeout(200);
+    state.edit('ab');
+    await setTimeout(200);
+    assert.equal(operations.length, 0, 'the second edit restarted the quiet window');
+    state.edit('abc');
+    await setTimeout(450);
+    assert.equal(operations.length, 1);
+    assert.equal(operations[0].change.markdown, 'abc');
+    assert.equal(state.threadId.value, 1);
+  } finally {
+    state.stop();
+  }
+});
+
+test('HS2-9RWAAQ an explicit save or a thread switch cancels the pending autosave', async () => {
+  const operations = [];
+  const { state } = await openedState(operations);
+  try {
+    state.edit('explicit');
+    assert.equal(await state.saveEdit(), true);
+    assert.equal(operations.length, 1);
+    await setTimeout(450);
+    assert.equal(operations.length, 1, 'the pending autosave did not repeat the save');
+
+    state.edit('explicit again');
+    await state.showThread(2);
+    assert.equal(operations.length, 2);
+    await setTimeout(450);
+    assert.equal(operations.length, 2, 'switching threads saved once and left nothing pending');
+
+    state.resetEditor();
+    state.edit('without a thread');
+    await setTimeout(450);
+    assert.equal(operations.length, 2, 'an edit with no open thread never autosaves');
+  } finally {
+    state.stop();
+  }
+});

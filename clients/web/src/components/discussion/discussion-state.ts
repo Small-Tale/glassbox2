@@ -1,4 +1,5 @@
 import { effect, signal } from 'kerfjs';
+import { debounce } from 'kerfjs/timing';
 
 import type { Definition } from '../review/definition-navigation.js';
 import type { ReviewSource, ReviewSourceState } from '../review/review-source.js';
@@ -98,7 +99,8 @@ export function createDiscussionState(source: ReviewSourceState, load = request)
   let current: Selection | null = null;
   let refreshSequence = 0;
   let sourceLinkSequence = 0;
-  let timer: ReturnType<typeof setTimeout> | undefined;
+  // Autosave trails the last edit by 350 ms (HS2-9RWAAQ); resets and explicit saves cancel it.
+  const autosave = debounce(() => void saveEdit(), 350);
   let writing: { selection: Selection; done: Promise<Thread[]> } | undefined;
 
   function activeThread() {
@@ -122,7 +124,7 @@ export function createDiscussionState(source: ReviewSourceState, load = request)
 
   function resetEditor() {
     closeArtifact();
-    clearTimeout(timer);
+    autosave.cancel();
     threadId.value = null;
     adding.value = null;
     reply.value = '';
@@ -257,7 +259,7 @@ export function createDiscussionState(source: ReviewSourceState, load = request)
   }
 
   async function saveEdit() {
-    clearTimeout(timer);
+    autosave.cancel();
     const selection = current;
     const id = threadId.value;
     if (writing?.selection === selection) {
@@ -307,10 +309,8 @@ export function createDiscussionState(source: ReviewSourceState, load = request)
 
   function edit(value: string) {
     text.value = value;
-    clearTimeout(timer);
-    if (activeThread() !== undefined) {
-      timer = setTimeout(() => void saveEdit(), 350);
-    }
+    if (activeThread() === undefined) autosave.cancel();
+    else autosave();
   }
 
   return {
