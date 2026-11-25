@@ -1144,9 +1144,23 @@ fn feedback_cleanup_requires_confirmation_and_protects_active_bundles() {
     assert!(active.path().exists());
     assert_eq!(usage()["bundles"], 1);
     drop(active);
+    // Releasing the lease is not instant for another process: while parallel tests spawn child processes
+    // (the host, git), a child created at that moment briefly holds a copy of the lease file, and cleanup
+    // correctly skips a bundle whose lease is still held. Repeat the request until the host sees the lease
+    // as free, instead of assuming it already is (HS2-THM6NH).
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    let mut attempts = 0;
+    let report = loop {
+        attempts += 1;
+        let report = parse(&cleanup(json!({"kind":"all"}), true));
+        if report["removed_bundles"] == 1 || std::time::Instant::now() >= deadline {
+            break report;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    };
     assert_eq!(
-        parse(&cleanup(json!({"kind":"all"}), true))["removed_bundles"],
-        1
+        report["removed_bundles"], 1,
+        "the released bundle was still reported active after {attempts} attempts"
     );
     assert_eq!(usage()["bundles"], 0);
 }
