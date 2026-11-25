@@ -105,12 +105,14 @@ fn exchange(
     let mut connection = TcpStream::connect_timeout(&address, timeout).unwrap();
     connection.set_read_timeout(Some(timeout)).unwrap();
     connection.set_write_timeout(Some(timeout)).unwrap();
-    write!(
-        connection,
+    // Send the whole request in one write. `write!` on a socket sends it in several small pieces, and when the
+    // host rejects a request after its headers (a foreign Origin) and closes while the body is still arriving,
+    // the kernel resets the connection before the client reads the 403 (HS2-1KGW0H).
+    let request = format!(
         "{method} {path} HTTP/1.1\r\nHost: {host}\r\n{extra_headers}Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
         body.len()
-    )
-    .unwrap();
+    );
+    connection.write_all(request.as_bytes()).unwrap();
     let mut response = String::new();
     connection.read_to_string(&mut response).unwrap();
     response
@@ -124,7 +126,9 @@ fn requests_without_a_host_header_are_forbidden() {
     let mut connection = TcpStream::connect_timeout(&address, timeout).unwrap();
     connection.set_read_timeout(Some(timeout)).unwrap();
     connection.set_write_timeout(Some(timeout)).unwrap();
-    write!(connection, "GET /api/v1/health HTTP/1.0\r\n\r\n").unwrap();
+    connection
+        .write_all(b"GET /api/v1/health HTTP/1.0\r\n\r\n")
+        .unwrap();
     let mut response = String::new();
     connection.read_to_string(&mut response).unwrap();
     assert!(
@@ -132,6 +136,28 @@ fn requests_without_a_host_header_are_forbidden() {
             || response.starts_with("HTTP/1.1 403 Forbidden"),
         "{response}"
     );
+}
+
+#[test]
+fn rejected_requests_with_a_body_are_answered_without_resetting_the_connection() {
+    // The origin guard answers 403 after the headers. A client that sends its body in pieces can have the
+    // connection reset before it reads that answer, about 1 in 25 times (HS2-1KGW0H), so repeat the request.
+    let (_server, address) = RunningServer::start(None);
+    let headers = "Content-Type: application/json\r\nOrigin: https://foreign.example\r\n";
+    for attempt in 0..300 {
+        let response = exchange(
+            address,
+            "PUT",
+            "/api/v1/settings",
+            &address.to_string(),
+            headers,
+            r#"{"appearance":"system"}"#,
+        );
+        assert!(
+            response.starts_with("HTTP/1.1 403 Forbidden"),
+            "attempt {attempt}: {response}"
+        );
+    }
 }
 
 #[test]
