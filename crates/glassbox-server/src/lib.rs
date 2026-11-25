@@ -21,6 +21,7 @@ use tokio::sync::oneshot;
 use tower_http::services::ServeDir;
 
 mod analysis;
+pub mod browser;
 mod diagrams;
 mod discussion;
 mod export;
