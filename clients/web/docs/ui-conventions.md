@@ -2,6 +2,8 @@
 
 Glassbox follows the installed Kerf [interaction conventions](../node_modules/@kerfjs/ui/docs/interaction-conventions.md)
 and [catalog authoring contract](../node_modules/@kerfjs/ui/docs/catalog.md#catalog-demo-authoring-contract).
+The [Kerf consumer fitness audit](https://github.com/brianwestphal/kerf/blob/main/docs/kerf-consumer-fitness-audit.md#glassbox-2-adoption)
+tracks the upstream gaps and Glassbox adoption work against a dated source snapshot.
 
 ## Components and catalog
 
