@@ -28,6 +28,7 @@ names for icon-only actions, and the Workbench's responsive toolbar layout.
 - [Diagram renderer plugins](docs/content-plugins.md)
 - [Review feedback](docs/feedback.md)
 - [Glassbox v1 workflow parity](docs/v1-workflow-parity.md)
+- [Glassbox v1 carry-forward audit](docs/v1-gap-audit.md)
 - [Codebase map](docs/ai/codebase-map.md)
 - [Requirements summary](docs/ai/requirements-summary.md)
 
