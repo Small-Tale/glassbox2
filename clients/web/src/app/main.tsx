@@ -344,7 +344,12 @@ mount(root, () => {
   );
 });
 void wireReviewWorkbench(root, 'glassbox-workbench', workbench);
-void wireReviewNavigator(root, 'glassbox-review-navigator', source);
+void wireReviewNavigator(root, 'glassbox-review-navigator', source, {
+  // A navigator that covers the work area closes once a file is chosen so its diff is visible (HS2-Q46BRQ).
+  onFileSelect: () => {
+    if (workbench.files.overlay.value) workbench.files.collapsed.value = true;
+  },
+});
 const historyNavigation = wireReviewHistory(
   root,
   source,

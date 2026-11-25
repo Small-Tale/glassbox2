@@ -212,7 +212,14 @@ export function wireReviewNavigator(
   root: HTMLElement,
   id: string,
   state: ReviewSourceState,
-  { wireKeyboard = true } = {},
+  {
+    wireKeyboard = true,
+    onFileSelect,
+  }: {
+    wireKeyboard?: boolean;
+    /** Called each time a changed file is chosen, including the file that is already selected. */
+    onFileSelect?: (index: number) => void;
+  } = {},
 ) {
   const stopTree = wireKeyboard ? wireTreeList(root) : undefined;
   const controller = new AbortController();
@@ -285,7 +292,9 @@ export function wireReviewNavigator(
       if (rowId === undefined) return;
       if (action === 'review-file-select' && rowId.startsWith('file:')) {
         state.fileActionStatus.value = '';
-        state.selected.value = Number(rowId.slice('file:'.length));
+        const index = Number(rowId.slice('file:'.length));
+        state.selected.value = index;
+        onFileSelect?.(index);
       } else if (
         (action === 'review-folder-toggle' || action === 'review-file-select') &&
         rowId.startsWith('folder:')

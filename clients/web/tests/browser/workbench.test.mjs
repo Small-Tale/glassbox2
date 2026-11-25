@@ -331,6 +331,56 @@ test(
   },
 );
 
+test(
+  'HS2-Q46BRQ closes an overlay navigator after a file is chosen and keeps a docked one open',
+  { timeout: 60_000 },
+  async () => {
+    await withWorkbench(async (page, url, { repo }) => {
+      const button = (name) => page.getByRole('button', { name, exact: true });
+      const railOpen = () =>
+        page.evaluate(() => {
+          const rail = document.querySelector('[aria-label="Changed Files"]');
+          return rail !== null && !rail.inert && rail.getAttribute('aria-hidden') !== 'true';
+        });
+      const closed = () =>
+        page.waitForFunction(() => {
+          const rail = document.querySelector('[aria-label="Changed Files"]');
+          return rail === null || rail.inert || rail.getAttribute('aria-hidden') === 'true';
+        });
+
+      await page.setViewportSize({ width: 1440, height: 880 });
+      await page.goto(url);
+      await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(repo);
+      await button('Open Comparison').click();
+      await page.getByRole('treeitem', { name: /bundle\.ts/ }).click();
+      await page.getByRole('heading', { name: 'bundle.ts', exact: true }).waitFor();
+      assert.equal(await railOpen(), true, 'A docked navigator stays open after a file is chosen');
+
+      await page.setViewportSize({ width: 390, height: 880 });
+      await closed();
+      await button('Show Files').first().click();
+      assert.equal(await railOpen(), true, 'Show Files opens the overlay');
+      await page.getByRole('treeitem', { name: /long\.txt/ }).click();
+      await closed();
+      await page.getByRole('heading', { name: 'long.txt', exact: true }).waitFor();
+      await page.locator('.text-diff').first().waitFor();
+      const covered = await page.evaluate(() => {
+        const diff = document.querySelector('.text-diff');
+        const box = diff?.getBoundingClientRect();
+        if (diff === null || box === undefined) return true;
+        const top = document.elementFromPoint(box.left + box.width / 2, box.top + Math.min(box.height, 40) / 2);
+        return top === null || !diff.contains(top);
+      });
+      assert.equal(covered, false, 'The chosen diff is visible once the overlay closes');
+
+      await button('Show Files').first().click();
+      assert.equal(await railOpen(), true, 'Show Files reopens the overlay');
+      await page.getByRole('treeitem', { name: /long\.txt/ }).click();
+      await closed();
+    });
+  },
+);
+
 test('changed-file clipboard preserves spaces and paths for deleted Git entries', { timeout: 60_000 }, async () => {
   await withWorkbench(async (page, url, { repo }) => {
     const live = 'source with spaces.txt';

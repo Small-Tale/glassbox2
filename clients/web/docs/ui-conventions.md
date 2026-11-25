@@ -29,6 +29,9 @@ The inspector becomes an overlay below 1080px of workbench width. The
 file navigator becomes an overlay below 730px. Inline panels can be
 resized by drag or keyboard. The same rail actions restore collapsed
 panels, and overlay panels dismiss with Escape or an outside click.
+Choosing a changed file while the navigator is an overlay closes it so the
+selected diff is visible, including when the file is already selected. A
+docked navigator stays open (`HS2-Q46BRQ`).
 The catalog's Review Workbench entry shows the shared composition with
 a sample source context.
 
