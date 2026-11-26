@@ -3,11 +3,16 @@ import '@kerfjs/ui/select/register';
 
 import { Badge } from '@kerfjs/ui/badge';
 import { Button } from '@kerfjs/ui/button';
+import { ContentItem } from '@kerfjs/ui/content-item';
 import { EmptyState } from '@kerfjs/ui/empty-state';
 import { FilePickerTrigger } from '@kerfjs/ui/file-picker';
 import { LucideIcon } from '@kerfjs/ui/lucide-icon';
+import { Row } from '@kerfjs/ui/row';
 import { Select } from '@kerfjs/ui/select';
+import { StateBanner } from '@kerfjs/ui/state-banner';
+import { Text } from '@kerfjs/ui/text';
 import { TextField } from '@kerfjs/ui/text-field';
+import { wireContentItems } from '@kerfjs/ui/wire-content-items';
 import { wireFilePickers } from '@kerfjs/ui/wire-file-pickers';
 import { MessageSquarePlus } from 'lucide';
 
@@ -80,35 +85,40 @@ export function LineDiscussion({
   return (
     <div class="discussion-inline">
       {threads.map((thread) => (
-        <button
-          class="discussion-inline__thread"
-          type="button"
-          data-action={`discussion-show:${thread.id}`}
-          aria-pressed={active === thread.id ? 'true' : 'false'}
-          data-risk-highlighted={
-            highlightRisk && thread.origin.kind === 'ai' && thread.origin.risk !== null ? 'true' : undefined
+        <ContentItem
+          interactive
+          selectionMode="toggle"
+          action={`discussion-show:${thread.id}`}
+          selected={active === thread.id}
+          frame="framed"
+          appearance={
+            highlightRisk && thread.origin.kind === 'ai' && thread.origin.risk !== null ? 'warning' : 'surface'
           }
         >
-          <span class="discussion-inline__meta">
-            <strong>{thread.opening.author}</strong>
+          <Row wrap vAlign="middle">
+            <Text variant="span" weight="strong">
+              {thread.opening.author}
+            </Text>
             <ThreadLabels thread={thread} />
             {thread.replies.length === 0 ? null : (
-              <span>
-                {thread.replies.length} {thread.replies.length === 1 ? 'reply' : 'replies'}
-              </span>
+              <Text variant="span" tone="quiet">
+                {`${thread.replies.length} ${thread.replies.length === 1 ? 'reply' : 'replies'}`}
+              </Text>
             )}
-          </span>
-          <span>
+          </Row>
+          <Text wrap="anywhere" flush>
             {thread.origin.kind === 'ai'
               ? sourceLinkParts(thread.opening.markdown, thread.origin.related_locations ?? [])
                   .map((part) => (typeof part === 'string' ? part : part.label))
                   .join('')
               : thread.opening.markdown}
-          </span>
+          </Text>
           {thread.replies[0] === undefined ? null : (
-            <span class="discussion-inline__preview">{thread.replies[0].message.markdown}</span>
+            <Text wrap="anywhere" tone="quiet" flush>
+              {thread.replies[0].message.markdown}
+            </Text>
           )}
-        </button>
+        </ContentItem>
       ))}
     </div>
   );
@@ -128,14 +138,14 @@ export function DiscussionInspector({
   const thread = state.activeThread();
   const artifact = state.artifact.value;
   function attachment({ id, filename }: { id: number; filename: string }) {
-    if (!isDiagramAttachment(filename)) return <p>{filename}</p>;
+    if (!isDiagramAttachment(filename)) return <Text>{filename}</Text>;
     return (
-      <div>
+      <div class="discussion-inspector__attachment">
         <Button action={`discussion-artifact:${id}`} emphasis="plain" tone="brand">
           {artifact?.id === id ? `Close ${filename}` : `Preview ${filename}`}
         </Button>
         {artifact?.id !== id ? null : artifact.preview === undefined ? (
-          <p role="status">{artifact.message ?? 'Loading diagram…'}</p>
+          <Text role="status">{artifact.message ?? 'Loading diagram…'}</Text>
         ) : artifact.preview.url === undefined ? (
           <pre class="discussion-inspector__artifact-source">{artifact.preview.source}</pre>
         ) : (
@@ -165,20 +175,20 @@ export function DiscussionInspector({
         <>
           <EmptyState title="No Discussion Selected" />
           {wholeImage.length === 0 ? null : (
-            <div class="discussion-inspector__actions">
+            <Row wrap controlInsets="trbl">
               {wholeImage.map((side) => (
                 <Button action={`discussion-whole-image:${side}`} emphasis="plain" tone="brand">
                   {`Comment on Whole ${side === 'before' ? 'Before' : 'After'} Image`}
                 </Button>
               ))}
-            </div>
+            </Row>
           )}
         </>
       );
     }
     return (
       <section class="discussion-inspector" aria-label="Stale Discussions">
-        <p>These comments refer to an earlier version of this file.</p>
+        <Text>These comments refer to an earlier version of this file.</Text>
         <LineDiscussion threads={stale} active={state.threadId.value} />
       </section>
     );
@@ -186,16 +196,17 @@ export function DiscussionInspector({
   const isStale = thread !== undefined && thread.anchor.revision !== currentRevision(thread.anchor);
   return (
     <section class="discussion-inspector" aria-label="Discussion">
-      <div class="discussion-inline__meta">
+      <Row wrap vAlign="middle">
         {thread === undefined ? null : <ThreadLabels thread={thread} />}
-        <span>
-          {anchor.path} · {anchor.side === 'before' ? 'Before' : 'After'}{' '}
-          {anchor.target.kind === 'line' ? `line ${anchor.target.start}` : 'image region'}
-        </span>
-      </div>
-      {isStale ? <p role="status">This comment refers to an earlier version of the file.</p> : null}
+        <Text variant="span" wrap="anywhere">
+          {`${anchor.path} · ${anchor.side === 'before' ? 'Before' : 'After'} ${
+            anchor.target.kind === 'line' ? `line ${anchor.target.start}` : 'image region'
+          }`}
+        </Text>
+      </Row>
+      {isStale ? <Text role="status">This comment refers to an earlier version of the file.</Text> : null}
       {isStale && thread.anchor.target.kind === 'line' ? <RelocationOffer state={state} /> : null}
-      {state.error.value === '' ? null : <p role="alert">{state.error.value}</p>}
+      {state.error.value === '' ? null : <StateBanner tone="danger" urgency="alert" title={state.error.value} />}
       {isDraft ? <TextField name="discussion-author" label="Author" value={state.author.value} /> : null}
       {editable ? (
         <>
@@ -209,7 +220,7 @@ export function DiscussionInspector({
           <TextField name="discussion-text" label="Comment" multiline rows={3} value={state.text.value} />
         </>
       ) : (
-        <p>
+        <Text wrap="anywhere">
           {thread?.origin.kind === 'ai'
             ? sourceLinkParts(thread.opening.markdown, thread.origin.related_locations ?? []).map((part) =>
                 typeof part === 'string' ? (
@@ -226,10 +237,10 @@ export function DiscussionInspector({
                 ),
               )
             : thread?.opening.markdown}
-        </p>
+        </Text>
       )}
       {isDraft ? (
-        <div class="discussion-inspector__actions">
+        <Row wrap hAlign="right" controlInsets="trbl">
           <Button action="discussion-cancel" emphasis="plain">
             Cancel
           </Button>
@@ -240,44 +251,48 @@ export function DiscussionInspector({
           >
             Add Comment
           </Button>
-        </div>
+        </Row>
       ) : (
         <>
           {thread?.opening.attachments.map(attachment)}
           <FilePickerTrigger label="Attach to Thread" pickerId="discussion-attachment" disabled={state.pending.value} />
           {editable ? (
-            <div class="discussion-inspector__actions">
-              <span role="status">{state.pending.value ? 'Saving…' : 'Saves automatically'}</span>
+            <Row wrap hAlign="full" vAlign="middle" controlInsets="trbl">
+              <Text variant="span" role="status">
+                {state.pending.value ? 'Saving…' : 'Saves automatically'}
+              </Text>
               <Button action="discussion-remove" tone="danger" emphasis="plain" disabled={state.pending.value}>
                 Remove
               </Button>
-            </div>
+            </Row>
           ) : null}
           {thread?.anchor.target.kind !== 'image_region' ? null : state.regionEdit.value === null ? (
-            <div class="discussion-inspector__actions" data-key="discussion-region-open">
+            <Row wrap controlInsets="trbl" rootAttributes={{ 'data-key': 'discussion-region-open' }}>
               <Button action="discussion-region-edit" emphasis="plain" tone="brand" disabled={state.pending.value}>
                 Edit Region
               </Button>
-            </div>
+            </Row>
           ) : (
-            <div data-key="discussion-region-edit">
-              <p role="status">Drag on the image, or use the arrow keys (Shift resizes), then press Enter to save.</p>
-              <div class="discussion-inspector__actions">
+            <div class="discussion-inspector__form" data-key="discussion-region-edit">
+              <Text role="status">
+                Drag on the image, or use the arrow keys (Shift resizes), then press Enter to save.
+              </Text>
+              <Row wrap controlInsets="trbl">
                 <Button action="discussion-region-cancel" emphasis="plain">
                   Cancel
                 </Button>
-              </div>
+              </Row>
             </div>
           )}
           {thread?.anchor.target.kind !== 'line' ? null : state.moving.value === null ? (
-            <div class="discussion-inspector__actions" data-key="discussion-move-open">
+            <Row wrap controlInsets="trbl" rootAttributes={{ 'data-key': 'discussion-move-open' }}>
               <Button action="discussion-move" emphasis="plain" tone="brand" disabled={state.pending.value}>
                 Move Comment
               </Button>
-            </div>
+            </Row>
           ) : (
             // Keyed so the browser's morph never reuses the focused Move to Line input for the Reply fields below it.
-            <div data-key="discussion-move-form">
+            <div class="discussion-inspector__form" data-key="discussion-move-form">
               <Select
                 name="discussion-move-side"
                 label="Move to Side"
@@ -291,26 +306,30 @@ export function DiscussionInspector({
                 type="number"
                 value={state.moving.value.line}
               />
-              <div class="discussion-inspector__actions">
+              <Row wrap hAlign="right" controlInsets="trbl">
                 <Button action="discussion-move-cancel" emphasis="plain">
                   Cancel
                 </Button>
                 <Button action="discussion-move-submit" tone="brand" disabled={state.pending.value}>
                   Move
                 </Button>
-              </div>
+              </Row>
             </div>
           )}
           {thread?.replies.map(({ message }) => (
-            <div class="discussion-inspector__reply">
-              <strong>{message.author}</strong>
-              <p>{message.markdown}</p>
+            <ContentItem frame="framed">
+              <Text weight="strong" flush>
+                {message.author}
+              </Text>
+              <Text wrap="anywhere" flush>
+                {message.markdown}
+              </Text>
               {message.attachments.map(attachment)}
-            </div>
+            </ContentItem>
           ))}
           <TextField name="discussion-author" label="Reply Author" value={state.author.value} />
           <TextField name="discussion-reply" label="Reply" multiline rows={2} value={state.reply.value} />
-          <div class="discussion-inspector__actions">
+          <Row wrap hAlign="right" controlInsets="trbl">
             <Button
               action="discussion-reply"
               tone="brand"
@@ -318,7 +337,7 @@ export function DiscussionInspector({
             >
               Post Reply
             </Button>
-          </div>
+          </Row>
         </>
       )}
     </section>
@@ -405,6 +424,7 @@ export function wireDiscussion(
     },
     { signal },
   );
+  const stopContentItems = wireContentItems(root);
   const stopPickers = wireFilePickers(root, {
     onFiles: ({ id, files }) => {
       const file = files[0];
@@ -430,7 +450,7 @@ export function wireDiscussion(
     'click',
     (event) => {
       if (!(event.target instanceof Element)) return;
-      const action = event.target.closest<HTMLElement>('button[data-action]')?.dataset.action;
+      const action = event.target.closest<HTMLElement>('[data-action]')?.dataset.action;
       if (action === undefined || !action.startsWith('discussion-')) return;
       const [kind, first, second] = action.split(':');
       if (kind === 'discussion-add' && (first === 'before' || first === 'after')) {
@@ -482,6 +502,7 @@ export function wireDiscussion(
   );
   return () => {
     controller.abort();
+    stopContentItems();
     stopPickers();
   };
 }

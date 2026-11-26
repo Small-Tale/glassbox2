@@ -116,7 +116,7 @@ test('HS2-DZ8ZR6 the Text Diff demo reveals hidden lines and the discussion anch
     await page.goto(`${url}?component=text-diff`);
     const demo = page.locator('[data-demo="text-diff"]');
     const middle = demo.locator('.context-expander[data-gap="1"]');
-    const threads = demo.locator('.discussion-inline__thread');
+    const threads = demo.locator('[data-action^="discussion-show"]');
     await middle.waitFor();
     assert.equal(await threads.count(), 0);
     assert.equal(await demo.locator('.text-diff__cell[data-after-line="50"]').count(), 0);

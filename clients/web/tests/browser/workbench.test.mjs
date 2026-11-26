@@ -1156,7 +1156,7 @@ test(
       );
       await inspector.getByRole('button', { name: 'Add Comment', exact: true }).click();
       assert((await created).ok());
-      const revealedThread = page.locator('.text-diff .discussion-inline__thread');
+      const revealedThread = page.locator('.text-diff [data-action^="discussion-show"]');
       await revealedThread.first().waitFor();
       assert.equal(
         await revealedThread
@@ -1542,7 +1542,7 @@ test(
 
       const button = (name) => page.getByRole('button', { name, exact: true });
       const inspector = page.getByRole('region', { name: 'Discussion' });
-      const thread = page.locator('.text-diff .discussion-inline__thread');
+      const thread = page.locator('.text-diff [data-action^="discussion-show"]');
       // The row of the diff that holds the inline thread, as its after-side line number.
       const rowOf = () =>
         thread
@@ -1678,7 +1678,7 @@ test(
       await write(['one', 'two', 'needle line', 'four', 'five', 'SIX', 'seven', 'eight']);
 
       const button = (name) => page.getByRole('button', { name, exact: true });
-      const thread = page.locator('.text-diff .discussion-inline__thread');
+      const thread = page.locator('.text-diff [data-action^="discussion-show"]');
       const inspector = page.getByRole('region', { name: 'Discussion' });
       const open = async () => {
         await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(folder);
@@ -1693,7 +1693,7 @@ test(
       const openStale = async () => {
         await page
           .getByRole('region', { name: 'Stale Discussions' })
-          .locator('.discussion-inline__thread')
+          .locator('[data-action^="discussion-show"]')
           .first()
           .click();
         await inspector.getByText('refers to an earlier version').waitFor();

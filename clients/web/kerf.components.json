@@ -319,7 +319,11 @@
           "lucide-icon",
           "select",
           "file-picker",
-          "relocation-offer"
+          "relocation-offer",
+          "content-item",
+          "row",
+          "text",
+          "state-banner"
         ]
       }
     },
@@ -385,7 +389,7 @@
         "styleSources": ["src/components/discussion/discussion.css"],
         "demoSource": "src/ux-demo/demos/discussion/relocation-offer.tsx",
         "documentation": "docs/ui-conventions.md",
-        "uses": ["button"]
+        "uses": ["button", "row", "text"]
       }
     },
     {

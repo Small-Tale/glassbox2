@@ -24,8 +24,10 @@ Plain text in application components uses Kerf `Text` instead of native `p`, `sp
 feedback uses `StateBanner` (`GB2-BJTE39`). The source context, analysis context and review navigator are converted.
 `SourceContext` keeps a bare root element only because the catalog metadata requires a root class; it has no
 stylesheet. The analysis context strip keeps its own tinted background and wrapping layout (application-owned structure
-until a Kerf strip fits it). The discussion inspector, text diff, media diff and menu entries are still open under
-`GB2-BJTE39`.
+until a Kerf strip fits it). The discussion inspector converts too: inline threads are `ContentItem` toggles inside a `wireContentItems` root, replies
+are framed `ContentItem`s, action groups are `Row`s and statuses are `Text`. `discussion.css` keeps only the inline
+thread band (it places itself across the diff grid), the inspector's grid and the diagram artifact sizing, which are
+application-owned structure. The text diff, media diff and menu entries are still open under `GB2-BJTE39`.
 
 ## Review workbench
 

@@ -258,7 +258,9 @@
       "publicClasses": [],
       "publicTokens": [],
       "uses": [
-        "button"
+        "button",
+        "row",
+        "text"
       ],
       "source": "src/components/discussion/relocation-offer.tsx",
       "styleSources": [
@@ -332,7 +334,11 @@
         "lucide-icon",
         "select",
         "file-picker",
-        "relocation-offer"
+        "relocation-offer",
+        "content-item",
+        "row",
+        "text",
+        "state-banner"
       ],
       "source": "src/components/discussion/discussion.tsx",
       "styleSources": [

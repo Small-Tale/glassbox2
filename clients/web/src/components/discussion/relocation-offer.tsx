@@ -1,4 +1,6 @@
 import { Button } from '@kerfjs/ui/button';
+import { Row } from '@kerfjs/ui/row';
+import { Text } from '@kerfjs/ui/text';
 
 import type { DiscussionState } from './discussion-state.js';
 
@@ -14,38 +16,38 @@ export function RelocationOffer({ state }: { state: Pick<DiscussionState, 'reloc
   const offer = state.relocation.value;
   if (offer === null) {
     return (
-      <div class="discussion-inspector__actions">
+      <Row wrap hAlign="right" controlInsets="trbl">
         <Button action="discussion-relocate" emphasis="plain" tone="brand" disabled={state.pending.value}>
           Suggest New Line
         </Button>
-      </div>
+      </Row>
     );
   }
-  if (offer === 'asking') return <p role="status">Looking for the commented line…</p>;
+  if (offer === 'asking') return <Text role="status">Looking for the commented line…</Text>;
   if (offer.outcome === 'current') return null;
   if (offer.outcome !== 'suggestion') {
     return (
       <>
-        <p role="status">{reasons[offer.outcome]}</p>
-        <div class="discussion-inspector__actions">
+        <Text role="status">{reasons[offer.outcome]}</Text>
+        <Row wrap hAlign="right" controlInsets="trbl">
           <Button action="discussion-relocate-dismiss" emphasis="plain">
             Dismiss
           </Button>
-        </div>
+        </Row>
       </>
     );
   }
   return (
     <>
-      <p role="status">{`The commented text is now at ${offer.side === 'before' ? 'Before' : 'After'} line ${offer.line}.`}</p>
-      <div class="discussion-inspector__actions">
+      <Text role="status">{`The commented text is now at ${offer.side === 'before' ? 'Before' : 'After'} line ${offer.line}.`}</Text>
+      <Row wrap hAlign="right" controlInsets="trbl">
         <Button action="discussion-relocate-dismiss" emphasis="plain">
           Dismiss
         </Button>
         <Button action="discussion-relocate-confirm" tone="brand" disabled={state.pending.value}>
           Move Here
         </Button>
-      </div>
+      </Row>
     </>
   );
 }
