@@ -224,8 +224,11 @@
       ],
       "publicTokens": [],
       "uses": [
+        "button",
         "lucide-icon",
+        "row",
         "state-banner",
+        "text",
         "toolbar-control-group"
       ],
       "source": "src/components/diff/media-diff.tsx",

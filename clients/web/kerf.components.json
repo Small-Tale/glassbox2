@@ -781,7 +781,7 @@
         "styleSources": ["src/components/diff/media-diff.css"],
         "demoSource": "src/ux-demo/demos/diff/media-diff.tsx",
         "documentation": "docs/ui-conventions.md",
-        "uses": ["lucide-icon", "state-banner", "toolbar-control-group"]
+        "uses": ["button", "lucide-icon", "row", "state-banner", "text", "toolbar-control-group"]
       }
     },
     {

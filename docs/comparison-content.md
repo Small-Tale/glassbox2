@@ -113,6 +113,20 @@ with the arrow keys to resize it. Enter opens the comment, and Escape
 cancels. Saved rectangles
 reopen their discussions on the matching image revision (`HS2-B9NHFE`).
 
+### Synchronized view and Focus (`HS2-XJWGYD`)
+
+In Side by Side and Over and Under the two images share one zoom and one position. Zoom with the toolbar or
+with Ctrl (Cmd on macOS) and the wheel, which a trackpad pinch also sends; each gesture is one 25% step within
+the toolbar's 100% to 400% range, and both images follow. Panning one image, by scrolling or dragging its
+scrollbars, moves the other to the same relative place in its own range, so images of different sizes stay
+aligned on the same spot rather than the same pixel.
+
+Each pane has a **Focus** action that shows that image alone at the current zoom, in the place you were
+looking at. **Exit Focus**, or Escape with the image focused, returns to the Side by Side or Over and Under view
+you left, at the zoom it had, and keeps you at the same relative place. Focus is separate from the toolbar's
+Before Image and After Image modes: those are a chosen view with nothing to exit. Saved region comments sit at
+fixed fractions of their image, so they keep their place across zoom, pan, Focus and Exit Focus.
+
 ### Region comments (`HS2-9MZ32M`)
 
 Select an image region in the Inspector to edit it. **Edit Region** starts the same draft you use to draw a

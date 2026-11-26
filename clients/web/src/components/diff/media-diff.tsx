@@ -1,12 +1,30 @@
 import './media-diff.css';
 
+import { Button } from '@kerfjs/ui/button';
 import { LucideIcon } from '@kerfjs/ui/lucide-icon';
+import { Row } from '@kerfjs/ui/row';
 import { StateBanner } from '@kerfjs/ui/state-banner';
+import { Text } from '@kerfjs/ui/text';
 import { ToolbarButton, ToolbarControlGroup } from '@kerfjs/ui/toolbar-control-group';
 import { signal } from 'kerfjs';
-import { Blend, Code, Columns2, Info, PanelLeft, PanelRight, Rows2, Scan, Split, ZoomIn, ZoomOut } from 'lucide';
+import {
+  Blend,
+  Code,
+  Columns2,
+  Info,
+  Maximize2,
+  Minimize2,
+  PanelLeft,
+  PanelRight,
+  Rows2,
+  Scan,
+  Split,
+  ZoomIn,
+  ZoomOut,
+} from 'lucide';
 
 import type { ImageRegion, Side } from '../discussion/discussion-state.js';
+import { scrollFraction, scrollTarget, zoomForWheel } from './media-gesture.js';
 import { type MediaMode, modeAvailable } from './media-mode.js';
 import { changeRegion, initialRegion, regionAnchor, type RegionBounds } from './media-region.js';
 import type { MediaImage } from './selected-diff.js';
@@ -43,6 +61,8 @@ export function createMediaDiffState() {
     // Label of the mode that was unavailable for the last file, shown until the user picks one.
     fallback: signal<string | null>(null),
     keyboardRegion: signal<{ side: Side; bounds: RegionBounds } | null>(null),
+    // The view a Focus action left, so Exit Focus can restore it (HS2-XJWGYD).
+    focusReturn: signal<{ mode: Mode; zoom: number } | null>(null),
   };
 }
 
@@ -122,6 +142,8 @@ export function MediaDiff({
   const mode = state.mode.value;
   const drawing = state.drawing.value;
   const keyboardRegion = drawing ? state.keyboardRegion.value : null;
+  const focusable = (mode === 'split' || mode === 'stack') && images.before !== null && images.after !== null;
+  const focused = state.focusReturn.value !== null && (mode === 'before' || mode === 'after');
   return (
     <div class="media-diff" data-media-diff={id} data-mode={mode} data-drawing={String(drawing)}>
       {state.fallback.value === null ? null : (
@@ -169,7 +191,33 @@ export function MediaDiff({
               if (image === null) return null;
               return (
                 <section class="media-diff__pane" aria-label={labels[side]}>
-                  <div class="media-diff__label">{labels[side]}</div>
+                  <div class="media-diff__label">
+                    <Row gap="xs" vAlign="middle">
+                      <Text weight="strong" flush>
+                        {labels[side]}
+                      </Text>
+                      {focusable ? (
+                        <Button
+                          size="compact"
+                          emphasis="plain"
+                          action={`${id}:focus:${side}`}
+                          title={`Focus ${labels[side]} Image`}
+                          ariaLabel={`Focus ${labels[side]} Image`}
+                          icon={<LucideIcon icon={Maximize2} name="maximize-2" />}
+                        />
+                      ) : null}
+                      {focused ? (
+                        <Button
+                          size="compact"
+                          emphasis="plain"
+                          action={`${id}:exit-focus`}
+                          title="Exit Focus"
+                          ariaLabel="Exit Focus"
+                          icon={<LucideIcon icon={Minimize2} name="minimize-2" />}
+                        />
+                      ) : null}
+                    </Row>
+                  </div>
                   {mode === 'metadata' ? (
                     <dl>
                       <dt>Type</dt>
@@ -238,6 +286,77 @@ export function wireMediaDiff(
     const side = target.dataset.mediaRegionSide;
     return side === 'before' || side === 'after' ? side : undefined;
   }
+  const viewports = () =>
+    [...root.querySelectorAll<HTMLElement>(`[data-media-diff="${id}"] [data-media-region-side]`)].filter(
+      (element) => element.closest('[data-media-diff]')?.getAttribute('data-media-diff') === id,
+    );
+  const fractions = (viewport: HTMLElement | undefined) => ({
+    x: scrollFraction(viewport?.scrollLeft ?? 0, (viewport?.scrollWidth ?? 0) - (viewport?.clientWidth ?? 0)),
+    y: scrollFraction(viewport?.scrollTop ?? 0, (viewport?.scrollHeight ?? 0) - (viewport?.clientHeight ?? 0)),
+  });
+  // The panes are rebuilt when the view changes, so the place being looked at is restored once they are back.
+  function restore(position: { x: number; y: number }) {
+    requestAnimationFrame(() => {
+      for (const viewport of viewports()) {
+        viewport.scrollLeft = scrollTarget(position.x, viewport.scrollWidth - viewport.clientWidth);
+        viewport.scrollTop = scrollTarget(position.y, viewport.scrollHeight - viewport.clientHeight);
+      }
+    });
+  }
+  function focus(side: Side) {
+    const mode = state.mode.value;
+    if (mode !== 'split' && mode !== 'stack') return;
+    const position = fractions(viewports().find((viewport) => viewport.dataset.mediaRegionSide === side));
+    state.focusReturn.value = { mode, zoom: state.zoom.value };
+    state.mode.value = side;
+    state.fallback.value = null;
+    endRegion();
+    restore(position);
+  }
+  function exitFocus() {
+    const back = state.focusReturn.value;
+    if (back === null) return;
+    const position = fractions(viewports()[0]);
+    state.mode.value = back.mode;
+    state.zoom.value = back.zoom;
+    state.focusReturn.value = null;
+    endRegion();
+    restore(position);
+  }
+  // Panning one pane moves the other to the same relative spot; a pane the sync moved does not echo back.
+  const driven = new WeakSet<HTMLElement>();
+  root.addEventListener(
+    'scroll',
+    (event) => {
+      const viewport = event.target;
+      if (!(viewport instanceof HTMLElement) || viewport.dataset.mediaRegionSide === undefined) return;
+      if (driven.delete(viewport)) return;
+      const others = viewports().filter((other) => other !== viewport);
+      if (!viewports().includes(viewport) || state.mode.value === 'before' || state.mode.value === 'after') return;
+      const position = fractions(viewport);
+      for (const other of others) {
+        const left = scrollTarget(position.x, other.scrollWidth - other.clientWidth);
+        const top = scrollTarget(position.y, other.scrollHeight - other.clientHeight);
+        if (Math.abs(other.scrollLeft - left) < 1 && Math.abs(other.scrollTop - top) < 1) continue;
+        driven.add(other);
+        other.scrollLeft = left;
+        other.scrollTop = top;
+      }
+    },
+    { ...options, capture: true },
+  );
+  // Ctrl or Cmd with the wheel, which a trackpad pinch also sends, zooms both images together.
+  root.addEventListener(
+    'wheel',
+    (event) => {
+      if (!(event.ctrlKey || event.metaKey) || !(event.target instanceof Element)) return;
+      const viewport = event.target.closest<HTMLElement>('[data-media-region-side]');
+      if (viewport === null || !viewports().includes(viewport)) return;
+      event.preventDefault();
+      state.zoom.value = zoomForWheel(state.zoom.value, event.deltaY);
+    },
+    { ...options, passive: false },
+  );
   root.addEventListener(
     'click',
     (event) => {
@@ -250,8 +369,12 @@ export function wireMediaDiff(
         state.mode.value = mode.key;
         state.preferred.value = mode.key;
         state.fallback.value = null;
+        state.focusReturn.value = null;
         endRegion();
       }
+      const focusSide = key.startsWith('focus:') ? key.slice('focus:'.length) : undefined;
+      if (focusSide === 'before' || focusSide === 'after') focus(focusSide);
+      if (key === 'exit-focus') exitFocus();
       if (key === 'in') state.zoom.value = Math.min(400, state.zoom.value + 25);
       if (key === 'out') state.zoom.value = Math.max(100, state.zoom.value - 25);
       if (key === 'region') {
@@ -275,6 +398,11 @@ export function wireMediaDiff(
     'keydown',
     (event) => {
       const side = regionSide(event.target);
+      if (event.key === 'Escape' && side !== undefined && !state.drawing.value && state.focusReturn.value !== null) {
+        event.preventDefault();
+        exitFocus();
+        return;
+      }
       if (!state.drawing.value || side === undefined) return;
       const current = state.keyboardRegion.value;
       const bounds = current?.side === side ? current.bounds : initialRegion;

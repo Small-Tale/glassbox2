@@ -1953,3 +1953,163 @@ test(
     );
   },
 );
+
+// HS2-XJWGYD: both images pan and zoom together, one side can be focused and left again, regions keep their place.
+test(
+  'HS2-XJWGYD synchronizes pan and zoom gestures across unequal images and focuses one side',
+  {
+    timeout: 90_000,
+  },
+  async () => {
+    await withWorkbench(async (page, url, { repo }) => {
+      const folder = join(dirname(repo), 'Gestures');
+      await mkdir(folder);
+      const git = (...args) =>
+        execFileSync('git', ['-c', 'commit.gpgsign=false', '-c', 'core.autocrlf=false', ...args], {
+          cwd: folder,
+          windowsHide: true,
+        });
+      // The before image is wide and the after image square, so their scrollable ranges differ.
+      const drawing = (width, height, fill) =>
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect width="${width}" height="${height}" fill="#e7eaef"/><circle cx="${width / 2}" cy="${height / 2}" r="${height / 3}" fill="${fill}"/></svg>`;
+      git('init', '-q', '--initial-branch=review');
+      await writeFile(join(folder, 'mark.svg'), drawing(640, 360, '#506b91'));
+      git('add', '.');
+      git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'initial');
+      await writeFile(join(folder, 'mark.svg'), drawing(400, 400, '#3b7c68'));
+
+      const button = (name) => page.getByRole('button', { name, exact: true });
+      const before = page.locator('[data-media-region-side="before"]');
+      const after = page.locator('[data-media-region-side="after"]');
+      const zoomOf = () =>
+        page
+          .locator('.media-diff__image')
+          .first()
+          .evaluate((element) => element.style.width);
+      const position = (locator) =>
+        locator.evaluate((element) => ({
+          x: element.scrollLeft / Math.max(1, element.scrollWidth - element.clientWidth),
+          y: element.scrollTop / Math.max(1, element.scrollHeight - element.clientHeight),
+          reach: element.scrollHeight - element.clientHeight,
+        }));
+      const regionFraction = () =>
+        page
+          .locator('.media-diff__region:not(.media-diff__region--draft)')
+          .first()
+          .evaluate((region) => {
+            const image = region.closest('.media-diff__image').querySelector('img').getBoundingClientRect();
+            const box = region.getBoundingClientRect();
+            return {
+              left: (box.left - image.left) / image.width,
+              top: (box.top - image.top) / image.height,
+              width: box.width / image.width,
+              height: box.height / image.height,
+            };
+          });
+      const close = (actual, expected, tolerance = 0.03) => {
+        for (const key of Object.keys(expected)) {
+          assert(Math.abs(actual[key] - expected[key]) <= tolerance, `${key}: ${actual[key]} vs ${expected[key]}`);
+        }
+      };
+      await page.goto(url);
+      await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(folder);
+      await button('Open Comparison').click();
+      await page.getByRole('treeitem', { name: /mark\.svg/ }).click();
+      await page.getByRole('img', { name: 'After image' }).waitFor();
+      await page.getByRole('img', { name: 'Before image' }).waitFor();
+
+      // A saved region on the after image, drawn with the keyboard.
+      await button('Add Region Comment').click();
+      await after.focus();
+      await page.keyboard.press('ArrowRight');
+      await page.keyboard.press('ArrowDown');
+      await page.keyboard.press('Enter');
+      const inspector = page.getByRole('region', { name: 'Discussion' });
+      await inspector.getByRole('textbox', { name: 'Comment', exact: true }).fill('Check the circle.');
+      const created = page.waitForResponse(
+        (reply) => reply.url().endsWith('/discussion') && reply.request().postDataJSON().operation?.kind === 'create',
+      );
+      await inspector.getByRole('button', { name: 'Add Comment', exact: true }).click();
+      assert((await created).ok());
+      await page.locator('.media-diff__region:not(.media-diff__region--draft)').first().waitFor();
+      const saved = await regionFraction();
+      close(saved, { left: 0.4, top: 0.4, width: 0.3, height: 0.3 });
+
+      // Ctrl with the wheel zooms both images together, in steps, up to the toolbar's limit.
+      assert.equal(await zoomOf(), '100%');
+      const frame = await after.boundingBox();
+      await page.mouse.move(frame.x + frame.width / 2, frame.y + frame.height / 2);
+      await page.keyboard.down('Control');
+      for (let step = 0; step < 8; step++) await page.mouse.wheel(0, -100);
+      await page.keyboard.up('Control');
+      await page.waitForFunction(() => document.querySelector('.media-diff__image')?.style.width === '300%');
+      assert.deepEqual(
+        await page
+          .locator('.media-diff__image')
+          .evaluateAll((elements) => elements.map((element) => element.style.width)),
+        ['300%', '300%'],
+      );
+      close(await regionFraction(), saved);
+      await capture(page, 'gestures-zoom-1440');
+
+      // Panning one pane moves the other to the same relative spot, whichever pane is dragged.
+      await page.mouse.move(frame.x + frame.width / 2, frame.y + frame.height / 2);
+      await page.mouse.wheel(0, 200);
+      await page.waitForFunction(() => document.querySelector('[data-media-region-side="after"]').scrollTop > 0);
+      await page.waitForFunction(() => document.querySelector('[data-media-region-side="before"]').scrollTop > 0);
+      const afterPan = await position(after);
+      const beforePan = await position(before);
+      assert(afterPan.reach > 0 && beforePan.reach > 0 && afterPan.reach !== beforePan.reach, 'the ranges differ');
+      close(beforePan, { x: afterPan.x, y: afterPan.y }, 0.04);
+      const side = await before.boundingBox();
+      const previous = await after.evaluate((element) => element.scrollTop);
+      await page.mouse.move(side.x + side.width / 2, side.y + side.height / 2);
+      await page.mouse.wheel(0, 150);
+      await page.waitForFunction(
+        (earlier) => document.querySelector('[data-media-region-side="after"]').scrollTop !== earlier,
+        previous,
+      );
+      const synced = await position(before);
+      close(await position(after), { x: synced.x, y: synced.y }, 0.04);
+      close(await regionFraction(), saved);
+      await capture(page, 'gestures-pan-1440');
+
+      // Focus shows one side alone at the same zoom; Exit Focus and Escape bring the earlier view back.
+      await button('Focus After Image').click();
+      await before.waitFor({ state: 'detached' });
+      await button('Exit Focus').waitFor();
+      assert.equal(await zoomOf(), '300%');
+      close(await regionFraction(), saved);
+      await page.keyboard.down('Control');
+      await page.mouse.move(frame.x + frame.width / 2, frame.y + 100);
+      await page.mouse.wheel(0, 100);
+      await page.keyboard.up('Control');
+      await page.waitForFunction(() => document.querySelector('.media-diff__image')?.style.width === '275%');
+      close(await regionFraction(), saved);
+      await capture(page, 'gestures-focus-1440');
+      await button('Exit Focus').click();
+      await before.waitFor();
+      await after.waitFor();
+      assert.equal(await zoomOf(), '300%', 'leaving focus restores the zoom it started from');
+      assert.equal(await button('Exit Focus').count(), 0);
+      close(await regionFraction(), saved);
+
+      await button('Focus Before Image').click();
+      await after.waitFor({ state: 'detached' });
+      await before.focus();
+      await page.keyboard.press('Escape');
+      await after.waitFor();
+      assert.equal(await button('Exit Focus').count(), 0);
+
+      // Choosing a mode from the toolbar is not a focus, so there is nothing to exit.
+      await button('After Image').click();
+      await before.waitFor({ state: 'detached' });
+      assert.equal(await button('Exit Focus').count(), 0);
+      await button('Side by Side').click();
+      for (const width of [940, 390, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
+      }
+    });
+  },
+);
