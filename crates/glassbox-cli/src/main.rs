@@ -60,7 +60,7 @@ fn run(args: Vec<OsString>) -> io::Result<ExitStatus> {
 /// option, so a name that is a prefix of one of these is rejected too.
 const TOOL_LONG_OPTIONS: [&str; 5] = ["tool", "tool-help", "extcmd", "gui", "no-gui"];
 /// Short options that choose a tool (`-t`, `-x`, `-g`).
-const TOOL_SHORT_OPTIONS: [u8; 3] = [b't', b'x', b'g'];
+const TOOL_SHORT_OPTIONS: &[u8] = b"txg";
 /// Short options whose attached text is a value, not further options (`-Ofile`, `-U5`).
 const VALUE_SHORT_OPTIONS: &[u8] = b"UOSGMCBlI";
 
