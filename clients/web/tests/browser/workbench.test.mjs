@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { writeFileSync } from 'node:fs';
 import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -157,7 +158,10 @@ async function assertDialogInset(dialog, content) {
   );
 }
 
-async function withWorkbench(exercise, { launchArgs = () => [], renderer = false, provider = false } = {}) {
+async function withWorkbench(
+  exercise,
+  { launchArgs = () => [], renderer = false, provider = false, environment = () => ({}) } = {},
+) {
   const scratch = await mkdtemp(join(tmpdir(), 'glassbox-browser-'));
   const settings = join(scratch, 'settings');
   let host;
@@ -195,9 +199,14 @@ async function withWorkbench(exercise, { launchArgs = () => [], renderer = false
           GLASSBOX_SETTINGS_DIRECTORY: settings,
           GLASSBOX_FEEDBACK_DIRECTORY: join(scratch, 'feedback'),
           GLASSBOX_CONTENT_RENDERER: rendererPath,
+          GLASSBOX_GRAPHVIZ_EXECUTABLE: '',
+          GLASSBOX_MERMAID_EXECUTABLE: '',
+          GLASSBOX_JAVA_EXECUTABLE: '',
+          GLASSBOX_PLANTUML_JAR: '',
           GLASSBOX_AI_PROVIDER_DIRECTORY: provider ? providerHome : '',
           GLASSBOX_AI_PROVIDER: '',
           GLASSBOX_AI_TRUSTED_PROVIDERS: provider ? 'desktop' : '',
+          ...environment({ scratch }),
         },
         stdio: ['ignore', 'pipe', 'inherit'],
         windowsHide: true,
@@ -1848,5 +1857,99 @@ test(
       close(await region(), { left: 0.4, top: 0.3, width: 0.4, height: 0.6 });
       await capture(page, 'region-refused-1440');
     });
+  },
+);
+
+// HS2-Q9TXER: the Diagram Renderers dialog reports what the host can render with and what is missing.
+test(
+  'HS2-Q9TXER shows renderer readiness, guides setup and notices a tool installed since launch',
+  {
+    timeout: 90_000,
+  },
+  async () => {
+    const open = async (page, url) => {
+      await page.goto(url);
+      await page.getByRole('button', { name: 'Diagram Renderers', exact: true }).click();
+      const dialog = page.getByRole('dialog', { name: 'Diagram Renderers' });
+      await dialog.waitFor();
+      return dialog;
+    };
+    const format = (dialog, id) => dialog.locator(`[data-renderer-format="${id}"]`);
+
+    // No renderer: the dialog says which variable to set and that formats need one.
+    await withWorkbench(async (page, url) => {
+      const dialog = await open(page, url);
+      await dialog.getByText('No Renderer Configured', { exact: true }).waitFor();
+      await dialog.getByText(/Set GLASSBOX_CONTENT_RENDERER to the absolute path/u).waitFor();
+      for (const id of ['graphviz', 'mermaid', 'plantuml']) {
+        await format(dialog, id).getByText('Needs a Renderer', { exact: true }).waitFor();
+      }
+      await capture(page, 'renderers-none-1440');
+      await dialog.getByRole('button', { name: 'Close', exact: true }).last().click();
+      await dialog.waitFor({ state: 'hidden' });
+    });
+
+    // A custom renderer owns its tools, so its formats are not checked.
+    await withWorkbench(
+      async (page, url) => {
+        const dialog = await open(page, url);
+        await dialog.getByText('Custom Renderer', { exact: true }).waitFor();
+        for (const id of ['graphviz', 'mermaid', 'plantuml']) {
+          await format(dialog, id).getByText('Not Checked', { exact: true }).waitFor();
+        }
+      },
+      { renderer: true },
+    );
+
+    // The local adapter: each format reports its own tools, and Check Again notices one installed later.
+    const tools = (scratch) => ({
+      adapter: join(scratch, process.platform === 'win32' ? 'glassbox-render-local.exe' : 'glassbox-render-local'),
+      dot: join(scratch, 'dot'),
+      java: join(scratch, 'java'),
+      jar: join(scratch, 'plantuml.jar'),
+    });
+    await withWorkbench(
+      async (page, url, _paths, settings) => {
+        const scratch = dirname(settings);
+        const dialog = await open(page, url);
+        await dialog.getByText('Local Diagram Adapter', { exact: true }).waitFor();
+        await format(dialog, 'graphviz').getByText('Ready', { exact: true }).waitFor();
+        await format(dialog, 'mermaid').getByText('Needs Setup', { exact: true }).waitFor();
+        await format(dialog, 'mermaid')
+          .getByText(/set GLASSBOX_MERMAID_EXECUTABLE to its absolute path \(is not set\)/u)
+          .waitFor();
+        await format(dialog, 'mermaid')
+          .getByText(/Install it from https:\/\/github\.com\/mermaid-js\/mermaid-cli/u)
+          .waitFor();
+        await format(dialog, 'plantuml')
+          .getByText(/PlantUML jar: set GLASSBOX_PLANTUML_JAR.*does not point to a file/u)
+          .waitFor();
+        await capture(page, 'renderers-setup-1440');
+        for (const width of [940, 390, 1440]) {
+          await page.setViewportSize({ width, height: 900 });
+          await format(dialog, 'plantuml').waitFor();
+          assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
+        }
+
+        // Installing the jar after launch is noticed by Check Again; a variable change would need a restart.
+        await writeFile(tools(scratch).jar, 'jar');
+        await dialog.getByRole('button', { name: 'Check Again', exact: true }).click();
+        await format(dialog, 'plantuml').getByText('Ready', { exact: true }).waitFor();
+        await format(dialog, 'mermaid').getByText('Needs Setup', { exact: true }).waitFor();
+        await dialog.getByText(/A change to a variable needs a restart/u).waitFor();
+      },
+      {
+        environment: ({ scratch }) => {
+          const path = tools(scratch);
+          for (const file of [path.adapter, path.dot, path.java]) writeFileSync(file, 'x');
+          return {
+            GLASSBOX_CONTENT_RENDERER: path.adapter,
+            GLASSBOX_GRAPHVIZ_EXECUTABLE: path.dot,
+            GLASSBOX_JAVA_EXECUTABLE: path.java,
+            GLASSBOX_PLANTUML_JAR: path.jar,
+          };
+        },
+      },
+    );
   },
 );

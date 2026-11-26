@@ -12,6 +12,25 @@ the original UTF-8 source is shown directly. Diagram visuals use image
 elements with opaque data URLs. The app does not insert renderer markup
 into the workbench document.
 
+## Renderer readiness
+
+Choose **Diagram Renderers** (the plug icon beside Feedback Storage) to see what the host can render with
+(`HS2-Q9TXER`). The dialog reports the renderer, then each format:
+
+| Renderer | What it shows |
+| --- | --- |
+| Not configured | Set `GLASSBOX_CONTENT_RENDERER` to the absolute path of a trusted executable and restart. Every format reads **Needs a Renderer**, and diagram files open as source. |
+| Not found | The configured path is not an absolute path to a file. Fix it and restart. |
+| Local diagram adapter | Each format is **Ready** or **Needs Setup**, with each missing requirement named: the variable to set, whether it is unset, relative or points to no file, and where to install the tool. |
+| Custom renderer | The host cannot tell which formats it supports, so each reads **Not Checked**; every render reports its own failure. |
+
+The report reads the host's environment and checks the paths, and runs nothing. **Check Again** re-reads the paths, so
+a tool installed after Glassbox started is noticed, but a changed variable needs a restart because a running host
+cannot change its environment. Glassbox never installs, approves or runs a tool from the dialog: installation and
+trust stay with whoever starts the host. Readiness means the configured file exists, not that it renders, so a real
+render failure still falls back to source and is reported where it happens. The host serves the report at
+`GET /api/v1/settings/renderers`.
+
 ## Renderer contract
 
 Set `GLASSBOX_CONTENT_RENDERER` to the absolute path of a trusted executable

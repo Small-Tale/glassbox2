@@ -269,6 +269,42 @@
       "documentation": "docs/ui-conventions.md"
     },
     {
+      "id": "renderer-dialog",
+      "name": "Diagram Renderers",
+      "kind": "composition",
+      "purpose": "Show whether the diagram renderer and each format's tools are ready, and what to set when one is missing.",
+      "useWhen": [
+        "Check whether diagram previews can render and learn what a missing tool needs."
+      ],
+      "avoidWhen": [
+        "Install or run a renderer tool."
+      ],
+      "publicClasses": [
+        "diagram-renderers"
+      ],
+      "publicTokens": [],
+      "uses": [
+        "button",
+        "empty-state",
+        "list",
+        "list-header",
+        "list-inset-text",
+        "lucide-icon",
+        "state-banner",
+        "surface-scaffold",
+        "text",
+        "toolbar-control-group"
+      ],
+      "source": "src/components/settings/renderer-dialog.tsx",
+      "demoSource": "src/ux-demo/demos/settings/renderer-dialog.tsx",
+      "geometry": {
+        "margin": "none",
+        "border": "none",
+        "padding": "none"
+      },
+      "documentation": "docs/ui-conventions.md"
+    },
+    {
       "id": "review-discussion",
       "name": "Review Discussion",
       "kind": "composition",

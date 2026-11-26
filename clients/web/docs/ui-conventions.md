@@ -129,6 +129,9 @@ pages).
 - **Unchanged-line controls are Kerf `Button`s in a `Row`** (`HS2-DZ8ZR6`): compact, plain, with a chevron icon and a
   title-case label that names the count. Failures are an alert `StateBanner`. Their only application CSS spans the
   grid and returns the interface font inside the diff's monospace face (`context-expander.css`).
+- **The Diagram Renderers dialog is a single-pane `DialogSurface`** (`HS2-Q9TXER`) like the other settings dialogs: a
+  `StateBanner` for a missing renderer, `ListInsetText` rows per format with the readiness as text, Check Again and Close
+  in the footer, and no installation action.
 - **Review progress is a Kerf `ProgressBar` and a pressed `ToolbarButton`** (`HS2-FTEQVQ`): "Files Reviewed" with a short "1 of 12"
   value (a longer sentence wraps in the sidebar), a "Mark Reviewed" toggle in the Selected File Actions group, and a `Badge`
   with a check (reviewed) or an alert (changed since reviewed) beside each row's status badge.

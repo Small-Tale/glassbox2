@@ -657,6 +657,93 @@
       }
     },
     {
+      "key": "glassbox2:renderer-dialog",
+      "package": "glassbox2",
+      "id": "renderer-dialog",
+      "name": "Diagram Renderers",
+      "kind": "composition",
+      "purpose": "Show whether the diagram renderer and each format's tools are ready, and what to set when one is missing.",
+      "publicExports": [
+        {
+          "name": "RendererAction"
+        },
+        {
+          "name": "RendererDialog"
+        },
+        {
+          "name": "wireRendererDialog"
+        }
+      ],
+      "sourceLinks": [
+        "src/components/settings/renderer-dialog.tsx"
+      ],
+      "source": "src/components/settings/renderer-dialog.tsx",
+      "parents": {
+        "mode": "any",
+        "entries": []
+      },
+      "contexts": [
+        "application-ui"
+      ],
+      "zones": [],
+      "children": {
+        "mode": "any",
+        "concepts": [],
+        "requiredConcepts": []
+      },
+      "state": [],
+      "wiring": {
+        "required": true,
+        "helpers": [
+          "wireRendererDialog"
+        ],
+        "sources": [
+          {
+            "export": "wireRendererDialog",
+            "source": "src/components/settings/renderer-dialog.tsx",
+            "returnsDisposer": true
+          }
+        ],
+        "obligations": [
+          "Wire opening, Check Again and closing the diagram renderer dialog."
+        ]
+      },
+      "responsive": {
+        "owner": "component",
+        "behaviors": [
+          "wrap-tool-paths",
+          "fit-compact-viewport"
+        ]
+      },
+      "layout": {
+        "roles": [
+          "content"
+        ],
+        "geometry": {
+          "margin": "none",
+          "border": "none",
+          "padding": "none"
+        }
+      },
+      "accessibility": {
+        "obligations": [
+          "Announce renderer errors as alerts and name each format with its readiness as text."
+        ]
+      },
+      "boundaries": {
+        "rootClass": "diagram-renderers",
+        "publicClasses": [
+          "diagram-renderers"
+        ],
+        "publicTokens": []
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/settings/renderer-dialog.tsx",
+        "composition": "src/components/settings/renderer-dialog.tsx"
+      }
+    },
+    {
       "key": "glassbox2:review-discussion",
       "package": "glassbox2",
       "id": "review-discussion",

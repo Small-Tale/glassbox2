@@ -26,6 +26,7 @@ mod diagrams;
 mod discussion;
 mod export;
 mod progress;
+mod renderers;
 mod review_files;
 mod storage;
 mod symbols;
@@ -155,6 +156,7 @@ fn router(
             "/api/v1/settings/analysis/models",
             post(analysis::preferences::models),
         )
+        .route("/api/v1/settings/renderers", get(renderers::report))
         .route("/api/v1/feedback/storage", get(storage::usage))
         .route("/api/v1/feedback/storage/cleanup", post(storage::cleanup))
         .route(

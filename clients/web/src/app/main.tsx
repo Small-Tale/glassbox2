@@ -74,6 +74,8 @@ import {
 import { createAnalysisSettingsState } from '../components/settings/analysis-settings-state.js';
 import { AppearanceMenu, wireAppearanceMenu } from '../components/settings/appearance-menu.js';
 import { createAppearanceState } from '../components/settings/appearance-state.js';
+import { RendererAction, RendererDialog, wireRendererDialog } from '../components/settings/renderer-dialog.js';
+import { createRendererState } from '../components/settings/renderer-state.js';
 import { StorageAction, StorageDialog, wireStorageDialog } from '../components/settings/storage-dialog.js';
 import { createStorageState } from '../components/settings/storage-state.js';
 
@@ -148,6 +150,8 @@ const appearanceId = 'glassbox-appearance';
 const handoff = createHandoffState();
 const shareId = 'glassbox-share';
 const exportId = 'glassbox-export';
+const rendererId = 'glassbox-renderers';
+const renderers = createRendererState();
 const storageId = 'glassbox-storage';
 const storage = createStorageState();
 const analysisSettings = createAnalysisSettingsState();
@@ -364,6 +368,7 @@ mount(root, () => {
             />
             <AppearanceMenu id={appearanceId} state={appearance} />
             <AnalysisSettingsAction id={analysisSettingsId} />
+            <RendererAction id={rendererId} />
             <StorageAction id={storageId} />
           </>
         }
@@ -385,6 +390,7 @@ mount(root, () => {
         }
       />
       <ExportDialog id={exportId} state={delivery} />
+      <RendererDialog id={rendererId} state={renderers} />
       <StorageDialog id={storageId} state={storage} />
       <SavedReviewDialog id={savedReviewId} state={savedReviews} changedPaths={changedPaths()} />
       <AnalysisSettingsDialog id={analysisSettingsId} state={analysisSettings} />
@@ -463,6 +469,7 @@ void wireMediaDiff(root, mediaId, mediaDiff, (side, target) => {
 void wireAnalysisControls(root, analysisId, analysis, selectedAnalysis);
 void wireAppearanceMenu(root, appearanceId, appearance);
 void wireAnalysisSettingsDialog(root, analysisSettingsId, analysisSettings);
+void wireRendererDialog(root, rendererId, renderers);
 void wireStorageDialog(root, storageId, storage);
 const exportDialog = wireExportDialog(root, exportId, delivery);
 const savedReviewDialog = wireSavedReviewDialog(

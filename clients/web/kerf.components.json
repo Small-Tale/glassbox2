@@ -1224,6 +1224,94 @@
       }
     },
     {
+      "id": "renderer-dialog",
+      "name": "Diagram Renderers",
+      "kind": "composition",
+      "purpose": "Show whether the diagram renderer and each format's tools are ready, and what to set when one is missing.",
+      "source": "src/components/settings/renderer-dialog.tsx",
+      "publicExports": [
+        {
+          "name": "RendererAction"
+        },
+        {
+          "name": "RendererDialog"
+        },
+        {
+          "name": "wireRendererDialog"
+        }
+      ],
+      "sourceLinks": ["src/components/settings/renderer-dialog.tsx"],
+      "composition": {
+        "parents": {
+          "mode": "any",
+          "entries": []
+        },
+        "contexts": ["application-ui"],
+        "zones": [],
+        "children": {
+          "mode": "any",
+          "concepts": [],
+          "requiredConcepts": []
+        },
+        "state": [],
+        "wiring": {
+          "required": true,
+          "helpers": ["wireRendererDialog"],
+          "sources": [
+            {
+              "export": "wireRendererDialog",
+              "source": "src/components/settings/renderer-dialog.tsx",
+              "returnsDisposer": true
+            }
+          ],
+          "obligations": ["Wire opening, Check Again and closing the diagram renderer dialog."]
+        },
+        "responsive": {
+          "owner": "component",
+          "behaviors": ["wrap-tool-paths", "fit-compact-viewport"]
+        },
+        "layout": {
+          "roles": ["content"],
+          "geometry": {
+            "margin": "none",
+            "border": "none",
+            "padding": "none"
+          }
+        }
+      },
+      "boundaries": {
+        "rootClass": "diagram-renderers",
+        "publicClasses": ["diagram-renderers"],
+        "publicTokens": []
+      },
+      "accessibility": {
+        "obligations": ["Announce renderer errors as alerts and name each format with its readiness as text."]
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/settings/renderer-dialog.tsx",
+        "composition": "src/components/settings/renderer-dialog.tsx"
+      },
+      "selection": {
+        "useWhen": ["Check whether diagram previews can render and learn what a missing tool needs."],
+        "avoidWhen": ["Install or run a renderer tool."],
+        "demoSource": "src/ux-demo/demos/settings/renderer-dialog.tsx",
+        "documentation": "docs/ui-conventions.md",
+        "uses": [
+          "button",
+          "empty-state",
+          "list",
+          "list-header",
+          "list-inset-text",
+          "lucide-icon",
+          "state-banner",
+          "surface-scaffold",
+          "text",
+          "toolbar-control-group"
+        ]
+      }
+    },
+    {
       "id": "appearance-menu",
       "name": "Appearance Menu",
       "kind": "component",

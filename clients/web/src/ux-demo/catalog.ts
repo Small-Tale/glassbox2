@@ -19,6 +19,7 @@ import { ReviewWorkbenchDemo } from './demos/review/review-workbench.js';
 import { SourceContextDemo } from './demos/review/source-context.js';
 import { AnalysisSettingsDialogDemo } from './demos/settings/analysis-settings-dialog.js';
 import { AppearanceMenuDemo } from './demos/settings/appearance-menu.js';
+import { RendererDialogDemo } from './demos/settings/renderer-dialog.js';
 import { StorageDialogDemo } from './demos/settings/storage-dialog.js';
 
 export const componentDemos = {
@@ -35,6 +36,7 @@ export const componentDemos = {
   'saved-review-dialog': SavedReviewDialogDemo,
   'share-menu': ShareMenuDemo,
   'export-dialog': ExportDialogDemo,
+  'renderer-dialog': RendererDialogDemo,
   'storage-dialog': StorageDialogDemo,
   'review-navigator': ReviewNavigatorDemo,
   'review-workbench': ReviewWorkbenchDemo,

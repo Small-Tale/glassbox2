@@ -30,6 +30,7 @@ import { wireReviewNavigatorDemo } from './demos/review/review-navigator.js';
 import { wireReviewWorkbenchDemo } from './demos/review/review-workbench.js';
 import { wireAnalysisSettingsDialogDemo } from './demos/settings/analysis-settings-dialog.js';
 import { wireAppearanceMenuDemo } from './demos/settings/appearance-menu.js';
+import { wireRendererDialogDemo } from './demos/settings/renderer-dialog.js';
 import { wireStorageDialogDemo } from './demos/settings/storage-dialog.js';
 
 const urlParam = 'component';
@@ -147,4 +148,5 @@ void wireExportDialogDemo(root);
 void wireAppearanceMenuDemo(root);
 void wireAnalysisSettingsDialogDemo(root);
 
+void wireRendererDialogDemo(root);
 void wireStorageDialogDemo(root);
