@@ -1336,6 +1336,93 @@
       }
     },
     {
+      "key": "glassbox2:symbol-outline-dialog",
+      "package": "glassbox2",
+      "id": "symbol-outline-dialog",
+      "name": "Symbol Outline",
+      "kind": "composition",
+      "purpose": "List the declarations of the displayed file on one side of a comparison and jump to one in the diff.",
+      "publicExports": [
+        {
+          "name": "SymbolOutlineAction"
+        },
+        {
+          "name": "SymbolOutlineDialog"
+        },
+        {
+          "name": "wireSymbolOutline"
+        }
+      ],
+      "sourceLinks": [
+        "src/components/review/symbol-outline-dialog.tsx"
+      ],
+      "source": "src/components/review/symbol-outline-dialog.tsx",
+      "parents": {
+        "mode": "any",
+        "entries": []
+      },
+      "contexts": [
+        "application-ui"
+      ],
+      "zones": [],
+      "children": {
+        "mode": "any",
+        "concepts": [],
+        "requiredConcepts": []
+      },
+      "state": [],
+      "wiring": {
+        "required": true,
+        "helpers": [
+          "wireSymbolOutline"
+        ],
+        "sources": [
+          {
+            "export": "wireSymbolOutline",
+            "source": "src/components/review/symbol-outline-dialog.tsx",
+            "returnsDisposer": true
+          }
+        ],
+        "obligations": [
+          "Wire opening, the side choice, the filter, choosing a symbol and closing the symbol outline dialog."
+        ]
+      },
+      "responsive": {
+        "owner": "component",
+        "behaviors": [
+          "wrap-long-paths",
+          "fit-compact-viewport"
+        ]
+      },
+      "layout": {
+        "roles": [
+          "content"
+        ],
+        "geometry": {
+          "margin": "none",
+          "border": "none",
+          "padding": "none"
+        }
+      },
+      "accessibility": {
+        "obligations": [
+          "Name the side the symbols come from as text and announce outline errors as alerts."
+        ]
+      },
+      "boundaries": {
+        "rootClass": "symbol-outline",
+        "publicClasses": [
+          "symbol-outline"
+        ],
+        "publicTokens": []
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/review/symbol-outline-dialog.tsx",
+        "composition": "src/components/review/symbol-outline-dialog.tsx"
+      }
+    },
+    {
       "key": "glassbox2:text-diff",
       "package": "glassbox2",
       "id": "text-diff",

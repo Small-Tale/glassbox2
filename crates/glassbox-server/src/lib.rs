@@ -164,6 +164,10 @@ fn router(
             post(|Json(input)| symbols::lookup(input)),
         )
         .route(
+            "/api/v1/review/outline",
+            post(|Json(input)| symbols::outline(input)),
+        )
+        .route(
             "/api/v1/review/discussion/source-link",
             post(move |Json(input)| discussion::follow_source_link(source_link_discussion, input)),
         )

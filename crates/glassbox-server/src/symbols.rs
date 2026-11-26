@@ -11,7 +11,7 @@ use glassbox_comparison::GitReview;
 use glassbox_model::feedback::{AnchorSide, SourceLocation};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use tree_sitter::{Language, Parser};
+use tree_sitter::{Language, Node, Parser};
 
 use crate::review_files::{self, SelectedFile};
 
@@ -121,6 +121,44 @@ pub(crate) async fn lookup(input: Lookup) -> Response {
     }
 }
 
+struct Checked {
+    comparison: review_files::Comparison,
+    index: usize,
+}
+
+/// Loads the selected comparison and confirms the file and the diff revision on screen are still current.
+/// `None` means the source is not a Git comparison, which neither lookup supports.
+fn check(selection: SelectedFile, revision: &str) -> Result<Option<Checked>, (StatusCode, String)> {
+    if !matches!(selection.source, review_files::ReviewSource::Git { .. }) {
+        return Ok(None);
+    }
+    let bad_request = |error: io::Error| (StatusCode::BAD_REQUEST, error.to_string());
+    let SelectedFile {
+        source,
+        index,
+        path,
+    } = selection;
+    let comparison = review_files::load(source, None).map_err(bad_request)?;
+    review_files::validate_selection(&comparison, index, &path).map_err(|_| {
+        (
+            StatusCode::CONFLICT,
+            "The selected file has changed.".into(),
+        )
+    })?;
+    let hunks = comparison.text_hunks(index).map_err(bad_request)?;
+    let actual = review_files::text_revision(&hunks).map_err(bad_request)?;
+    if actual != revision {
+        return Err((
+            StatusCode::CONFLICT,
+            "The selected diff has changed.".into(),
+        ));
+    }
+    Ok(comparison
+        .git()
+        .is_some()
+        .then_some(Checked { comparison, index }))
+}
+
 fn resolve(input: Lookup) -> Result<Resolution, (StatusCode, String)> {
     let Lookup {
         selection,
@@ -131,35 +169,16 @@ fn resolve(input: Lookup) -> Result<Resolution, (StatusCode, String)> {
     if !is_identifier(&symbol) {
         return Err((StatusCode::BAD_REQUEST, "Choose a symbol name.".into()));
     }
-    if !matches!(selection.source, review_files::ReviewSource::Git { .. }) {
-        return Ok(Resolution::Unsupported);
-    }
-    let bad_request = |error: io::Error| (StatusCode::BAD_REQUEST, error.to_string());
-    let comparison = review_files::load(selection.source, None).map_err(bad_request)?;
-    review_files::validate_selection(&comparison, selection.index, &selection.path).map_err(
-        |_| {
-            (
-                StatusCode::CONFLICT,
-                "The selected file has changed.".into(),
-            )
-        },
-    )?;
-    let hunks = comparison
-        .text_hunks(selection.index)
-        .map_err(bad_request)?;
-    let actual = review_files::text_revision(&hunks).map_err(bad_request)?;
-    if actual != revision {
-        return Err((
-            StatusCode::CONFLICT,
-            "The selected diff has changed.".into(),
-        ));
-    }
-    let Some(review) = comparison.git() else {
+    let Some(checked) = check(selection, &revision)? else {
         return Ok(Resolution::Unsupported);
     };
-    let mut result = search(review, selection.index, side, &symbol).map_err(bad_request)?;
+    let Some(review) = checked.comparison.git() else {
+        return Ok(Resolution::Unsupported);
+    };
+    let mut result = search(review, checked.index, side, &symbol)
+        .map_err(|error| (StatusCode::BAD_REQUEST, error.to_string()))?;
     if let Resolution::Found { destination } = &mut result {
-        destination.set_diff_revision(&comparison);
+        destination.set_diff_revision(&checked.comparison);
     }
     Ok(result)
 }
@@ -386,6 +405,267 @@ fn search_paths(
     Ok(found)
 }
 
+const MAX_OUTLINE: usize = 2000;
+const MAX_NAME: usize = 128;
+
+#[derive(Deserialize)]
+pub(crate) struct OutlineRequest {
+    selection: SelectedFile,
+    side: AnchorSide,
+    revision: String,
+}
+
+#[derive(Serialize)]
+pub(crate) struct OutlineSymbol {
+    name: String,
+    kind: &'static str,
+    line: usize,
+    depth: usize,
+}
+
+/// The displayed version of the file the outline describes; the client pairs it with a symbol's line to reveal it.
+#[derive(Serialize)]
+pub(crate) struct OutlineFile {
+    path: PathBuf,
+    side: AnchorSide,
+    revision: String,
+    diff_revision: String,
+    index: usize,
+    text: String,
+}
+
+#[derive(Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+enum Outline {
+    Found {
+        file: OutlineFile,
+        symbols: Vec<OutlineSymbol>,
+        truncated: bool,
+    },
+    Unsupported,
+    Unavailable,
+}
+
+pub(crate) async fn outline(input: OutlineRequest) -> Response {
+    match tokio::task::spawn_blocking(move || build_outline(input)).await {
+        Ok(Ok(outline)) => Json(outline).into_response(),
+        Ok(Err((status, message))) => (status, message).into_response(),
+        Err(_) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Could not read the symbol outline",
+        )
+            .into_response(),
+    }
+}
+
+fn build_outline(input: OutlineRequest) -> Result<Outline, (StatusCode, String)> {
+    let OutlineRequest {
+        selection,
+        side,
+        revision,
+    } = input;
+    let Some(checked) = check(selection, &revision)? else {
+        return Ok(Outline::Unsupported);
+    };
+    let Some(review) = checked.comparison.git() else {
+        return Ok(Outline::Unsupported);
+    };
+    let Some(path) = review
+        .changes
+        .get(checked.index)
+        .and_then(|change| match side {
+            AnchorSide::Before => change.before_path.clone(),
+            AnchorSide::After => change.after_path.clone(),
+        })
+    else {
+        return Ok(Outline::Unavailable);
+    };
+    let Some(syntax) = Syntax::from_path(&path) else {
+        return Ok(Outline::Unsupported);
+    };
+    let bad_request = |error: io::Error| (StatusCode::BAD_REQUEST, error.to_string());
+    let Some(text) = review
+        .read_text_source(side, &path, MAX_TEXT_BYTES)
+        .map_err(bad_request)?
+    else {
+        return Ok(Outline::Unavailable);
+    };
+    let (symbols, truncated) =
+        outline_symbols(&mut Parser::new(), syntax, &text).map_err(bad_request)?;
+    Ok(Outline::Found {
+        file: OutlineFile {
+            path,
+            side,
+            revision: format!("{:x}", Sha256::digest(text.as_bytes())),
+            diff_revision: revision,
+            index: checked.index,
+            text,
+        },
+        symbols,
+        truncated,
+    })
+}
+
+impl Syntax {
+    /// The outline entry a node declares, as its listed name and kind. Declarations inside a function body are
+    /// not listed (the caller skips them), so the outline shows what the file defines rather than its locals.
+    fn outline_entry(self, node: Node<'_>, text: &str) -> Option<(String, &'static str, usize)> {
+        let source = text.as_bytes();
+        let named = |node: Node<'_>| {
+            let name = node.child_by_field_name("name")?;
+            let value = name.utf8_text(source).ok()?;
+            (!value.is_empty()).then(|| {
+                (
+                    value.chars().take(MAX_NAME).collect::<String>(),
+                    name.start_position().row + 1,
+                )
+            })
+        };
+        let in_container = |node: Node<'_>, containers: &[&str]| {
+            node.parent()
+                .and_then(|parent| parent.parent())
+                .is_some_and(|owner| containers.contains(&owner.kind()))
+        };
+        let (kind, name, line) = match self {
+            Self::Rust => match node.kind() {
+                "impl_item" => {
+                    let target = node.child_by_field_name("type")?.utf8_text(source).ok()?;
+                    let name = match node
+                        .child_by_field_name("trait")
+                        .and_then(|node| node.utf8_text(source).ok())
+                    {
+                        Some(trait_name) => format!("impl {trait_name} for {target}"),
+                        None => format!("impl {target}"),
+                    };
+                    (
+                        "impl",
+                        name.chars().take(MAX_NAME).collect(),
+                        node.start_position().row + 1,
+                    )
+                }
+                kind => {
+                    let label = match kind {
+                        "function_item" | "function_signature_item" => {
+                            if in_container(node, &["impl_item", "trait_item"]) {
+                                "method"
+                            } else {
+                                "function"
+                            }
+                        }
+                        "struct_item" | "union_item" => "struct",
+                        "enum_item" => "enum",
+                        "trait_item" => "trait",
+                        "type_item" => "type",
+                        "const_item" | "static_item" => "constant",
+                        "mod_item" => "module",
+                        "macro_definition" => "macro",
+                        _ => return None,
+                    };
+                    let (name, line) = named(node)?;
+                    (label, name, line)
+                }
+            },
+            Self::JavaScript | Self::TypeScript | Self::Tsx => {
+                let label = match node.kind() {
+                    "function_declaration" | "generator_function_declaration" => "function",
+                    "class_declaration" | "abstract_class_declaration" => "class",
+                    "interface_declaration" => "interface",
+                    "type_alias_declaration" => "type",
+                    "enum_declaration" => "enum",
+                    "method_definition" => "method",
+                    "internal_module" => "module",
+                    "variable_declarator" => {
+                        if node.child_by_field_name("name")?.kind() != "identifier" {
+                            return None;
+                        }
+                        match node.child_by_field_name("value").map(|value| value.kind()) {
+                            Some("arrow_function" | "function_expression" | "function") => {
+                                "function"
+                            }
+                            Some("class") => "class",
+                            _ => "variable",
+                        }
+                    }
+                    _ => return None,
+                };
+                let (name, line) = named(node)?;
+                (label, name, line)
+            }
+            Self::Python => {
+                let label = match node.kind() {
+                    "function_definition" => {
+                        if in_container(node, &["class_definition"]) {
+                            "method"
+                        } else {
+                            "function"
+                        }
+                    }
+                    "class_definition" => "class",
+                    _ => return None,
+                };
+                let (name, line) = named(node)?;
+                (label, name, line)
+            }
+        };
+        Some((name, kind, line))
+    }
+
+    fn owns_body(self, kind: &str) -> bool {
+        match self {
+            Self::Rust => matches!(kind, "function_item" | "closure_expression"),
+            Self::JavaScript | Self::TypeScript | Self::Tsx => matches!(
+                kind,
+                "function_declaration"
+                    | "generator_function_declaration"
+                    | "method_definition"
+                    | "arrow_function"
+                    | "function_expression"
+                    | "function"
+            ),
+            Self::Python => kind == "function_definition",
+        }
+    }
+}
+
+fn outline_symbols(
+    parser: &mut Parser,
+    syntax: Syntax,
+    text: &str,
+) -> io::Result<(Vec<OutlineSymbol>, bool)> {
+    parser
+        .set_language(&syntax.language())
+        .map_err(io::Error::other)?;
+    let tree = parser
+        .parse(text, None)
+        .ok_or_else(|| io::Error::other("Could not parse source text"))?;
+    let mut symbols = Vec::new();
+    let mut stack = vec![(tree.root_node(), 0_usize, false)];
+    while let Some((node, depth, in_body)) = stack.pop() {
+        let mut child_depth = depth;
+        if !in_body && let Some((name, kind, line)) = syntax.outline_entry(node, text) {
+            if symbols.len() >= MAX_OUTLINE {
+                return Ok((symbols, true));
+            }
+            symbols.push(OutlineSymbol {
+                name,
+                kind,
+                line,
+                depth,
+            });
+            child_depth += 1;
+        }
+        let child_body = in_body || syntax.owns_body(node.kind());
+        let mut children = node.named_children(&mut node.walk()).collect::<Vec<_>>();
+        children.reverse();
+        stack.extend(
+            children
+                .into_iter()
+                .map(|child| (child, child_depth, child_body)),
+        );
+    }
+    Ok((symbols, false))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -493,5 +773,117 @@ mod tests {
                 2
             );
         }
+    }
+
+    fn listed(syntax: Syntax, text: &str) -> Vec<(String, &'static str, usize, usize)> {
+        let (symbols, truncated) = outline_symbols(&mut Parser::new(), syntax, text).unwrap();
+        assert!(!truncated);
+        symbols
+            .into_iter()
+            .map(|symbol| (symbol.name, symbol.kind, symbol.line, symbol.depth))
+            .collect()
+    }
+
+    fn entry(
+        name: &str,
+        kind: &'static str,
+        line: usize,
+        depth: usize,
+    ) -> (String, &'static str, usize, usize) {
+        (name.to_string(), kind, line, depth)
+    }
+
+    #[test]
+    fn outlines_rust_declarations_with_impl_containers_and_no_locals() {
+        let text = "const A: u8 = 1;\nstruct S;\nimpl S {\n    fn new() -> Self {\n        fn inner() {}\n        S\n    }\n}\ntrait T {\n    fn t(&self);\n}\nimpl T for S {\n    fn t(&self) {}\n}\nmod m {\n    pub fn f() {}\n}\nfn main() {\n    const LOCAL: u8 = 2;\n}\n";
+        assert_eq!(
+            listed(Syntax::Rust, text),
+            vec![
+                entry("A", "constant", 1, 0),
+                entry("S", "struct", 2, 0),
+                entry("impl S", "impl", 3, 0),
+                entry("new", "method", 4, 1),
+                entry("T", "trait", 9, 0),
+                entry("t", "method", 10, 1),
+                entry("impl T for S", "impl", 12, 0),
+                entry("t", "method", 13, 1),
+                entry("m", "module", 15, 0),
+                entry("f", "function", 16, 1),
+                entry("main", "function", 18, 0),
+            ]
+        );
+    }
+
+    #[test]
+    fn outlines_typescript_and_javascript_declarations() {
+        let text = "export interface Props { a: string }\ntype Id = string;\nenum Mode { A }\nexport class View {\n  render() { const local = 1; }\n  static make() {}\n}\nexport const make = () => { const inner = () => 1; };\nconst answer = 42;\nexport function build() { function nested() {} }\nnamespace Ns { export const x = 1; }\nconst { a, b } = obj;\n";
+        assert_eq!(
+            listed(Syntax::TypeScript, text),
+            vec![
+                entry("Props", "interface", 1, 0),
+                entry("Id", "type", 2, 0),
+                entry("Mode", "enum", 3, 0),
+                entry("View", "class", 4, 0),
+                entry("render", "method", 5, 1),
+                entry("make", "method", 6, 1),
+                entry("make", "function", 8, 0),
+                entry("answer", "variable", 9, 0),
+                entry("build", "function", 10, 0),
+                entry("Ns", "module", 11, 0),
+                entry("x", "variable", 11, 1),
+            ]
+        );
+        assert_eq!(
+            listed(
+                Syntax::Tsx,
+                "export const View = () => <p>Hi</p>;\nfunction* walk() {}\n"
+            ),
+            vec![
+                entry("View", "function", 1, 0),
+                entry("walk", "function", 2, 0)
+            ]
+        );
+        assert_eq!(
+            listed(
+                Syntax::JavaScript,
+                "class A { m() {} }\nconst b = class {};\n"
+            ),
+            vec![
+                entry("A", "class", 1, 0),
+                entry("m", "method", 1, 1),
+                entry("b", "class", 2, 0)
+            ]
+        );
+    }
+
+    #[test]
+    fn outlines_python_classes_methods_and_functions() {
+        let text = "class A:\n    def m(self):\n        def inner(): ...\n    class B: ...\n@decorator\ndef f(): ...\n";
+        assert_eq!(
+            listed(Syntax::Python, text),
+            vec![
+                entry("A", "class", 1, 0),
+                entry("m", "method", 2, 1),
+                entry("B", "class", 4, 1),
+                entry("f", "function", 6, 0),
+            ]
+        );
+    }
+
+    #[test]
+    fn outline_tolerates_syntax_errors_and_caps_the_list() {
+        let broken = listed(Syntax::Rust, "fn ok() {}\nfn broken( {\nfn later() {}\n");
+        assert!(broken.iter().any(|(name, ..)| name == "ok"));
+        assert!(listed(Syntax::Rust, "").is_empty());
+        let many = (0..MAX_OUTLINE + 5)
+            .map(|n| format!("fn f{n}() {{}}\n"))
+            .collect::<String>();
+        let (symbols, truncated) =
+            outline_symbols(&mut Parser::new(), Syntax::Rust, &many).unwrap();
+        assert!(truncated);
+        assert_eq!(symbols.len(), MAX_OUTLINE);
+        assert_eq!(symbols[0].name, "f0");
+        let long = format!("fn {}() {{}}\n", "n".repeat(300));
+        assert_eq!(listed(Syntax::Rust, &long)[0].0.len(), MAX_NAME);
     }
 }

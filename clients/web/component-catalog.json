@@ -551,6 +551,45 @@
       "documentation": "docs/ui-conventions.md"
     },
     {
+      "id": "symbol-outline-dialog",
+      "name": "Symbol Outline",
+      "kind": "composition",
+      "purpose": "List the declarations of the displayed file on one side of a comparison and jump to one in the diff.",
+      "useWhen": [
+        "Jump to a declaration in the displayed file, on the Before or After side."
+      ],
+      "avoidWhen": [
+        "Search for a symbol by name across files; use definition lookup."
+      ],
+      "publicClasses": [
+        "symbol-outline"
+      ],
+      "publicTokens": [],
+      "uses": [
+        "badge",
+        "button",
+        "empty-state",
+        "list",
+        "list-inset-control",
+        "lucide-icon",
+        "segmented-control",
+        "state-banner",
+        "surface-scaffold",
+        "text",
+        "text-field",
+        "toolbar-control-group",
+        "tree-list"
+      ],
+      "source": "src/components/review/symbol-outline-dialog.tsx",
+      "demoSource": "src/ux-demo/demos/review/symbol-outline-dialog.tsx",
+      "geometry": {
+        "margin": "none",
+        "border": "none",
+        "padding": "none"
+      },
+      "documentation": "docs/ui-conventions.md"
+    },
+    {
       "id": "text-diff",
       "name": "Text Diff",
       "kind": "composition",

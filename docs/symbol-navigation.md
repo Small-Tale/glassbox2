@@ -29,6 +29,35 @@ the matching revision and line. Otherwise it shows a read-only source
 excerpt on the resolved side. Use the existing back and forward buttons
 or keyboard shortcuts to revisit either view and its scroll position.
 
+## Symbol outline
+
+The **Symbol Outline** toolbar button (`HS2-E3YMJ5`) lists the declarations of the selected file on one side of a
+Git comparison and jumps to one. It is available for the same languages as definition lookup (Rust, TypeScript,
+JavaScript and Python); for any other file, or a comparison that is not Git, the button is disabled and its hint
+names the supported languages.
+
+The dialog names the side it reads. A file that exists on both sides shows a **Before** and **After** choice
+(After by default) and the sentence "Choosing a symbol shows `<path>` on the After side."; an added file has only
+After and a deleted file only Before, said in the same place. Each side lists the lines of its own version, so a
+declaration that moved appears at its Before line and its After line, and a declaration that exists on one side
+only is listed on that side only.
+
+Declarations appear in file order with their kind (function, method, class, struct, enum, trait, interface, type,
+constant, module, macro, variable, and Rust `impl` blocks) and line. Members nest under their class, `impl` block,
+trait, interface or module and can be folded. Locals inside function bodies and destructured variables are not
+listed. A filter keeps matching declarations with their containers, and a matching container keeps its members.
+Choosing a row, with the pointer or with Arrow keys and Enter, closes the dialog and reveals the declaration the
+same way a definition jump does: highlighted in the diff when that line is on screen, otherwise as a read-only
+source excerpt, with the same back and forward history.
+
+`POST /api/v1/review/outline` takes the selected file, its displayed diff revision and an explicit side. It
+answers `found` with the file's path, side, content revision, text and the declarations (name, kind, one-based
+line, depth, at most 2000 with `truncated` set beyond that), `unsupported` for a language or comparison without
+a parser, or `unavailable` when the file has no readable source on that side (absent, binary or over 256 KiB). A
+stale selection or diff revision answers HTTP 409, and the open dialog reloads when the diff on screen changes.
+Real-repository host tests cover each side, added and deleted files, unsupported and oversized files and stale
+requests; a real-host browser test covers both sides, the filter, the keyboard and the unsupported button.
+
 AI discussions can link to source on the note's Git side (`HS2-VES1BF`).
 An observation can include numbered references such as `[initialization](0)`
 with a matching `related_locations` entry containing a repository-relative

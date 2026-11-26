@@ -67,6 +67,12 @@ import {
   ReviewWorkbench,
   wireReviewWorkbench,
 } from '../components/review/review-workbench.js';
+import { createSymbolOutline } from '../components/review/symbol-outline.js';
+import {
+  SymbolOutlineAction,
+  SymbolOutlineDialog,
+  wireSymbolOutline,
+} from '../components/review/symbol-outline-dialog.js';
 import {
   AnalysisSettingsAction,
   AnalysisSettingsDialog,
@@ -152,6 +158,8 @@ const appearanceId = 'glassbox-appearance';
 const handoff = createHandoffState();
 const shareId = 'glassbox-share';
 const exportId = 'glassbox-export';
+const outlineId = 'glassbox-symbol-outline';
+const outline = createSymbolOutline();
 const rendererId = 'glassbox-renderers';
 const renderers = createRendererState();
 const storageId = 'glassbox-storage';
@@ -261,6 +269,10 @@ mount(root, () => {
           <>
             <TextDiffToolbar id={diffToolbarId} state={textDiff} />
             <DiffFindControls id={findId} state={find} readout={findReadout(found)} matches={found.matches.length} />
+            <SymbolOutlineAction
+              id={outlineId}
+              enabled={source.activeSource.value?.kind === 'git' && supportsDefinitions(file.path)}
+            />
             <AnalysisControls id={analysisId} state={analysis} />
             {diagramControl}
           </>
@@ -399,6 +411,7 @@ mount(root, () => {
         }
       />
       <ExportDialog id={exportId} state={delivery} />
+      <SymbolOutlineDialog id={outlineId} state={outline} path={file?.path ?? ''} status={file?.status ?? 'modified'} />
       <RendererDialog id={rendererId} state={renderers} />
       <StorageDialog id={storageId} state={storage} />
       <SavedReviewDialog id={savedReviewId} state={savedReviews} changedPaths={changedPaths()} />
@@ -442,6 +455,21 @@ void wireDefinitionNavigation(
     if (active?.kind !== 'git' || index === undefined || file === undefined || content?.kind !== 'text')
       return undefined;
     return { source: active, index, path: file.path, revision: content.revision };
+  },
+  historyNavigation.reveal,
+);
+void wireSymbolOutline(
+  root,
+  outlineId,
+  outline,
+  () => {
+    const active = source.activeSource.value;
+    const index = source.selected.value;
+    const content = diff.result.value;
+    const file = index === undefined ? undefined : source.review.value?.files[index];
+    if (active?.kind !== 'git' || index === undefined || file === undefined || content?.kind !== 'text')
+      return undefined;
+    return { source: active, index, path: file.path, revision: content.revision, status: file.status };
   },
   historyNavigation.reveal,
 );

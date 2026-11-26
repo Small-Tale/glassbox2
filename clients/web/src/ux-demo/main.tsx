@@ -28,6 +28,7 @@ import { wireExportDialogDemo } from './demos/handoff/export-dialog.js';
 import { wireShareMenuDemo } from './demos/handoff/share-menu.js';
 import { wireReviewNavigatorDemo } from './demos/review/review-navigator.js';
 import { wireReviewWorkbenchDemo } from './demos/review/review-workbench.js';
+import { wireSymbolOutlineDemo } from './demos/review/symbol-outline-dialog.js';
 import { wireAnalysisSettingsDialogDemo } from './demos/settings/analysis-settings-dialog.js';
 import { wireAppearanceMenuDemo } from './demos/settings/appearance-menu.js';
 import { wireRendererDialogDemo } from './demos/settings/renderer-dialog.js';
@@ -149,4 +150,5 @@ void wireAppearanceMenuDemo(root);
 void wireAnalysisSettingsDialogDemo(root);
 
 void wireRendererDialogDemo(root);
+void wireSymbolOutlineDemo(root);
 void wireStorageDialogDemo(root);

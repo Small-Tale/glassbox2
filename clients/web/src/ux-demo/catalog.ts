@@ -17,6 +17,7 @@ import { ShareMenuDemo } from './demos/handoff/share-menu.js';
 import { ReviewNavigatorDemo } from './demos/review/review-navigator.js';
 import { ReviewWorkbenchDemo } from './demos/review/review-workbench.js';
 import { SourceContextDemo } from './demos/review/source-context.js';
+import { SymbolOutlineDialogDemo } from './demos/review/symbol-outline-dialog.js';
 import { AnalysisSettingsDialogDemo } from './demos/settings/analysis-settings-dialog.js';
 import { AppearanceMenuDemo } from './demos/settings/appearance-menu.js';
 import { RendererDialogDemo } from './demos/settings/renderer-dialog.js';
@@ -37,6 +38,7 @@ export const componentDemos = {
   'share-menu': ShareMenuDemo,
   'export-dialog': ExportDialogDemo,
   'renderer-dialog': RendererDialogDemo,
+  'symbol-outline-dialog': SymbolOutlineDialogDemo,
   'storage-dialog': StorageDialogDemo,
   'review-navigator': ReviewNavigatorDemo,
   'review-workbench': ReviewWorkbenchDemo,

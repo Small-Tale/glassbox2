@@ -2128,3 +2128,124 @@ test(
     });
   },
 );
+
+// HS2-E3YMJ5: the symbol outline jumps to declarations on the chosen side of a split comparison.
+test(
+  'the symbol outline jumps to declarations on the chosen side and refuses unsupported files',
+  { timeout: 90_000 },
+  async () => {
+    await withWorkbench(async (page, url, { repo }) => {
+      const git = (...args) =>
+        execFileSync('git', ['-c', 'commit.gpgsign=false', '-c', 'core.autocrlf=false', ...args], {
+          cwd: repo,
+          windowsHide: true,
+        });
+      await writeFile(
+        join(repo, 'outline.ts'),
+        'export function alpha() { return 1; }\nexport class Box {\n  open() { return 1; }\n}\nexport function beta() { return 2; }\n',
+      );
+      await writeFile(join(repo, 'notes.md'), '# Notes\n');
+      await writeFile(join(repo, 'gone.ts'), 'export function vanished() { return 0; }\n');
+      git('add', 'outline.ts', 'notes.md', 'gone.ts');
+      git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'outline fixtures');
+      // After: two header lines push every declaration down, and one function is new.
+      await writeFile(
+        join(repo, 'outline.ts'),
+        '// header\n// header two\nexport function alpha() { return 1; }\nexport class Box {\n  open() { return 1; }\n}\nexport function beta() { return 2; }\nexport function gamma() { return 3; }\n',
+      );
+      await writeFile(join(repo, 'notes.md'), '# Notes\nmore\n');
+      await rm(join(repo, 'gone.ts'));
+      const dialog = page.getByRole('dialog', { name: 'Symbol Outline' });
+      const tree = dialog.getByRole('tree', { name: 'Symbols' });
+      const symbol = (name) => tree.getByRole('treeitem', { name: new RegExp(`^${name}\\b`, 'u') });
+      const outlineButton = page.getByRole('button', { name: 'Symbol Outline', exact: true });
+      const target = page.locator('[data-definition-target]');
+      const openOutline = async () => {
+        await outlineButton.click();
+        await dialog.waitFor();
+        await tree.waitFor();
+      };
+      await page.goto(url);
+      await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(repo);
+      await page.getByRole('button', { name: 'Open Comparison', exact: true }).click();
+
+      // After is the default side, with nested members and the declaration that exists only there.
+      await page.getByRole('treeitem', { name: /outline\.ts/u }).click();
+      await openOutline();
+      await dialog.getByText('Choosing a symbol shows outline.ts on the After side.').waitFor();
+      assert.deepEqual(
+        await tree.getByRole('treeitem').evaluateAll((items) => items.map((item) => item.getAttribute('aria-level'))),
+        ['1', '1', '2', '1', '1'],
+      );
+      await symbol('gamma').waitFor();
+      await symbol('open').waitFor();
+      await capture(page, 'outline-after-1440');
+      await symbol('alpha').click();
+      await dialog.waitFor({ state: 'hidden' });
+      await target.waitFor();
+      assert.equal(await target.getAttribute('data-after-line'), '3');
+
+      // Before lists the earlier lines and reveals on the Before side; the target side is named in the dialog.
+      await openOutline();
+      await dialog.locator('[data-segment-value="before"]').click();
+      await dialog.getByText('Choosing a symbol shows outline.ts on the Before side.').waitFor();
+      await tree.getByRole('treeitem', { name: /^alpha\s+Line 1\b/u }).waitFor();
+      assert.equal(await symbol('gamma').count(), 0, 'a declaration that exists only After is not listed Before');
+      await capture(page, 'outline-before-1440');
+      await symbol('alpha').click();
+      await dialog.waitFor({ state: 'hidden' });
+      await target.waitFor();
+      assert.equal(await target.getAttribute('data-before-line'), '1');
+
+      // Filtering keeps a match with its container, and the keyboard reaches a row and chooses it.
+      await openOutline();
+      await dialog.locator('[data-segment-value="after"]').click();
+      await symbol('gamma').waitFor();
+      await dialog.getByRole('searchbox', { name: 'Filter Symbols' }).fill('ope');
+      await symbol('Box').waitFor();
+      await symbol('open').waitFor();
+      assert.equal(await symbol('alpha').count(), 0);
+      await dialog.getByRole('searchbox', { name: 'Filter Symbols' }).fill('');
+      await symbol('beta').focus();
+      await page.keyboard.press('ArrowDown');
+      await page.keyboard.press('Enter');
+      await dialog.waitFor({ state: 'hidden' });
+      await target.waitFor();
+      assert.equal(
+        await target.getAttribute('data-after-line'),
+        '8',
+        'ArrowDown from beta chose gamma on the After side',
+      );
+
+      // Layout: wide to narrow to wide with the dialog open.
+      await openOutline();
+      for (const [layout, width] of [
+        ['wide', 1440],
+        ['medium', 940],
+        ['narrow', 390],
+        ['restored-wide', 1440],
+      ]) {
+        await page.setViewportSize({ width, height: 900 });
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
+        await symbol('gamma').waitFor();
+        await capture(page, `outline-${layout}`);
+      }
+      await dialog.getByRole('button', { name: 'Close', exact: true }).last().click();
+      await dialog.waitFor({ state: 'hidden' });
+
+      // A deleted file has only its Before side; an unsupported file has no outline.
+      await page.getByRole('treeitem', { name: /gone\.ts/u }).click();
+      await openOutline();
+      await dialog.getByText('gone.ts exists only on the Before side.').waitFor();
+      assert.equal(await dialog.locator('[data-segment-value]').count(), 0);
+      await symbol('vanished').click();
+      await dialog.waitFor({ state: 'hidden' });
+      await target.waitFor();
+      assert.equal(await target.getAttribute('data-before-line'), '1');
+      await page.getByRole('treeitem', { name: /notes\.md/u }).click();
+      await outlineButton.waitFor();
+      assert.equal(await outlineButton.isDisabled(), true);
+      assert.match((await outlineButton.getAttribute('title')) ?? '', /Rust, TypeScript, JavaScript and Python/u);
+    });
+  },
+);
