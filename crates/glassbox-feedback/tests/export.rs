@@ -374,7 +374,9 @@ fn an_attachment_shared_by_content_resolves_to_one_file() {
 
 #[test]
 fn the_documented_example_is_the_golden_fixture() {
-    let example = DOCUMENT
+    // A Windows checkout may hold the document with CRLF line endings.
+    let document = DOCUMENT.replace("\r\n", "\n");
+    let example = document
         .split("```json\n")
         .nth(1)
         .and_then(|rest| rest.split("\n```").next())
@@ -390,6 +392,6 @@ fn the_documented_example_is_the_golden_fixture() {
         "pattern-follow",
         "image_region",
     ] {
-        assert!(DOCUMENT.contains(field), "{field} is documented");
+        assert!(document.contains(field), "{field} is documented");
     }
 }
