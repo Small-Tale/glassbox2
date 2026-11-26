@@ -5,6 +5,8 @@ import { wireWorkbench } from '@kerfjs/ui/wire-workbench';
 import { Workbench } from '@kerfjs/ui/workbench';
 import { type SafeHtml, signal } from 'kerfjs';
 
+import { comparisonScrollClass } from './review-history.js';
+
 export function createReviewWorkbenchState() {
   return {
     files: { collapsed: signal(false), size: signal(236), overlay: signal(false) },
@@ -52,6 +54,7 @@ export function ReviewWorkbench({
         label="Review Workbench"
         mainLabel="Comparison"
         mainMinSize={320}
+        mainPane={{ contentClassName: comparisonScrollClass }}
         main={comparison}
         mainHeader={comparisonHeader}
         mainToolbar={{

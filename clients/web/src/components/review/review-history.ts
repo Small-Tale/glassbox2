@@ -63,7 +63,9 @@ export function createReviewHistory() {
 
 type History = ReturnType<typeof createReviewHistory>;
 
-const mainSelector = '[data-workbench-main][aria-label="Comparison"] > [data-component="pane"] > .kui-pane__content';
+// HS2-533A50: the Workbench names its scrolling comparison slot through the public `mainPane.contentClassName`.
+export const comparisonScrollClass = 'review-comparison-scroll';
+const mainSelector = `.${comparisonScrollClass}`;
 
 export function wireReviewHistory(
   root: HTMLElement,

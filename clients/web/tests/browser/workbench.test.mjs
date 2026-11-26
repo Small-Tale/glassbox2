@@ -896,6 +896,10 @@ test(
       await select(/long\.txt/);
       await longContent.waitFor();
       assert(await button('Previous File Visit').isDisabled());
+      // HS2-533A50: the comparison scroll slot is the Workbench's public `mainPane.contentClassName`.
+      const slot = page.locator('[data-workbench-main][aria-label="Comparison"] .review-comparison-scroll');
+      assert.equal(await slot.count(), 1);
+      assert.equal(await slot.locator('.text-diff').count(), 1);
       const previousTop = await scroller.evaluate(async (element) => {
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         element.scrollTo({ top: 420, behavior: 'instant' });
@@ -923,6 +927,25 @@ test(
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
         await capture(page, `history-${width}`);
       }
+      // HS2-533A50: without a text diff the Workbench slot itself is the scroller and restores too.
+      await page.setViewportSize({ width: 1440, height: 260 });
+      await select(/mark\.svg/);
+      await page.getByRole('heading', { name: 'mark.svg', exact: true }).waitFor();
+      const slotTop = await slot.evaluate(async (element) => {
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        element.scrollTo({ top: 60, behavior: 'instant' });
+        return element.scrollTop;
+      });
+      assert(slotTop > 0, `The comparison slot should scroll. Actual offset ${slotTop}`);
+      await select(/bundle\.ts/);
+      await page.getByRole('heading', { name: 'bundle.ts', exact: true }).waitFor();
+      await button('Previous File Visit').click();
+      await page.getByRole('heading', { name: 'mark.svg', exact: true }).waitFor();
+      await page.waitForFunction(
+        (top) => document.querySelector('.review-comparison-scroll')?.scrollTop === top,
+        slotTop,
+      );
+      await page.setViewportSize({ width: 1440, height: 900 });
       await button('Change Source').click();
       await button('Open Comparison').click();
       await page.getByRole('heading', { name: 'Review', exact: true }).waitFor();

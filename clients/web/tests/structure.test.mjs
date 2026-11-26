@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile, stat } from 'node:fs/promises';
+import { readdir, readFile, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import test from 'node:test';
 
@@ -35,4 +35,14 @@ test('the Glassbox catalog publishes a grouped demo for every custom component',
     assert.ok(demo.includes(`'data-demo': '${id}'`), id);
     assert.ok(registry.includes(`'${id}':`), id);
   }
+});
+
+test('HS2-533A50 application source never selects Kerf’s private .kui-* classes', async () => {
+  const offenders = [];
+  for (const entry of await readdir(resolve('src'), { recursive: true, withFileTypes: true })) {
+    if (!entry.isFile() || !/\.(?:css|tsx?)$/.test(entry.name)) continue;
+    const path = resolve(entry.parentPath, entry.name);
+    if (/\.kui-[a-z]/.test(await readFile(path, 'utf8'))) offenders.push(path);
+  }
+  assert.deepEqual(offenders, [], 'Use a public prop or app-owned class such as mainPane.contentClassName');
 });
