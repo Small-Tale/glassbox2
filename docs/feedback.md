@@ -131,6 +131,9 @@ confirmation, ownership, an open review, repeats and retry.
 
 ## Durable AI handoff
 
+Each bundle also holds `feedback.json`, a documented, versioned JSON form of the same review for
+tools that read it programmatically; see [Feedback JSON export](feedback-export.md) (`HS2-A07MHD`).
+
 The feedback bundle store creates a private directory for each review
 under `.glassbox2/feedback` in the current user's home directory
 (`HS2-2E618Q`). A bundle is readable immediately and remains available

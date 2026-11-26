@@ -1,5 +1,6 @@
 //! Durable, database-free handoff bundles for Glassbox reviews.
 
+mod export;
 mod hotsheet;
 mod snapshots;
 mod storage;
@@ -19,6 +20,11 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tempfile::{Builder, NamedTempFile};
 
+pub use export::{
+    EXPORT_FILENAME, EXPORT_SCHEMA_VERSION, ExportAnchorTarget, ExportAttachment, ExportCategory,
+    ExportContext, ExportMessage, ExportMessageKind, ExportOrigin, ExportRisk, ExportSide,
+    ExportThread, FeedbackExport,
+};
 pub use hotsheet::{
     ExportReceipt, ExportRequest, ExportTarget, HotSheetClient, PreparedExport, RecentTicket,
 };
@@ -137,6 +143,13 @@ impl FeedbackBundle {
             .lock()
             .map_err(|_| io::Error::other("The feedback writer lost its publication lock"))?;
         let (output, evidence) = self.render_document(feedback.threads().iter())?;
+        // The export is written before the Markdown commit so the two always describe the same review.
+        let export = FeedbackExport::new(&self.context, feedback.threads());
+        write_replace(
+            &self.directory,
+            EXPORT_FILENAME,
+            &serde_json::to_vec_pretty(&export)?,
+        )?;
         let snapshot = snapshots::publish(&self.directory, output, feedback)?;
         if let Some(previous) = publication.snapshot.replace(snapshot) {
             let _ = fs::remove_file(self.directory.join(previous));

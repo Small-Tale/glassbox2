@@ -506,3 +506,66 @@ fn a_destination_that_changed_after_the_suggestion_is_refused() {
     );
     assert_eq!(status, 400, "an unknown thread is refused");
 }
+
+// HS2-A07MHD: the host publishes the documented JSON export next to the Markdown handoff.
+
+fn find_export(root: &Path) -> Option<std::path::PathBuf> {
+    for entry in fs::read_dir(root).ok()?.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            if let Some(found) = find_export(&path) {
+                return Some(found);
+            }
+        } else if path.file_name().is_some_and(|name| name == "feedback.json") {
+            return Some(path);
+        }
+    }
+    None
+}
+
+#[test]
+fn a_comment_made_through_the_host_appears_in_the_json_export() {
+    let scratch = tempfile::tempdir().unwrap();
+    let (_host, address) = start(scratch.path());
+    let file = fixture(scratch.path(), address);
+    let (status, created) = discuss(
+        address,
+        &file,
+        json!({"kind": "create", "anchor": anchor(&file, "after", 3, &file.revision),
+               "category": "bug", "author": "Reviewer", "markdown": "Exported."}),
+    );
+    assert_eq!(status, 200, "{created}");
+    let path =
+        find_export(&scratch.path().join("feedback")).expect("feedback.json beside review.md");
+    assert!(path.with_file_name("review.md").is_file());
+    let export: Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    assert_eq!(export["schema_version"], 1);
+    let exported = &export["threads"][0];
+    assert_eq!(exported["file"], "after.txt");
+    assert_eq!(exported["side"], "after");
+    assert_eq!(exported["revision"], file.revision);
+    assert_eq!(
+        exported["target"],
+        json!({"kind": "line", "start": 3, "end": 3})
+    );
+    assert_eq!(exported["line_text"], "THREE");
+    assert_eq!(
+        exported["origin"],
+        json!({"kind": "reviewer", "category": "bug"})
+    );
+    assert_eq!(exported["messages"][0]["markdown"], "Exported.");
+
+    // A move is exported with the thread's new place.
+    let (_, view) = discuss(address, &file, json!(null));
+    let (status, _) = discuss(
+        address,
+        &file,
+        json!({"kind": "move", "id": thread(&view)["id"], "revision": thread(&view)["revision"],
+               "anchor": anchor(&file, "after", 4, &file.revision)}),
+    );
+    assert_eq!(status, 200);
+    let path = find_export(&scratch.path().join("feedback")).unwrap();
+    let export: Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    assert_eq!(export["threads"][0]["target"]["start"], 4);
+    assert_eq!(export["threads"][0]["line_text"], "four");
+}

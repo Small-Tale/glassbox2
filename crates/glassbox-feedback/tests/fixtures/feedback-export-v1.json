@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "context": {
+    "project": "/path/to/Fieldnotes",
+    "comparison": "Working tree",
+    "before": "HEAD"
+  },
+  "threads": [
+    {
+      "id": 1,
+      "file": "src/bundle.ts",
+      "side": "after",
+      "revision": "r1",
+      "target": { "kind": "line", "start": 12, "end": 12 },
+      "line_text": "export const revision = 2;",
+      "origin": { "kind": "reviewer", "category": "pattern-follow" },
+      "messages": [
+        {
+          "kind": "opening",
+          "author": "Reviewer",
+          "markdown": "Keep this naming.\nIt matches the module.",
+          "attachments": [
+            {
+              "filename": "evidence.PNG",
+              "path": "attachments/9f64a747e1b97f131fabb6b447296c9b6f0201e79fb3c5356e6c77e89b6a806a.png",
+              "bytes": 4
+            }
+          ]
+        },
+        { "kind": "reply", "id": 3, "author": "Author", "markdown": "Agreed.", "attachments": [] }
+      ]
+    },
+    {
+      "id": 4,
+      "file": "src/bundle.ts",
+      "side": "before",
+      "revision": "r1",
+      "target": { "kind": "line", "start": 3, "end": 5 },
+      "origin": { "kind": "reviewer", "category": "bug" },
+      "messages": [
+        {
+          "kind": "opening",
+          "author": "Reviewer",
+          "markdown": "This range loses the early return.",
+          "attachments": []
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "file": "assets/mark.svg",
+      "side": "after",
+      "revision": "r1",
+      "target": { "kind": "image_region", "left": 0.25, "top": 0.5, "width": 0.5, "height": 0.25 },
+      "origin": { "kind": "reviewer", "category": "note" },
+      "messages": [
+        { "kind": "opening", "author": "Reviewer", "markdown": "The circle is off centre.", "attachments": [] }
+      ]
+    },
+    {
+      "id": 6,
+      "file": "src/settings.rs",
+      "side": "after",
+      "revision": "r1",
+      "target": { "kind": "line", "start": 40, "end": 40 },
+      "origin": { "kind": "ai", "tags": ["Risk Analysis", "Concurrency"], "risk": "medium" },
+      "messages": [
+        {
+          "kind": "opening",
+          "author": "AI note",
+          "markdown": "Simultaneous saves can share a filename.",
+          "attachments": []
+        }
+      ]
+    }
+  ]
+}
