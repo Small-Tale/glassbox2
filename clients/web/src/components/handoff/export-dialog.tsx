@@ -1,17 +1,29 @@
 import '@kerfjs/ui/popup-menu/register';
-import './export-dialog.css';
 
 import { Button } from '@kerfjs/ui/button';
-import { Checkbox } from '@kerfjs/ui/checkbox';
+import { CheckboxGroup } from '@kerfjs/ui/checkbox-group';
 import { px } from '@kerfjs/ui/css-values';
 import { deviceClass } from '@kerfjs/ui/device-class';
+import { List } from '@kerfjs/ui/list';
+import { ListHeader } from '@kerfjs/ui/list-header';
+import { ListInsetControl } from '@kerfjs/ui/list-inset-control';
+import { ListInsetText } from '@kerfjs/ui/list-inset-text';
+import { ListItem } from '@kerfjs/ui/list-item';
+import { LucideIcon } from '@kerfjs/ui/lucide-icon';
 import { PopupMenu } from '@kerfjs/ui/popup-menu';
 import { SegmentedControl } from '@kerfjs/ui/segmented-control';
+import { StateBanner } from '@kerfjs/ui/state-banner';
+import { closeDialog, DialogSurface, openDialog } from '@kerfjs/ui/surface-scaffold';
+import { Text } from '@kerfjs/ui/text';
 import { TextField } from '@kerfjs/ui/text-field';
-import { closeDialog, openDialog, WorkbenchDialog } from '@kerfjs/ui/workbench-dialog';
+import { FolderOpen, ListChecks } from 'lucide';
 
 import type { ReviewSource } from '../review/review-source.js';
 import type { ExportMode, ExportState } from './export-state.js';
+
+// GB2-806ABB: the Kerf catalog marks `wirePinnablePopover` and `wireOverlaySheets` as required for
+// the whole `surface-scaffold` entry, but this is a plain modal dialog (see GB2-NV3Y0E).
+/* eslint-disable kerfjs/ui-wiring */
 
 const choices = [
   { value: 'new', label: 'New Ticket' },
@@ -33,198 +45,20 @@ export function ExportDialog({ id, state, embedded = false }: { id: string; stat
   const files = feedback.paths.length === 1 ? feedback.paths[0] : `${feedback.paths.length} files`;
   const submitLabel = locked ? 'Retry' : existing ? 'Add to Ticket' : 'Create Ticket';
   return (
-    <WorkbenchDialog
+    <DialogSurface
       id={id}
+      className="feedback-export"
       label={heading}
-      title={heading}
-      embedded={embedded}
-      compact={!embedded && device.value.compact}
+      presentation={embedded ? 'embedded' : device.value.compact ? 'fullscreen' : 'modal'}
       preferredWidth={px(672)}
-      height={px(760)}
-      main={
-        <div class="feedback-export" data-export-form={id}>
-          <section class="feedback-export__section" aria-labelledby={`${id}-project`}>
-            <h3 id={`${id}-project`}>Hot Sheet Project</h3>
-            <div class="feedback-export__group">
-              <div class="feedback-export__row">
-                <div>
-                  <strong>
-                    {destination?.name ?? (state.loading.value ? 'Finding Project…' : 'Choose a Project')}
-                  </strong>
-                  {destination === null ? null : <small>{destination.path}</small>}
-                </div>
-                <Button action="export-change" tone="brand" emphasis="plain" disabled={locked || state.loading.value}>
-                  Change
-                </Button>
-              </div>
-              {changing ? (
-                <div class="feedback-export__row">
-                  <TextField
-                    name="export-destination"
-                    label="Project or Store Path"
-                    value={state.destinationDraft.value}
-                  />
-                  <Button
-                    action="export-project"
-                    tone="brand"
-                    disabled={state.destinationDraft.value.trim() === '' || state.loading.value}
-                  >
-                    Use Project
-                  </Button>
-                </div>
-              ) : null}
-            </div>
-          </section>
-
-          <section class="feedback-export__section" aria-labelledby={`${id}-ticket`}>
-            <h3 id={`${id}-ticket`}>Ticket</h3>
-            <div class="feedback-export__group">
-              <div class="feedback-export__row">
-                <span>Send as</span>
-                <SegmentedControl
-                  id={`${id}-type`}
-                  label="Send As"
-                  action="export-mode"
-                  choices={choices}
-                  value={state.mode.value}
-                  size="compact"
-                  disabled={locked}
-                />
-              </div>
-              {existing ? (
-                <div class="feedback-export__row">
-                  <TextField
-                    name="export-reference"
-                    label="Ticket"
-                    placeholder="Enter a ticket ID or paste a reference"
-                    value={state.reference.value}
-                    readOnly={locked}
-                  />
-                  <PopupMenu
-                    label="Recent"
-                    triggerContent={<span class="feedback-export__recent">Recent</span>}
-                    emphasis="plain"
-                    caret={false}
-                    placement="bottom-end"
-                    disabled={locked || destination === null || state.loading.value}
-                    items={[
-                      { kind: 'heading', label: 'Recent Tickets' },
-                      ...state.recent.value.map((ticket) => ({
-                        label: ticket.title,
-                        value: ticket.slug,
-                        details: (
-                          <span>
-                            {ticket.slug} · {ticket.status.replaceAll('_', ' ')}
-                          </span>
-                        ),
-                      })),
-                      ...(state.recent.value.length === 0 ? [{ label: 'No Recent Tickets', disabled: true }] : []),
-                    ]}
-                    rootAttributes={{ 'data-export-recent': id }}
-                  />
-                </div>
-              ) : (
-                <TextField
-                  name="export-title"
-                  label="Title"
-                  placeholder="Glassbox review feedback"
-                  value={state.title.value}
-                  readOnly={locked}
-                />
-              )}
-            </div>
-          </section>
-
-          <section class="feedback-export__section" aria-labelledby={`${id}-review`}>
-            <h3 id={`${id}-review`}>Review</h3>
-            <div class="feedback-export__group">
-              <TextField
-                name="export-summary"
-                label="Summary"
-                placeholder="Optional overall notes (Markdown)"
-                multiline
-                rows={3}
-                value={state.summary.value}
-                readOnly={locked}
-              />
-            </div>
-          </section>
-
-          <section class="feedback-export__section" aria-labelledby={`${id}-included`}>
-            <h3 id={`${id}-included`}>Included Feedback</h3>
-            <div class="feedback-export__group">
-              <div class="feedback-export__row">
-                {feedback.threads === 0 ? (
-                  <span>{included === null ? 'No feedback has been recorded.' : 'No threads selected.'}</span>
-                ) : (
-                  <span>
-                    {feedback.threads} {feedback.threads === 1 ? 'thread' : 'threads'} · {files}
-                  </span>
-                )}
-                {available.threads === 0 ? null : (
-                  <Button
-                    action="export-selection"
-                    tone="brand"
-                    emphasis="plain"
-                    disabled={locked || state.loading.value}
-                  >
-                    {included === null ? 'Select Threads' : 'Include Everything'}
-                  </Button>
-                )}
-              </div>
-              {feedback.replies > 0 ? (
-                <span>
-                  {feedback.replies} {feedback.replies === 1 ? 'reply' : 'replies'}
-                </span>
-              ) : null}
-              {feedback.attachments > 0 ? (
-                <span>
-                  {feedback.attachments} {feedback.attachments === 1 ? 'attachment' : 'attachments'}
-                </span>
-              ) : null}
-              {included === null
-                ? null
-                : available.paths.map((path) => (
-                    <fieldset class="feedback-export__selection">
-                      <legend>{path}</legend>
-                      {available.entries
-                        .filter((thread) => thread.path === path)
-                        .map((thread) => (
-                          <Checkbox
-                            label={thread.excerpt}
-                            name="export-thread"
-                            value={String(thread.id)}
-                            checked={included.some(({ id }) => id === thread.id)}
-                            disabled={locked || state.loading.value}
-                          />
-                        ))}
-                    </fieldset>
-                  ))}
-            </div>
-          </section>
-        </div>
-      }
-      mainFooter={
-        state.message.value !== '' ? (
-          <p class="feedback-export__notice" role="alert">
-            {state.message.value}
-          </p>
-        ) : receipt === null ? undefined : (
-          <p class="feedback-export__notice" role="status">
-            Feedback sent to {receipt.ticket}.
-          </p>
-        )
-      }
-      mainBottomToolbar={{
-        label: 'Delivery Actions',
-        responsive: 'wrap',
-        leading: (
+      bodyInset="none"
+      rootAttributes={{ 'data-key': id, 'data-export-form': id }}
+      footer={
+        <>
           <Button action="export-close" emphasis="secondary" disabled={state.sending.value}>
             {receipt === null ? 'Cancel' : 'Done'}
           </Button>
-        ),
-        trailing:
-          receipt !== null ? undefined : (
+          {receipt !== null ? null : (
             <>
               {locked && !state.sending.value ? (
                 <Button action="export-revise" emphasis="plain" tone="brand">
@@ -235,9 +69,158 @@ export function ExportDialog({ id, state, embedded = false }: { id: string; stat
                 {submitLabel}
               </Button>
             </>
-          ),
-      }}
-    />
+          )}
+        </>
+      }
+    >
+      <List gap>
+        {state.message.value !== '' ? (
+          <StateBanner tone="danger" urgency="alert" title="Could Not Send Feedback" detail={state.message.value} />
+        ) : receipt === null ? null : (
+          <StateBanner tone="success" title={`Feedback sent to ${receipt.ticket}.`} />
+        )}
+
+        <ListHeader label="Hot Sheet Project" />
+        <ListInsetText>
+          <Text weight="strong" wrap="anywhere" flush>
+            {destination?.name ?? (state.loading.value ? 'Finding Project…' : 'Choose a Project')}
+          </Text>
+          {destination === null ? null : (
+            <Text tone="quiet" size="compact" wrap="anywhere" flush>
+              {destination.path}
+            </Text>
+          )}
+        </ListInsetText>
+        <ListItem
+          action="export-change"
+          icon={<LucideIcon icon={FolderOpen} name="folder-open" />}
+          label="Change Project"
+          disabled={locked || state.loading.value}
+        />
+        {changing ? (
+          <>
+            <ListInsetControl>
+              <TextField name="export-destination" label="Project or Store Path" value={state.destinationDraft.value} />
+            </ListInsetControl>
+            <ListInsetControl sides="rbl">
+              <Button
+                action="export-project"
+                tone="brand"
+                disabled={state.destinationDraft.value.trim() === '' || state.loading.value}
+              >
+                Use Project
+              </Button>
+            </ListInsetControl>
+          </>
+        ) : null}
+
+        <ListHeader label="Ticket" />
+        <ListInsetControl>
+          <SegmentedControl
+            id={`${id}-type`}
+            label="Send As"
+            action="export-mode"
+            choices={choices}
+            value={state.mode.value}
+            size="compact"
+            disabled={locked}
+          />
+        </ListInsetControl>
+        {existing ? (
+          <ListInsetControl>
+            <TextField
+              name="export-reference"
+              label="Ticket"
+              placeholder="Enter a ticket ID or paste a reference"
+              value={state.reference.value}
+              readOnly={locked}
+            />
+            <PopupMenu
+              label="Recent"
+              emphasis="plain"
+              caret={false}
+              placement="bottom-end"
+              disabled={locked || destination === null || state.loading.value}
+              items={[
+                { kind: 'heading', label: 'Recent Tickets' },
+                ...state.recent.value.map((ticket) => ({
+                  label: ticket.title,
+                  value: ticket.slug,
+                  details: <>{`${ticket.slug} · ${ticket.status.replaceAll('_', ' ')}`}</>,
+                })),
+                ...(state.recent.value.length === 0 ? [{ label: 'No Recent Tickets', disabled: true }] : []),
+              ]}
+              rootAttributes={{ 'data-export-recent': id }}
+            />
+          </ListInsetControl>
+        ) : (
+          <ListInsetControl>
+            <TextField
+              name="export-title"
+              label="Title"
+              placeholder="Glassbox review feedback"
+              value={state.title.value}
+              readOnly={locked}
+            />
+          </ListInsetControl>
+        )}
+
+        <ListHeader label="Review" />
+        <ListInsetControl>
+          <TextField
+            name="export-summary"
+            label="Summary"
+            placeholder="Optional overall notes (Markdown)"
+            multiline
+            rows={3}
+            value={state.summary.value}
+            readOnly={locked}
+          />
+        </ListInsetControl>
+
+        <ListHeader label="Included Feedback" />
+        <Text controlMargins="rl">
+          {feedback.threads === 0
+            ? included === null
+              ? 'No feedback has been recorded.'
+              : 'No threads selected.'
+            : `${feedback.threads} ${feedback.threads === 1 ? 'thread' : 'threads'} · ${files}`}
+        </Text>
+        {feedback.replies > 0 ? (
+          <Text tone="quiet" controlMargins="rl">
+            {`${feedback.replies} ${feedback.replies === 1 ? 'reply' : 'replies'}`}
+          </Text>
+        ) : null}
+        {feedback.attachments > 0 ? (
+          <Text tone="quiet" controlMargins="rl">
+            {`${feedback.attachments} ${feedback.attachments === 1 ? 'attachment' : 'attachments'}`}
+          </Text>
+        ) : null}
+        {available.threads === 0 ? null : (
+          <ListItem
+            action="export-selection"
+            icon={<LucideIcon icon={ListChecks} name="list-checks" />}
+            label={included === null ? 'Select Threads' : 'Include Everything'}
+            disabled={locked || state.loading.value}
+          />
+        )}
+        {included === null
+          ? null
+          : available.paths.map((path) => (
+              <ListInsetControl>
+                <CheckboxGroup
+                  name="export-thread"
+                  label={path}
+                  choices={available.entries
+                    .filter((thread) => thread.path === path)
+                    .map((thread) => ({ label: thread.excerpt, value: String(thread.id) }))}
+                  value={included.map(({ id }) => String(id))}
+                  disabled={locked || state.loading.value}
+                />
+              </ListInsetControl>
+            ))}
+      </List>
+    </DialogSurface>
   );
 }
 
@@ -285,7 +268,7 @@ export function wireExportDialog(root: HTMLElement, id: string, state: ExportSta
     'click',
     (event) => {
       if (!(event.target instanceof Element)) return;
-      const button = event.target.closest<HTMLElement>('button[data-action]');
+      const button = event.target.closest<HTMLElement>('[data-action]');
       if (!belongs(button)) return;
       const action = button.dataset.action;
       if (action === undefined) return;

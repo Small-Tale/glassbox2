@@ -1,14 +1,23 @@
-import './storage-dialog.css';
-
 import { Button } from '@kerfjs/ui/button';
 import { px } from '@kerfjs/ui/css-values';
 import { deviceClass } from '@kerfjs/ui/device-class';
+import { EmptyState } from '@kerfjs/ui/empty-state';
+import { List } from '@kerfjs/ui/list';
+import { ListHeader } from '@kerfjs/ui/list-header';
+import { ListInsetText } from '@kerfjs/ui/list-inset-text';
+import { ListItem } from '@kerfjs/ui/list-item';
 import { LucideIcon } from '@kerfjs/ui/lucide-icon';
+import { StateBanner } from '@kerfjs/ui/state-banner';
+import { closeDialog, DialogSurface, openDialog } from '@kerfjs/ui/surface-scaffold';
+import { Text } from '@kerfjs/ui/text';
 import { ToolbarButton, ToolbarControlGroup } from '@kerfjs/ui/toolbar-control-group';
-import { closeDialog, openDialog, WorkbenchDialog } from '@kerfjs/ui/workbench-dialog';
-import { HardDrive } from 'lucide';
+import { HardDrive, Trash2 } from 'lucide';
 
 import { formatBytes, type StorageState } from './storage-state.js';
+
+// GB2-806ABB: the Kerf catalog marks `wirePinnablePopover` and `wireOverlaySheets` as required for
+// the whole `surface-scaffold` entry, but this is a plain modal dialog (see GB2-NV3Y0E).
+/* eslint-disable kerfjs/ui-wiring */
 
 const device = deviceClass();
 
@@ -46,128 +55,153 @@ export function StorageDialog({
   const scope = state.scope.value;
   const report = state.report.value;
   const deleting = state.deleting.value;
+  const loading = state.loading.value;
+  const error = state.error.value;
   const confirming = scope !== null;
   return (
-    <WorkbenchDialog
+    <DialogSurface
       id={id}
+      className="feedback-storage"
       label="Feedback Storage"
-      title="Feedback Storage"
-      embedded={embedded}
-      compact={!embedded && device.value.compact}
+      presentation={embedded ? 'embedded' : device.value.compact ? 'fullscreen' : 'modal'}
       preferredWidth={px(580)}
-      height={px(620)}
-      main={
-        <div class="feedback-storage">
-          {scope === null ? (
-            <>
-              <section aria-labelledby={`${id}-usage`}>
-                <h3 id={`${id}-usage`}>Saved Feedback</h3>
-                {usage === null ? (
-                  <p>{state.loading.value ? 'Loading storage…' : 'Storage usage is unavailable.'}</p>
-                ) : (
-                  <>
-                    <p>
-                      <strong>{formatBytes(usage.bytes)}</strong> · {count(usage.bundles)}
-                    </p>
-                    <p>Bundles stay on disk until you clear them.</p>
-                  </>
-                )}
-              </section>
-              {usage !== null && usage.projects.length > 0 ? (
-                <section aria-labelledby={`${id}-projects`}>
-                  <h3 id={`${id}-projects`}>By Project</h3>
-                  <ul>
-                    {usage.projects.map(({ project, bytes, bundles }) => (
-                      <li>
-                        <div>
-                          <strong>{project === null ? 'Unassigned' : projectName(project)}</strong>
-                          {project === null ? null : <small>{project}</small>}
-                          <small>
-                            {formatBytes(bytes)} · {count(bundles)}
-                          </small>
-                        </div>
-                        {project === null ? null : (
-                          <Button
-                            action={`${id}:project`}
-                            rootAttributes={{ 'data-storage-project': project }}
-                            disabled={state.loading.value}
-                            emphasis="plain"
-                            tone="danger"
-                          >
-                            Clear Project
-                          </Button>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              ) : null}
-            </>
-          ) : (
-            <section aria-labelledby={`${id}-confirm`}>
-              <h3 id={`${id}-confirm`}>
-                {scope.kind === 'all' ? 'Clear All Saved Feedback?' : 'Clear Saved Project Feedback?'}
-              </h3>
-              {scope.kind === 'project' ? (
-                <>
-                  <strong>{projectName(scope.project)}</strong>
-                  <small>{scope.project}</small>
-                </>
-              ) : null}
-              <p>Copied AI instructions for deleted bundles will stop working. Bundles open in Glassbox are kept.</p>
-            </section>
-          )}
-          {state.error.value === '' ? null : <p role="alert">{state.error.value}</p>}
-          {report === null || confirming ? null : (
-            <section aria-label="Cleanup Result">
-              <p role="status">
-                Removed {count(report.removed_bundles)} and reclaimed {formatBytes(report.reclaimed_bytes)}.
-              </p>
-              {report.active_bundles > 0 ? <p>Kept {count(report.active_bundles)} open in Glassbox.</p> : null}
-              {report.problems.length > 0 ? (
-                <>
-                  <p role="alert">Some bundles could not be cleared. Run cleanup again to retry.</p>
-                  <ul>
-                    {report.problems.map(({ bundle, message }) => (
-                      <li>
-                        {bundle} · {message}
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              ) : null}
-            </section>
-          )}
-        </div>
-      }
-      mainBottomToolbar={{
-        label: 'Storage Actions',
-        leading: (
-          <Button action={`${id}:${confirming ? 'cancel' : 'close'}`} emphasis="secondary" disabled={deleting}>
-            {confirming ? 'Cancel' : 'Close'}
-          </Button>
-        ),
-        trailing: confirming ? (
-          <Button action={`${id}:delete`} tone="danger" loading={deleting} disabled={deleting}>
-            Clear Saved Feedback
-          </Button>
+      bodyInset="none"
+      rootAttributes={{ 'data-key': id }}
+      footer={
+        confirming ? (
+          <>
+            <Button action={`${id}:cancel`} emphasis="secondary" disabled={deleting}>
+              Cancel
+            </Button>
+            <Button action={`${id}:delete`} tone="danger" loading={deleting} disabled={deleting}>
+              Clear Saved Feedback
+            </Button>
+          </>
         ) : (
           <>
-            <Button action={`${id}:refresh`} emphasis="plain" disabled={state.loading.value}>
+            <Button action={`${id}:refresh`} emphasis="plain" disabled={loading}>
               Refresh
             </Button>
             <Button
               action={`${id}:all`}
               tone="danger"
               emphasis="plain"
-              disabled={state.loading.value || usage === null || usage.bundles === 0}
+              disabled={loading || usage === null || usage.bundles === 0}
             >
               Clear All
             </Button>
+            <Button action={`${id}:close`} emphasis="secondary" disabled={deleting}>
+              Close
+            </Button>
           </>
-        ),
-      }}
-    />
+        )
+      }
+    >
+      <List gap>
+        {error === '' ? null : (
+          <StateBanner tone="danger" urgency="alert" title="Feedback Storage Error" detail={error} />
+        )}
+        {scope !== null ? (
+          <>
+            <ListHeader label={scope.kind === 'all' ? 'Clear All Saved Feedback?' : 'Clear Saved Project Feedback?'} />
+            {scope.kind === 'project' ? (
+              <ListInsetText>
+                <Text weight="strong" wrap="anywhere" flush>
+                  {projectName(scope.project)}
+                </Text>
+                <Text tone="quiet" size="compact" wrap="anywhere" flush>
+                  {scope.project}
+                </Text>
+              </ListInsetText>
+            ) : null}
+            <Text controlMargins="rl">
+              Copied AI instructions for deleted bundles will stop working. Bundles open in Glassbox are kept.
+            </Text>
+          </>
+        ) : (
+          <>
+            <ListHeader label="Saved Feedback" />
+            {usage === null ? (
+              <EmptyState
+                busy={loading}
+                title={loading ? 'Loading Storage' : 'Storage Unavailable'}
+                detail={loading ? undefined : 'Storage usage could not be read.'}
+              />
+            ) : (
+              <>
+                <Text
+                  weight="strong"
+                  controlMargins="rl"
+                >{`${formatBytes(usage.bytes)} · ${count(usage.bundles)}`}</Text>
+                <Text tone="quiet" controlMargins="rl">
+                  Bundles stay on disk until you clear them.
+                </Text>
+              </>
+            )}
+            {usage !== null && usage.projects.length > 0 ? (
+              <>
+                <ListHeader label="By Project" />
+                {usage.projects.map(({ project, bytes, bundles }) =>
+                  project === null ? (
+                    <ListInsetText>
+                      <Text weight="strong" flush>
+                        Unassigned
+                      </Text>
+                      <Text tone="quiet" size="compact" flush>
+                        {`${formatBytes(bytes)} · ${count(bundles)}`}
+                      </Text>
+                    </ListInsetText>
+                  ) : (
+                    <ListItem
+                      action={`${id}:project`}
+                      icon={<LucideIcon icon={Trash2} name="trash-2" />}
+                      label={projectName(project)}
+                      description={project}
+                      status={`${formatBytes(bytes)} · ${count(bundles)}`}
+                      accessibleLabel={`Clear ${projectName(project)}`}
+                      disabled={loading}
+                      multiline
+                      rootAttributes={{ 'data-storage-project': project }}
+                    />
+                  ),
+                )}
+              </>
+            ) : null}
+          </>
+        )}
+        {report === null || confirming ? null : (
+          <>
+            <StateBanner
+              tone="success"
+              title={`Removed ${count(report.removed_bundles)}`}
+              detail={`Reclaimed ${formatBytes(report.reclaimed_bytes)}.`}
+            />
+            {report.active_bundles > 0 ? (
+              <StateBanner
+                tone="info"
+                title="Open Bundles Kept"
+                detail={`Kept ${count(report.active_bundles)} open in Glassbox.`}
+              />
+            ) : null}
+            {report.problems.length > 0 ? (
+              <>
+                <StateBanner
+                  tone="warning"
+                  urgency="alert"
+                  title="Some Bundles Could Not Be Cleared"
+                  detail="Run cleanup again to retry."
+                />
+                {report.problems.map(({ bundle, message }) => (
+                  <ListInsetText>
+                    <Text size="compact" wrap="anywhere" flush>{`${bundle} · ${message}`}</Text>
+                  </ListInsetText>
+                ))}
+              </>
+            ) : null}
+          </>
+        )}
+      </List>
+    </DialogSurface>
   );
 }
 
@@ -179,7 +213,7 @@ export function wireStorageDialog(root: HTMLElement, id: string, state: StorageS
     'click',
     (event) => {
       if (!(event.target instanceof Element)) return;
-      const button = event.target.closest<HTMLElement>('button[data-action]');
+      const button = event.target.closest<HTMLElement>('[data-action]');
       const action = button?.dataset.action;
       if (action === `${id}:open`) {
         const modal = dialog();
@@ -195,7 +229,7 @@ export function wireStorageDialog(root: HTMLElement, id: string, state: StorageS
       if (action === `${id}:refresh`) void state.refresh();
       if (action === `${id}:all`) state.confirm({ kind: 'all' });
       if (action === `${id}:project`) {
-        const project = button?.dataset.storageProject;
+        const project = event.target.closest<HTMLElement>('[data-storage-project]')?.dataset.storageProject;
         if (project !== undefined) state.confirm({ kind: 'project', project });
       }
       if (action === `${id}:cancel`) state.confirm(null);

@@ -625,10 +625,24 @@
       "selection": {
         "useWhen": ["Send all or selected review threads to a Hot Sheet ticket."],
         "avoidWhen": ["Copy instructions to the clipboard."],
-        "styleSources": ["src/components/handoff/export-dialog.css"],
         "demoSource": "src/ux-demo/demos/handoff/export-dialog.tsx",
         "documentation": "docs/ui-conventions.md",
-        "uses": ["button", "checkbox", "popup-menu", "segmented-control", "text-field", "workbench-dialog"]
+        "uses": [
+          "button",
+          "checkbox-group",
+          "list",
+          "list-header",
+          "list-inset-control",
+          "list-inset-text",
+          "list-item",
+          "lucide-icon",
+          "popup-menu",
+          "segmented-control",
+          "state-banner",
+          "surface-scaffold",
+          "text",
+          "text-field"
+        ]
       }
     },
     {
@@ -871,10 +885,23 @@
       "selection": {
         "useWhen": ["Choose a host-approved provider or change Code Guidance topics."],
         "avoidWhen": ["Start an analysis on the current comparison."],
-        "styleSources": ["src/components/settings/analysis-settings-dialog.css"],
         "demoSource": "src/ux-demo/demos/settings/analysis-settings-dialog.tsx",
         "documentation": "docs/ui-conventions.md",
-        "uses": ["button", "checkbox", "lucide-icon", "select", "toolbar-control-group", "workbench-dialog"]
+        "uses": [
+          "button",
+          "checkbox-group",
+          "empty-state",
+          "list",
+          "list-header",
+          "list-inset-control",
+          "list-item",
+          "lucide-icon",
+          "select",
+          "state-banner",
+          "surface-scaffold",
+          "text",
+          "toolbar-control-group"
+        ]
       }
     },
     {
@@ -949,10 +976,21 @@
       "selection": {
         "useWhen": ["Inspect usage or clear saved feedback bundles."],
         "avoidWhen": ["Change appearance."],
-        "styleSources": ["src/components/settings/storage-dialog.css"],
         "demoSource": "src/ux-demo/demos/settings/storage-dialog.tsx",
         "documentation": "docs/ui-conventions.md",
-        "uses": ["button", "lucide-icon", "toolbar-control-group", "workbench-dialog"]
+        "uses": [
+          "button",
+          "empty-state",
+          "list",
+          "list-header",
+          "list-inset-text",
+          "list-item",
+          "lucide-icon",
+          "state-banner",
+          "surface-scaffold",
+          "text",
+          "toolbar-control-group"
+        ]
       }
     },
     {

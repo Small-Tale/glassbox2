@@ -115,9 +115,13 @@ pages).
   with side panels and draws no body inset, which is why dialogs built on it needed an app margin on the content
   while the footer kept Kerf's own inset: the title, content and footer did not share an edge (`HS2-04T93G`).
   A `DialogSurface` with `bodyInset="none"` and a `List` body gives one edge for header, rows and footer with no
-  CSS. Saved Reviews is converted; the other dialogs are tracked below.
+  CSS. Saved Reviews, Feedback Storage, AI Settings and Send to Hot Sheet 2 are all `DialogSurface` dialogs
+  (`GB2-FRH9JJ`, `GB2-806ABB`); title, content and footer share one edge in each (`HS2-04T93G`).
 - **Rows are rows, text is `Text`, states are components.** A saved review is a `ListActionRow` with a trailing
-  overflow `PopupMenu` whose "Delete…" entry has an icon; a section label is `ListHeader`; absence and loading are
+  overflow `PopupMenu` whose "Delete…" entry has an icon; a row whose only action is the row itself (a storage
+  project that opens its cleanup confirmation, Change Project, Load Models) is a `ListItem`, because a lone
+  `Button` inside `ListInsetControl` stretches to the full width and centers its label; form fields and checkbox
+  groups sit in `ListInsetControl`; a section label is `ListHeader`; absence and loading are
   `EmptyState`; persistent errors and status are `StateBanner`; paragraphs and headings are `Text`. Do not write
   `p`, `h1`..`h6`, `ul` or `section` for UI that one of these owns.
 - **A destructive confirmation is an alert `DialogSurface`** (`alert`, `describedBy` the message), Cancel first,
@@ -127,11 +131,11 @@ pages).
   shrink (`HS2-JEM47K`); no Kerf component owns that grid. The image viewer's blend, slice and region rules are
   domain structure Kerf does not provide. Public `--kui-*` tokens in application CSS follow the
   `foundation.css` contract.
-- **Justified lint suppression:** `kerfjs/ui-wiring` is disabled in `saved-review-dialog.tsx` because the catalog
+- **Justified lint suppression:** `kerfjs/ui-wiring` is disabled in `saved-review-dialog.tsx`,
+  `storage-dialog.tsx`, `analysis-settings-dialog.tsx` and `export-dialog.tsx` because the catalog
   marks `wirePinnablePopover` and `wireOverlaySheets` required for the whole `surface-scaffold` entry, although a
   plain modal has no pinned popover or bottom sheet to wire. This is a gap to report to Kerf, not a pattern.
-- **Open audit findings** (files not yet aligned): `storage-dialog`, `analysis-settings-dialog` and
-  `export-dialog` still use `WorkbenchDialog` with app CSS and raw text tags; `discussion` uses raw tags and
+- **Open audit findings** (files not yet aligned): `discussion` uses raw tags and
   72 lines of CSS; `analysis-controls`, `review-navigator`, `source-context`, `text-diff` and `media-diff` use raw
   text tags in places; the Share Feedback and Appearance menu entries have no icons, which the conventions require.
   Each has its own ticket.

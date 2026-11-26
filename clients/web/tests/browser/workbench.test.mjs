@@ -611,7 +611,7 @@ test('AI settings select an approved model and keep analysis opt-in', { timeout:
       await combo('Provider').click();
       assert.equal(await option('Unapproved Fixture').count(), 0);
       await option('Desktop Fixture').click();
-      await page.getByRole('region', { name: 'Provider Data Destination' }).waitFor();
+      await page.getByText('Provider Data Destination', { exact: true }).waitFor();
       assert(!requests.includes('/api/v1/settings/analysis/models'));
       await button('Load Models').click();
       await combo('Model').click();
@@ -945,3 +945,76 @@ test(
     });
   },
 );
+
+// GB2-806ABB: the Feedback Storage and Send to Hot Sheet dialogs are Kerf DialogSurface dialogs.
+test(
+  'Feedback Storage lists usage, confirms each cleanup scope and keeps open bundles',
+  { timeout: 60_000 },
+  async () => {
+    await withWorkbench(async (page, url, { repo }) => {
+      const button = (name) => page.getByRole('button', { name, exact: true });
+      const dialog = page.getByRole('dialog', { name: 'Feedback Storage' });
+      await page.goto(url);
+      await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(repo);
+      await button('Open Comparison').click();
+      await page.getByRole('treeitem', { name: /bundle\.ts/ }).click();
+      await button('Add Comment to After Line 1').focus();
+      await page.keyboard.press('Enter');
+      const inspector = page.getByRole('region', { name: 'Discussion' });
+      await inspector.getByRole('textbox', { name: 'Comment', exact: true }).fill('Storage check.');
+      const created = page.waitForResponse(
+        (response) =>
+          response.url().endsWith('/discussion') && response.request().postDataJSON().operation?.kind === 'create',
+      );
+      await inspector.getByRole('button', { name: 'Add Comment', exact: true }).click();
+      assert((await created).ok());
+
+      await button('Feedback Storage').click();
+      await dialog.getByText('Saved Feedback', { exact: true }).waitFor();
+      await dialog.getByText('By Project', { exact: true }).waitFor();
+      assert.equal(await dialog.getByText(/^\d+(\.\d+)? \w+ · 1 bundle$/).count(), 2);
+      for (const width of [1440, 940, 390, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        await dialog.getByText('Bundles stay on disk until you clear them.').waitFor();
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
+        await capture(page, `storage-${width}`);
+      }
+      await dialog.getByRole('button', { name: /^Clear Fieldnotes/ }).click();
+      await dialog.getByText('Clear Saved Project Feedback?', { exact: true }).waitFor();
+      await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+      await dialog.getByText('Saved Feedback', { exact: true }).waitFor();
+      await dialog.getByRole('button', { name: 'Clear All', exact: true }).click();
+      await dialog.getByText('Clear All Saved Feedback?', { exact: true }).waitFor();
+      await capture(page, 'storage-confirm');
+      await dialog.getByRole('button', { name: 'Clear Saved Feedback', exact: true }).click();
+      await dialog.getByText('Open Bundles Kept', { exact: true }).waitFor();
+      await dialog.getByRole('button', { name: 'Close', exact: true }).last().click();
+      await dialog.waitFor({ state: 'hidden' });
+    });
+  },
+);
+
+test('Send to Hot Sheet 2 opens as one dialog with its sections and closes', { timeout: 60_000 }, async () => {
+  await withWorkbench(async (page, url, { repo }) => {
+    const button = (name) => page.getByRole('button', { name, exact: true });
+    const dialog = page.getByRole('dialog', { name: 'Send to Hot Sheet 2' });
+    await page.goto(url);
+    await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(repo);
+    await button('Open Comparison').click();
+    await page.getByRole('treeitem', { name: /bundle\.ts/ }).click();
+    await button('Share Feedback').click();
+    await page.getByRole('menuitem', { name: /Send to Hot Sheet 2/ }).click();
+    for (const heading of ['Hot Sheet Project', 'Ticket', 'Review', 'Included Feedback']) {
+      await dialog.getByText(heading, { exact: true }).waitFor();
+    }
+    await dialog.getByRole('textbox', { name: 'Title', exact: true }).waitFor();
+    for (const width of [1440, 940, 390, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      await dialog.getByRole('button', { name: 'Cancel', exact: true }).waitFor();
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
+      await capture(page, `export-${width}`);
+    }
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await dialog.waitFor({ state: 'hidden' });
+  });
+});

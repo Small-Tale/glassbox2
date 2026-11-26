@@ -1,17 +1,27 @@
 import '@kerfjs/ui/select/register';
-import './analysis-settings-dialog.css';
 
 import { Button } from '@kerfjs/ui/button';
-import { Checkbox } from '@kerfjs/ui/checkbox';
+import { CheckboxGroup } from '@kerfjs/ui/checkbox-group';
 import { px } from '@kerfjs/ui/css-values';
 import { deviceClass } from '@kerfjs/ui/device-class';
+import { EmptyState } from '@kerfjs/ui/empty-state';
+import { List } from '@kerfjs/ui/list';
+import { ListHeader } from '@kerfjs/ui/list-header';
+import { ListInsetControl } from '@kerfjs/ui/list-inset-control';
+import { ListItem } from '@kerfjs/ui/list-item';
 import { LucideIcon } from '@kerfjs/ui/lucide-icon';
 import { Select } from '@kerfjs/ui/select';
+import { StateBanner } from '@kerfjs/ui/state-banner';
+import { closeDialog, DialogSurface, openDialog } from '@kerfjs/ui/surface-scaffold';
+import { Text } from '@kerfjs/ui/text';
 import { ToolbarButton, ToolbarControlGroup } from '@kerfjs/ui/toolbar-control-group';
-import { closeDialog, openDialog, WorkbenchDialog } from '@kerfjs/ui/workbench-dialog';
-import { BrainCircuit } from 'lucide';
+import { BrainCircuit, RefreshCw } from 'lucide';
 
 import { type AnalysisSettingsState, guidanceTopics } from './analysis-settings-state.js';
+
+// GB2-806ABB: the Kerf catalog marks `wirePinnablePopover` and `wireOverlaySheets` as required for
+// the whole `surface-scaffold` entry, but this is a plain modal dialog (see GB2-NV3Y0E).
+/* eslint-disable kerfjs/ui-wiring */
 
 const device = deviceClass();
 
@@ -46,19 +56,33 @@ export function AnalysisSettingsDialog({
   const modelChoices = models.includes(draft.model ?? '') || draft.model === null ? models : [draft.model, ...models];
   const unavailable = draft.provider !== null && approved === undefined;
   return (
-    <WorkbenchDialog
+    <DialogSurface
       id={id}
+      className="analysis-settings"
       label="AI Settings"
-      title="AI Settings"
-      embedded={embedded}
-      compact={!embedded && device.value.compact}
+      presentation={embedded ? 'embedded' : device.value.compact ? 'fullscreen' : 'modal'}
       preferredWidth={px(560)}
-      height={px(620)}
-      main={
-        <div class="analysis-settings" data-analysis-settings={id}>
-          {pending === 'settings' ? <p role="status">Loading AI settings…</p> : null}
-          {view === null ? null : (
-            <>
+      bodyInset="none"
+      rootAttributes={{ 'data-key': id, 'data-analysis-settings': id }}
+      footer={
+        <>
+          <Button action={`${id}:cancel`} emphasis="secondary" disabled={saving}>
+            Cancel
+          </Button>
+          <Button action={`${id}:save`} loading={saving} disabled={pending !== null || view === null || unavailable}>
+            Save
+          </Button>
+        </>
+      }
+    >
+      <List gap>
+        {state.error.value === '' ? null : (
+          <StateBanner tone="danger" urgency="alert" title="AI Settings Error" detail={state.error.value} />
+        )}
+        {pending === 'settings' ? <EmptyState busy title="Loading AI Settings" /> : null}
+        {view === null ? null : (
+          <>
+            <ListInsetControl>
               <Select
                 name="analysis-provider"
                 label="Provider"
@@ -72,14 +96,23 @@ export function AnalysisSettingsDialog({
                     : []),
                 ]}
               />
-              {view.providers.length === 0 ? <p>No provider has been approved by the host.</p> : null}
-              {approved === undefined ? null : (
-                <section aria-label="Provider Data Destination">
-                  <p>
-                    Glassbox sends text diffs to this executable only when you start an analysis. The provider controls
-                    where the data is processed.
-                  </p>
-                  <code>{approved.executable}</code>
+            </ListInsetControl>
+            {view.providers.length === 0 ? (
+              <Text tone="quiet" controlMargins="rl">
+                No provider has been approved by the host.
+              </Text>
+            ) : null}
+            {approved === undefined ? null : (
+              <>
+                <ListHeader label="Provider Data Destination" />
+                <Text controlMargins="rl">
+                  Glassbox sends text diffs to this executable only when you start an analysis. The provider controls
+                  where the data is processed.
+                </Text>
+                <Text font="monospace" wrap="anywhere" controlMargins="rl">
+                  {approved.executable}
+                </Text>
+                <ListInsetControl>
                   <Select
                     name="analysis-model"
                     label="Model"
@@ -90,47 +123,34 @@ export function AnalysisSettingsDialog({
                       ...modelChoices.map((model) => ({ value: model, label: model })),
                     ]}
                   />
-                  <Button
-                    action={`${id}:models`}
-                    emphasis="plain"
-                    loading={pending === 'models'}
-                    disabled={pending !== null}
-                  >
-                    Load Models
-                  </Button>
-                  {state.models.value?.length === 0 ? <p>The provider reported no available models.</p> : null}
-                </section>
-              )}
-              <fieldset>
-                <legend>Code Guidance Topics</legend>
-                {guidanceTopics.map(({ label, value }) => (
-                  <Checkbox
-                    name={`analysis-topic-${value}`}
-                    label={label}
-                    checked={draft.guidance_topics.includes(value)}
-                    disabled={saving}
-                  />
-                ))}
-              </fieldset>
-            </>
-          )}
-          {state.error.value === '' ? null : <p role="alert">{state.error.value}</p>}
-        </div>
-      }
-      mainBottomToolbar={{
-        label: 'AI Settings Actions',
-        leading: (
-          <Button action={`${id}:cancel`} emphasis="secondary" disabled={saving}>
-            Cancel
-          </Button>
-        ),
-        trailing: (
-          <Button action={`${id}:save`} loading={saving} disabled={pending !== null || view === null || unavailable}>
-            Save
-          </Button>
-        ),
-      }}
-    />
+                </ListInsetControl>
+                <ListItem
+                  action={`${id}:models`}
+                  icon={<LucideIcon icon={RefreshCw} name="refresh-cw" />}
+                  label="Load Models"
+                  busy={pending === 'models'}
+                  disabled={pending !== null}
+                />
+                {state.models.value?.length === 0 ? (
+                  <Text tone="quiet" controlMargins="rl">
+                    The provider reported no available models.
+                  </Text>
+                ) : null}
+              </>
+            )}
+            <ListInsetControl>
+              <CheckboxGroup
+                name="analysis-topic"
+                label="Code Guidance Topics"
+                choices={guidanceTopics.map(({ label, value }) => ({ label, value }))}
+                value={draft.guidance_topics}
+                disabled={saving}
+              />
+            </ListInsetControl>
+          </>
+        )}
+      </List>
+    </DialogSurface>
   );
 }
 
@@ -142,7 +162,7 @@ export function wireAnalysisSettingsDialog(root: HTMLElement, id: string, state:
     'click',
     (event) => {
       if (!(event.target instanceof Element)) return;
-      const action = event.target.closest<HTMLButtonElement>('button[data-action]')?.dataset.action;
+      const action = event.target.closest<HTMLElement>('[data-action]')?.dataset.action;
       const modal = dialog();
       if (modal === null) return;
       if (action === `${id}:open`) {
@@ -168,8 +188,8 @@ export function wireAnalysisSettingsDialog(root: HTMLElement, id: string, state:
         target.closest<HTMLElement>('[data-analysis-settings]')?.dataset.analysisSettings !== id
       )
         return;
-      if (target instanceof HTMLInputElement && target.name.startsWith('analysis-topic-')) {
-        state.chooseTopic(target.name.slice('analysis-topic-'.length), target.checked);
+      if (target instanceof HTMLInputElement && target.name === 'analysis-topic') {
+        state.chooseTopic(target.value, target.checked);
       }
       if (target.tagName !== 'KUI-SELECT' || !('value' in target) || typeof target.value !== 'string') return;
       const value = target.value || null;
