@@ -3,10 +3,28 @@ use std::ffi::OsString;
 use std::io;
 use std::process::{Command, ExitStatus};
 
+mod register;
+
 const TOOL_COMMAND: &str = r#"if [ -n "$GLASSBOX_DIFFTOOL_SELF" ]; then "$GLASSBOX_DIFFTOOL_SELF" --git-difftool "$LOCAL" "$REMOTE"; else glassbox-cli --git-difftool "$LOCAL" "$REMOTE"; fi"#;
 
 fn main() -> std::process::ExitCode {
-    match run(env::args_os().skip(1).collect()) {
+    let args: Vec<OsString> = env::args_os().skip(1).collect();
+    // HS2-HVP8Q1: registering or unregistering the default Git difftool never reaches `git difftool`.
+    if let Some(request) = register::parse(&args) {
+        return match request.and_then(|request| register::execute(&request)) {
+            Ok(report) => {
+                for line in report {
+                    println!("{line}");
+                }
+                std::process::ExitCode::SUCCESS
+            }
+            Err(error) => {
+                eprintln!("glassbox-cli: {error}");
+                std::process::ExitCode::FAILURE
+            }
+        };
+    }
+    match run(args) {
         Ok(status) => std::process::exit(status.code().unwrap_or(1)),
         Err(error) => {
             eprintln!("glassbox-cli: {error}");

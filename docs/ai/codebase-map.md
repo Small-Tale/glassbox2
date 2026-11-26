@@ -1,6 +1,6 @@
 # Codebase map
 
-- `crates/glassbox-cli` runs Git difftool and forwards its two paths to the selected Glassbox client.
+- `crates/glassbox-cli` runs Git difftool and forwards its two paths to the selected Glassbox client. `src/register.rs` registers and unregisters the default Git difftool through `git config`.
 - `crates/glassbox-feedback` publishes the durable Markdown handoff and its attachments, manages editable snapshots and storage leases, and delivers feedback to Hot Sheet.
 - `crates/glassbox-model` owns client-neutral types, the readiness wire shape, and the versioned feedback model under `src/feedback`.
 - `crates/glassbox-server/src/symbols.rs` resolves definitions and AI note source destinations from bounded Git-side source. `discussion.rs` verifies the note's stored link before opening it.

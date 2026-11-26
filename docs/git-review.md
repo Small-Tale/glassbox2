@@ -59,6 +59,36 @@ entry in the desired Git config scope. The wrapper needs no persistent config.
     cmd = glassbox-cli --git-difftool "$LOCAL" "$REMOTE"
 ```
 
+### Default Git difftool
+
+To make plain `git difftool` open Glassbox, register it in one Git
+configuration scope that you name (`HS2-HVP8Q1`):
+
+```sh
+glassbox-cli --register-git-difftool --global   # every repository for this user
+glassbox-cli --register-git-difftool --local    # the current repository only
+glassbox-cli --unregister-git-difftool --global
+glassbox-cli --unregister-git-difftool --local
+```
+
+The scope is required and the command reports which one it changed; it never
+edits the other scope or the system configuration. `glassbox-cli` must be on
+`PATH` when Git runs, because the tool entry calls it by name.
+
+- Registering writes the tool entry above and sets `diff.tool` to `glassbox`.
+  If `diff.tool` was a different tool, the command keeps it in
+  `difftool.glassbox.previousDefault` and reports that. All other settings,
+  including `difftool.prompt` and other tools' entries, are untouched.
+- Registering again changes nothing. It refuses, and writes nothing, when a
+  `difftool.glassbox.cmd` that Glassbox did not write already exists.
+- Unregistering sets `diff.tool` back to the saved default, or removes it when
+  none was saved. If `diff.tool` has since been changed to another tool, it is
+  left alone and the command says so. It removes only the entries it can show
+  are its own and succeeds when nothing is registered.
+- Registration does not set `difftool.trustExitCode`, which is global to every
+  tool. Plain `git difftool` therefore ignores a client failure unless you pass
+  `--trust-exit-code`; `glassbox-cli` always does.
+
 The shared host exposes the current launch paths through
 `GET /api/v1/difftool`, available only when started by difftool.
 The workbench opens that source automatically and lists the changed files
