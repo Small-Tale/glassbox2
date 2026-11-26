@@ -127,6 +127,36 @@ async function exerciseWorkbench(page, url, paths, settings) {
   await page.locator('.text-diff').getByText('after', { exact: true }).waitFor();
 }
 
+// HS2-04T93G: a dialog's title, content and footer share one inset. The title and a content line start on
+// the same x, and the footer's right inset equals that left inset.
+async function assertDialogInset(dialog, content) {
+  const edges = await dialog.evaluate((root, text) => {
+    const textLeft = (element) => {
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      return range.getBoundingClientRect().left;
+    };
+    const frame = root.getBoundingClientRect();
+    const line = [...root.querySelectorAll('*')].find(
+      (element) => element.children.length === 0 && element.textContent?.trim() === text,
+    );
+    const last = [...root.querySelectorAll('button')].at(-1);
+    return {
+      titleLeft: textLeft(root.querySelector('h2')) - frame.left,
+      contentLeft: textLeft(line) - frame.left,
+      footerRight: frame.right - last.getBoundingClientRect().right,
+    };
+  }, content);
+  assert(
+    Math.abs(edges.titleLeft - edges.contentLeft) <= 1.5,
+    `title and content edges differ: ${JSON.stringify(edges)}`,
+  );
+  assert(
+    Math.abs(edges.footerRight - edges.titleLeft) <= 1.5,
+    `footer inset differs from the title's: ${JSON.stringify(edges)}`,
+  );
+}
+
 async function withWorkbench(exercise, { launchArgs = () => [], renderer = false, provider = false } = {}) {
   const scratch = await mkdtemp(join(tmpdir(), 'glassbox-browser-'));
   const settings = join(scratch, 'settings');
@@ -976,6 +1006,7 @@ test(
       for (const width of [1440, 940, 390, 1440]) {
         await page.setViewportSize({ width, height: 900 });
         await dialog.getByText('Bundles stay on disk until you clear them.').waitFor();
+        await assertDialogInset(dialog, 'Saved Feedback');
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
         await capture(page, `storage-${width}`);
       }
@@ -1011,6 +1042,7 @@ test('Send to Hot Sheet 2 opens as one dialog with its sections and closes', { t
     for (const width of [1440, 940, 390, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       await dialog.getByRole('button', { name: 'Cancel', exact: true }).waitFor();
+      await assertDialogInset(dialog, 'Hot Sheet Project');
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
       await capture(page, `export-${width}`);
     }
