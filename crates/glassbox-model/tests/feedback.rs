@@ -12,6 +12,7 @@ fn line() -> ReviewAnchor {
         side: AnchorSide::After,
         revision: "file-rev-1".into(),
         target: AnchorTarget::Line { start: 23, end: 23 },
+        quote: None,
     }
 }
 
@@ -337,4 +338,24 @@ fn deserialization_rejects_escaped_paths_duplicate_ids_and_nonexistent_versions(
     assert_rejected("/threads/0/replies/0/id", json!(id));
     assert_rejected("/threads/0/revision", json!(0));
     assert_rejected("/next_id", json!(0));
+}
+
+#[test]
+fn an_anchor_quote_is_optional_and_survives_a_round_trip() {
+    // HS2-RV5BD8: anchors stored before the quote existed still load, and a quote is kept when present.
+    let stored = r#"{"path":"src/bundle.ts","side":"after","revision":"r1","target":{"kind":"line","start":2,"end":2}}"#;
+    let old: ReviewAnchor = serde_json::from_str(stored).unwrap();
+    assert_eq!(old.quote, None);
+    assert!(
+        !serde_json::to_string(&old).unwrap().contains("quote"),
+        "an absent quote is not written"
+    );
+
+    let quoted = ReviewAnchor {
+        quote: Some("  const value = 1;".into()),
+        ..old
+    };
+    let text = serde_json::to_string(&quoted).unwrap();
+    assert!(text.contains(r#""quote":"  const value = 1;""#));
+    assert_eq!(serde_json::from_str::<ReviewAnchor>(&text).unwrap(), quoted);
 }

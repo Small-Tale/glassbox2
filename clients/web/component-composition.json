@@ -590,6 +590,73 @@
       }
     },
     {
+      "key": "glassbox2:relocation-offer",
+      "package": "glassbox2",
+      "id": "relocation-offer",
+      "name": "Relocation Offer",
+      "kind": "component",
+      "purpose": "Offer a stale line comment a new line when its text has one shown match, and ask before moving it.",
+      "publicExports": [
+        {
+          "name": "RelocationOffer"
+        }
+      ],
+      "sourceLinks": [
+        "src/components/discussion/relocation-offer.tsx"
+      ],
+      "source": "src/components/discussion/relocation-offer.tsx",
+      "parents": {
+        "mode": "any",
+        "entries": []
+      },
+      "contexts": [
+        "application-ui"
+      ],
+      "zones": [],
+      "children": {
+        "mode": "any",
+        "concepts": [],
+        "requiredConcepts": []
+      },
+      "state": [],
+      "wiring": {
+        "required": false,
+        "helpers": [],
+        "obligations": []
+      },
+      "responsive": {
+        "owner": "component",
+        "behaviors": [
+          "wrap-status-text"
+        ]
+      },
+      "layout": {
+        "roles": [
+          "content"
+        ],
+        "geometry": {
+          "margin": "none",
+          "border": "none",
+          "padding": "none"
+        }
+      },
+      "accessibility": {
+        "obligations": [
+          "Announce the outcome as a status and keep Move Here behind an explicit confirmation."
+        ]
+      },
+      "boundaries": {
+        "rootClass": null,
+        "publicClasses": [],
+        "publicTokens": []
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/discussion/relocation-offer.tsx",
+        "composition": "src/components/discussion/relocation-offer.tsx"
+      }
+    },
+    {
       "key": "glassbox2:review-discussion",
       "package": "glassbox2",
       "id": "review-discussion",

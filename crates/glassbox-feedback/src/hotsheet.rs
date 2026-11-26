@@ -589,6 +589,7 @@ mod tests {
                     side: AnchorSide::After,
                     revision: "one".into(),
                     target: AnchorTarget::Line { start: 5, end: 5 },
+                    quote: None,
                 },
                 ThreadOrigin::Reviewer {
                     category: ReviewerCategory::Fix,

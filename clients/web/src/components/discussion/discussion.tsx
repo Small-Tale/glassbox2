@@ -21,6 +21,7 @@ import {
   sourceLinkParts,
   type Thread,
 } from './discussion-state.js';
+import { RelocationOffer } from './relocation-offer.js';
 
 const moveSides = [
   { value: 'before', label: 'Before' },
@@ -177,6 +178,7 @@ export function DiscussionInspector({
         </span>
       </div>
       {isStale ? <p role="status">This comment refers to an earlier version of the file.</p> : null}
+      {isStale && thread.anchor.target.kind === 'line' ? <RelocationOffer state={state} /> : null}
       {state.error.value === '' ? null : <p role="alert">{state.error.value}</p>}
       {isDraft ? <TextField name="discussion-author" label="Author" value={state.author.value} /> : null}
       {editable ? (
@@ -404,6 +406,9 @@ export function wireDiscussion(
         showInspector();
       }
       if (kind === 'discussion-cancel') state.resetEditor();
+      if (kind === 'discussion-relocate') void state.suggestRelocation();
+      if (kind === 'discussion-relocate-dismiss') state.dismissRelocation();
+      if (kind === 'discussion-relocate-confirm') void state.confirmRelocation(anchorFor);
       if (kind === 'discussion-move') state.startMove();
       if (kind === 'discussion-move-cancel') state.cancelMove();
       if (kind === 'discussion-move-submit') void state.submitMove(anchorFor);

@@ -51,6 +51,10 @@ pub struct ReviewAnchor {
     pub side: AnchorSide,
     pub revision: String,
     pub target: AnchorTarget,
+    /// The text of the anchored line when the host recorded it, so a stale comment can find its line again
+    /// (HS2-RV5BD8). Absent on anchors stored before it existed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quote: Option<String>,
 }
 
 impl ReviewAnchor {

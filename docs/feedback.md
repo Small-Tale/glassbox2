@@ -23,6 +23,9 @@ Image coordinates use fractions from 0 to 1 relative to the
 untransformed image. If the marked revision changes or disappears,
 the anchor is stale. Rebinding an anchor is an explicit edit.
 
+When the host creates or moves a line anchor it also records the anchored line's text as
+the optional `quote` (`HS2-RV5BD8`). Anchors saved before that, and AI notes, have none.
+
 Edits, moves, replies, attachment operations, and removals require
 the thread's current revision. A conflict leaves the saved thread
 intact. IDs are unique and stable within a review, including after
@@ -53,6 +56,24 @@ The host checks the selected path and text revision before creating a line
 anchor. Existing threads on earlier revisions remain available in the
 Inspector with a stale indicator. New AI analysis results are tracked in
 `HS2-05B1PZ`.
+
+### Suggest New Line (`HS2-RV5BD8`)
+
+A stale line comment offers Suggest New Line. The host looks for the line the comment was
+made on, by its recorded text, on the same side of the file as it is now. It offers a new
+place only when exactly one line reads the same and the diff shows that line:
+
+| Outcome | What the Inspector says | What happens |
+| --- | --- | --- |
+| One shown match | "The commented text is now at After line 5." with Dismiss and Move Here | Nothing changes until you choose Move Here. |
+| More than one match | "More than one line matches the commented text…" | The comment stays stale; nothing is guessed. |
+| No match (the line was reworded or removed) | "No line matches the commented text…" | The comment stays stale. |
+| A match only in unchanged lines the diff hides | "The only match is in unchanged lines the diff does not show…" | The comment stays stale (`GB2-5QQPPW` covers moving onto revealed lines). |
+| No recorded text (older comments, AI notes) | "This comment did not record its text…" | The comment stays stale (`GB2-JWB3SZ` for AI notes). |
+
+Matching is exact, so a changed line is never matched by similarity. Move Here is the
+validated Move below, guarded by the suggested text: if the file changed again before you
+confirmed, the host answers 409, the comment stays where it was and you can ask again.
 
 ### Move Comment (`HS2-TGAGQ4`)
 

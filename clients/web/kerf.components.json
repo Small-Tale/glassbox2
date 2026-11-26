@@ -308,7 +308,81 @@
         "styleSources": ["src/components/discussion/discussion.css"],
         "demoSource": "src/ux-demo/demos/discussion/discussion.tsx",
         "documentation": "docs/ui-conventions.md",
-        "uses": ["badge", "button", "empty-state", "text-field", "lucide-icon", "select", "file-picker"]
+        "uses": [
+          "badge",
+          "button",
+          "empty-state",
+          "text-field",
+          "lucide-icon",
+          "select",
+          "file-picker",
+          "relocation-offer"
+        ]
+      }
+    },
+    {
+      "id": "relocation-offer",
+      "name": "Relocation Offer",
+      "kind": "component",
+      "purpose": "Offer a stale line comment a new line when its text has one shown match, and ask before moving it.",
+      "source": "src/components/discussion/relocation-offer.tsx",
+      "publicExports": [
+        {
+          "name": "RelocationOffer"
+        }
+      ],
+      "sourceLinks": ["src/components/discussion/relocation-offer.tsx"],
+      "composition": {
+        "parents": {
+          "mode": "any",
+          "entries": []
+        },
+        "contexts": ["application-ui"],
+        "zones": [],
+        "children": {
+          "mode": "any",
+          "concepts": [],
+          "requiredConcepts": []
+        },
+        "state": [],
+        "wiring": {
+          "required": false,
+          "helpers": [],
+          "obligations": []
+        },
+        "responsive": {
+          "owner": "component",
+          "behaviors": ["wrap-status-text"]
+        },
+        "layout": {
+          "roles": ["content"],
+          "geometry": {
+            "margin": "none",
+            "border": "none",
+            "padding": "none"
+          }
+        }
+      },
+      "boundaries": {
+        "rootClass": null,
+        "publicClasses": [],
+        "publicTokens": []
+      },
+      "accessibility": {
+        "obligations": ["Announce the outcome as a status and keep Move Here behind an explicit confirmation."]
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/discussion/relocation-offer.tsx",
+        "composition": "src/components/discussion/relocation-offer.tsx"
+      },
+      "selection": {
+        "useWhen": ["A stale line comment may be re-attached to a matching line."],
+        "avoidWhen": ["Move a comment to a line the person chooses."],
+        "styleSources": ["src/components/discussion/discussion.css"],
+        "demoSource": "src/ux-demo/demos/discussion/relocation-offer.tsx",
+        "documentation": "docs/ui-conventions.md",
+        "uses": ["button"]
       }
     },
     {

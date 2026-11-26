@@ -127,6 +127,8 @@ fn router(
     let handoff_launch = difftool.clone();
     let discussion = discussion::Discussion::default();
     let source_link_discussion = discussion.clone();
+    let relocate_discussion = discussion.clone();
+    let relocate_launch = difftool.clone();
     let artifact_discussion = discussion.clone();
     let handoff = discussion.clone();
     let saved_discussion = discussion.clone();
@@ -162,6 +164,12 @@ fn router(
         .route(
             "/api/v1/review/discussion/source-link",
             post(move |Json(input)| discussion::follow_source_link(source_link_discussion, input)),
+        )
+        .route(
+            "/api/v1/review/discussion/relocate",
+            post(move |Json(input)| {
+                discussion::relocate(relocate_discussion, input, relocate_launch)
+            }),
         )
         .route(
             "/api/v1/review/files",

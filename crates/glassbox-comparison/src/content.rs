@@ -81,6 +81,20 @@ pub fn git_after_bytes(review: &GitReview, index: usize) -> io::Result<Option<Ve
     Ok(review.read_change_sides(index)?.after)
 }
 
+/// Bytes of the original side of one direct entry, or `None` when it was added.
+pub fn direct_before_bytes(entry: &ComparisonEntry) -> io::Result<Option<Vec<u8>>> {
+    entry
+        .before
+        .as_ref()
+        .map(|side| read_local_entry(&side.source_path))
+        .transpose()
+}
+
+/// Bytes of the original side of one Git change, or `None` when it was added.
+pub fn git_before_bytes(review: &GitReview, index: usize) -> io::Result<Option<Vec<u8>>> {
+    Ok(review.read_change_sides(index)?.before)
+}
+
 pub fn compare_git_content(review: &GitReview, index: usize) -> io::Result<ComparisonData> {
     let contents = review.read_change_sides(index)?;
     let entry = &review.changes[index];

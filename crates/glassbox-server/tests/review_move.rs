@@ -246,3 +246,263 @@ fn a_stale_thread_can_be_rebound_to_a_line_of_the_current_file() {
     assert_eq!(thread(&moved)["anchor"]["revision"], current);
     assert_eq!(thread(&moved)["anchor"]["target"]["start"], 6);
 }
+
+// HS2-RV5BD8: suggestions for stale comments, offered only for a unique, shown match and confirmed by a move.
+
+fn write_after(root: &Path, lines: &[&str]) {
+    fs::write(root.join("pair").join("after.txt"), lines.join("\n") + "\n").unwrap();
+}
+
+fn current_revision(address: SocketAddr, file: &Fixture) -> String {
+    let (status, content) = post(address, "file", &file.selection);
+    assert_eq!(status, 200);
+    content["revision"].as_str().unwrap().to_owned()
+}
+
+fn relocate(address: SocketAddr, file: &Fixture, id: u64) -> Value {
+    let (status, body) = post(
+        address,
+        "discussion/relocate",
+        &json!({"selection": file.selection, "thread": id}),
+    );
+    assert_eq!(status, 200, "{body}");
+    body
+}
+
+/// A host with a thread on after line 3 of `before: [one, two, needle line, four, five, six]`.
+fn quoted_thread(root: &Path) -> (Host, SocketAddr, Fixture, u64) {
+    let (host, address) = start(root);
+    let folder = root.join("pair");
+    fs::create_dir_all(&folder).unwrap();
+    let before = folder.join("before.txt");
+    fs::write(
+        &before,
+        "one\ntwo\nneedle line\nfour\nfive\nsix\nseven\neight\n",
+    )
+    .unwrap();
+    write_after(
+        root,
+        &[
+            "one",
+            "two",
+            "needle line",
+            "four",
+            "five",
+            "SIX",
+            "seven",
+            "eight",
+        ],
+    );
+    let selection = json!({
+        "source": {"kind": "paths", "before": before, "after": folder.join("after.txt")},
+        "index": 0,
+        "path": "after.txt",
+    });
+    let mut file = Fixture {
+        selection,
+        revision: String::new(),
+    };
+    file.revision = current_revision(address, &file);
+    let (status, created) = discuss(
+        address,
+        &file,
+        json!({"kind": "create", "anchor": anchor(&file, "after", 3, &file.revision),
+               "category": "note", "author": "Reviewer", "markdown": "Check this."}),
+    );
+    assert_eq!(status, 200, "{created}");
+    let id = thread(&created)["id"].as_u64().unwrap();
+    assert_eq!(
+        thread(&created)["anchor"]["quote"],
+        "needle line",
+        "the host records the line"
+    );
+    (host, address, file, id)
+}
+
+#[test]
+fn a_current_thread_has_nothing_to_suggest() {
+    let scratch = tempfile::tempdir().unwrap();
+    let (_host, address, file, id) = quoted_thread(scratch.path());
+    assert_eq!(relocate(address, &file, id)["outcome"], "current");
+}
+
+#[test]
+fn a_unique_shown_match_is_suggested_and_confirming_moves_the_thread() {
+    let scratch = tempfile::tempdir().unwrap();
+    let (_host, address, file, id) = quoted_thread(scratch.path());
+    write_after(
+        scratch.path(),
+        &[
+            "one",
+            "two",
+            "four",
+            "five",
+            "needle line",
+            "SIX",
+            "seven",
+            "eight",
+        ],
+    );
+    let suggestion = relocate(address, &file, id);
+    assert_eq!(suggestion["outcome"], "suggestion");
+    assert_eq!(suggestion["side"], "after");
+    assert_eq!(suggestion["line"], 5);
+    assert_eq!(suggestion["text"], "needle line");
+    // Asking stores nothing.
+    let (_, view) = discuss(address, &file, json!(null));
+    assert_eq!(thread(&view)["anchor"]["target"]["start"], 3);
+
+    // Confirming is the validated move, guarded by the suggested text.
+    let revision = current_revision(address, &file);
+    let (status, moved) = discuss(
+        address,
+        &file,
+        json!({"kind": "move", "id": id, "revision": thread(&view)["revision"],
+               "anchor": anchor(&file, "after", 5, &revision), "if_text": suggestion["text"]}),
+    );
+    assert_eq!(status, 200, "{moved}");
+    assert_eq!(thread(&moved)["anchor"]["target"]["start"], 5);
+    assert_eq!(thread(&moved)["anchor"]["revision"], revision);
+    assert_eq!(thread(&moved)["anchor"]["quote"], "needle line");
+    assert_eq!(relocate(address, &file, id)["outcome"], "current");
+}
+
+#[test]
+fn a_duplicate_or_missing_match_is_never_guessed() {
+    let scratch = tempfile::tempdir().unwrap();
+    let (_host, address, file, id) = quoted_thread(scratch.path());
+    write_after(
+        scratch.path(),
+        &[
+            "one",
+            "needle line",
+            "two",
+            "needle line",
+            "four",
+            "five",
+            "SIX",
+            "eight",
+        ],
+    );
+    let duplicate = relocate(address, &file, id);
+    assert_eq!(duplicate["outcome"], "ambiguous");
+    assert!(duplicate.get("line").is_none());
+
+    write_after(
+        scratch.path(),
+        &[
+            "one",
+            "two",
+            "needle lines",
+            "four",
+            "five",
+            "SIX",
+            "seven",
+            "eight",
+        ],
+    );
+    assert_eq!(
+        relocate(address, &file, id)["outcome"],
+        "missing",
+        "a reworded line is not matched"
+    );
+
+    let (_, view) = discuss(address, &file, json!(null));
+    assert_eq!(
+        thread(&view)["anchor"]["target"]["start"],
+        3,
+        "the thread stays stale where it was"
+    );
+}
+
+#[test]
+fn a_match_the_diff_hides_is_reported_and_not_offered() {
+    let scratch = tempfile::tempdir().unwrap();
+    let (_host, address) = start(scratch.path());
+    // A long file where the only match is far from every change, so the diff does not show it.
+    let folder = scratch.path().join("pair");
+    fs::create_dir_all(&folder).unwrap();
+    let mut before: Vec<String> = (1..=30).map(|number| format!("line {number}")).collect();
+    before[24] = "needle line".into();
+    fs::write(folder.join("before.txt"), before.join("\n") + "\n").unwrap();
+    let mut after = before.clone();
+    after[2] = "needle line".into();
+    fs::write(folder.join("after.txt"), after.join("\n") + "\n").unwrap();
+    let mut file = Fixture {
+        selection: json!({
+            "source": {"kind": "paths", "before": folder.join("before.txt"), "after": folder.join("after.txt")},
+            "index": 0,
+            "path": "after.txt",
+        }),
+        revision: String::new(),
+    };
+    file.revision = current_revision(address, &file);
+    let (status, created) = discuss(
+        address,
+        &file,
+        json!({"kind": "create", "anchor": anchor(&file, "after", 3, &file.revision),
+               "category": "note", "author": "Reviewer", "markdown": "Hidden match."}),
+    );
+    assert_eq!(status, 200, "{created}");
+    let id = thread(&created)["id"].as_u64().unwrap();
+
+    // Line 3 is reverted and line 12 changed instead: the match at line 25 is unchanged and outside the hunk.
+    let mut later = before.clone();
+    later[11] = "changed".into();
+    fs::write(folder.join("after.txt"), later.join("\n") + "\n").unwrap();
+    let outcome = relocate(address, &file, id);
+    assert_eq!(outcome["outcome"], "hidden");
+    assert!(outcome.get("line").is_none());
+}
+
+#[test]
+fn a_destination_that_changed_after_the_suggestion_is_refused() {
+    let scratch = tempfile::tempdir().unwrap();
+    let (_host, address, file, id) = quoted_thread(scratch.path());
+    write_after(
+        scratch.path(),
+        &[
+            "one",
+            "two",
+            "four",
+            "five",
+            "needle line",
+            "SIX",
+            "seven",
+            "eight",
+        ],
+    );
+    let suggestion = relocate(address, &file, id);
+    assert_eq!(suggestion["outcome"], "suggestion");
+    // The file changes again: line 5 now reads something else.
+    write_after(
+        scratch.path(),
+        &[
+            "one",
+            "two",
+            "four",
+            "five",
+            "other text",
+            "SIX",
+            "seven",
+            "eight",
+        ],
+    );
+    let revision = current_revision(address, &file);
+    let (_, view) = discuss(address, &file, json!(null));
+    let (status, body) = discuss(
+        address,
+        &file,
+        json!({"kind": "move", "id": id, "revision": thread(&view)["revision"],
+               "anchor": anchor(&file, "after", 5, &revision), "if_text": suggestion["text"]}),
+    );
+    assert_eq!(status, 409, "{body}");
+    let (_, after) = discuss(address, &file, json!(null));
+    assert_eq!(thread(&after)["anchor"]["target"]["start"], 3);
+    let (status, _) = post(
+        address,
+        "discussion/relocate",
+        &json!({"selection": file.selection, "thread": 999}),
+    );
+    assert_eq!(status, 400, "an unknown thread is refused");
+}

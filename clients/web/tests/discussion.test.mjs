@@ -236,3 +236,121 @@ test('HS2-TGAGQ4 only a line thread can start a move', async () => {
     state.stop();
   }
 });
+
+// HS2-RV5BD8: a stale thread asks the host for a new line, and only a confirmed unique match moves it.
+async function relocationFixture(
+  answer,
+  respond = (operation, first) => Promise.resolve([{ ...first, anchor: operation.anchor }]),
+) {
+  const source = createReviewSourceState(comparison, () => Promise.resolve(comparison));
+  const first = thread(1, 'Check this.');
+  const requests = [];
+  const asked = [];
+  const state = createDiscussionState(
+    source,
+    (selection, operation) => {
+      requests.push(operation);
+      return operation === undefined ? Promise.resolve([first]) : respond(operation, first);
+    },
+    (selection, id) => {
+      asked.push({ index: selection.index, path: selection.path, id });
+      return typeof answer === 'function' ? answer() : Promise.resolve(answer);
+    },
+  );
+  await source.open({ kind: 'paths', before: '/before', after: '/after' });
+  source.selected.value = 0;
+  await setTimeout(0);
+  await state.showThread(1);
+  return { state, requests, asked };
+}
+
+test('HS2-RV5BD8 a unique match is offered and moving it sends the matched text as a guard', async () => {
+  const { state, requests, asked } = await relocationFixture({
+    outcome: 'suggestion',
+    side: 'after',
+    line: 31,
+    text: 'const value = 1;',
+  });
+  try {
+    await state.suggestRelocation();
+    assert.deepEqual(asked, [{ index: 0, path, id: 1 }]);
+    assert.equal(state.relocation.value.line, 31);
+    assert.equal(requests.filter((operation) => operation?.kind === 'move').length, 0, 'asking changes nothing');
+    assert.equal(await state.confirmRelocation(anchorFor), true);
+    const sent = requests.at(-1);
+    assert.deepEqual(
+      { kind: sent.kind, id: sent.id, revision: sent.revision, line: sent.anchor.target.start, if_text: sent.if_text },
+      { kind: 'move', id: 1, revision: 1, line: 31, if_text: 'const value = 1;' },
+    );
+    assert.equal(state.relocation.value, null);
+    assert.equal(state.activeThread().anchor.target.start, 31);
+  } finally {
+    state.stop();
+  }
+});
+
+test('HS2-RV5BD8 dismissing, or any answer without a suggestion, leaves the thread stale', async () => {
+  for (const outcome of ['ambiguous', 'missing', 'hidden', 'unavailable']) {
+    const { state, requests } = await relocationFixture({ outcome });
+    try {
+      await state.suggestRelocation();
+      assert.equal(state.relocation.value.outcome, outcome);
+      assert.equal(await state.confirmRelocation(anchorFor), false, `${outcome} cannot be confirmed`);
+      assert.equal(requests.filter((operation) => operation?.kind === 'move').length, 0);
+      state.dismissRelocation();
+      assert.equal(state.relocation.value, null);
+      assert.equal(state.activeThread().anchor.target.start, 23);
+    } finally {
+      state.stop();
+    }
+  }
+  const { state } = await relocationFixture({ outcome: 'suggestion', side: 'after', line: 5, text: 'x' });
+  try {
+    await state.suggestRelocation();
+    state.dismissRelocation();
+    assert.equal(state.relocation.value, null);
+    assert.equal(await state.confirmRelocation(anchorFor), false, 'a dismissed suggestion cannot be confirmed');
+  } finally {
+    state.stop();
+  }
+});
+
+test('HS2-RV5BD8 a destination that changed again is refused and the thread stays put', async () => {
+  const { state } = await relocationFixture(
+    { outcome: 'suggestion', side: 'after', line: 31, text: 'const value = 1;' },
+    () => Promise.reject(new Error('The suggested line has changed. Ask for a new suggestion.')),
+  );
+  try {
+    await state.suggestRelocation();
+    assert.equal(await state.confirmRelocation(anchorFor), false);
+    assert.match(state.error.value, /suggested line has changed/u);
+    assert.equal(state.relocation.value, null, 'the stale suggestion is dropped');
+    assert.equal(state.activeThread().anchor.target.start, 23);
+    assert.equal(state.pending.value, false);
+  } finally {
+    state.stop();
+  }
+});
+
+test('HS2-RV5BD8 a late answer for another thread or a failed request is not shown', async () => {
+  const gate = Promise.withResolvers();
+  const { state } = await relocationFixture(() => gate.promise);
+  try {
+    const asking = state.suggestRelocation();
+    assert.equal(state.relocation.value, 'asking');
+    state.resetEditor();
+    gate.resolve({ outcome: 'suggestion', side: 'after', line: 9, text: 'x' });
+    await asking;
+    assert.equal(state.relocation.value, null, 'closing the thread discards the answer');
+  } finally {
+    state.stop();
+  }
+  const failing = await relocationFixture(() => Promise.reject(new Error('The host is unavailable.')));
+  try {
+    await failing.state.suggestRelocation();
+    assert.equal(failing.state.relocation.value, null);
+    assert.match(failing.state.error.value, /unavailable/u);
+  } finally {
+    failing.state.stop();
+  }
+});

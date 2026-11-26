@@ -58,6 +58,21 @@ export function sourceLinkParts(markdown: string, locations: readonly (SourceLoc
   return parts;
 }
 
+export type Relocation =
+  | { outcome: 'suggestion'; side: Side; line: number; text: string }
+  | { outcome: 'ambiguous' | 'missing' | 'hidden' | 'unavailable' | 'current' };
+
+/** Ask the host where a stale comment's text now is; it stores nothing (HS2-RV5BD8). */
+async function relocateThread(selection: Selection & { index: number }, thread: number): Promise<Relocation> {
+  const response = await fetch('/api/v1/review/discussion/relocate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ selection, thread }),
+  });
+  if (!response.ok) throw new Error(await response.text());
+  return (await response.json()) as Relocation;
+}
+
 async function followSourceLink(selection: Selection, thread: number, index: number): Promise<Definition> {
   const response = await fetch('/api/v1/review/discussion/source-link', {
     method: 'POST',
@@ -83,7 +98,7 @@ async function request(selection: Selection, operation?: Operation, abort?: Abor
   return ((await response.json()) as { threads: Thread[] }).threads;
 }
 
-export function createDiscussionState(source: ReviewSourceState, load = request) {
+export function createDiscussionState(source: ReviewSourceState, load = request, locate = relocateThread) {
   const threads = signal<Thread[]>([]);
   const threadId = signal<number | null>(null);
   const adding = signal<Anchor | null>(null);
@@ -96,6 +111,9 @@ export function createDiscussionState(source: ReviewSourceState, load = request)
   const staleFile = signal<{ source: ReviewSource; path: string } | null>(null);
   /** The open Move Comment form: where the active thread would go (HS2-TGAGQ4). */
   const moving = signal<{ side: Side; line: string } | null>(null);
+  /** A suggested new line for the active stale thread: asking, the host's answer, or nothing (HS2-RV5BD8). */
+  const relocation = signal<'asking' | Relocation | null>(null);
+  let relocateSequence = 0;
   const artifact = signal<{ id: number; label: string; preview?: ArtifactPreview; message?: string } | null>(null);
   let artifactRequest: AbortController | undefined;
   let current: Selection | null = null;
@@ -130,6 +148,8 @@ export function createDiscussionState(source: ReviewSourceState, load = request)
     threadId.value = null;
     adding.value = null;
     moving.value = null;
+    relocation.value = null;
+    relocateSequence++;
     reply.value = '';
     text.value = '';
     error.value = '';
@@ -349,6 +369,54 @@ export function createDiscussionState(source: ReviewSourceState, load = request)
     return saved;
   }
 
+  async function suggestRelocation() {
+    const selection = current;
+    const thread = activeThread();
+    if (selection?.index === undefined || thread?.anchor.target.kind !== 'line') return;
+    const sequence = ++relocateSequence;
+    relocation.value = 'asking';
+    error.value = '';
+    try {
+      const answer = await locate({ ...selection, index: selection.index }, thread.id);
+      // A thread or file switch while asking makes the answer someone else's.
+      if (sequence === relocateSequence && selection === current && thread === activeThread()) {
+        relocation.value = answer;
+      }
+    } catch (failure) {
+      if (sequence !== relocateSequence) return;
+      relocation.value = null;
+      error.value = failure instanceof Error ? failure.message : 'Could not look for a new line.';
+    }
+  }
+
+  function dismissRelocation() {
+    relocateSequence++;
+    relocation.value = null;
+  }
+
+  /** Move the thread where the host found its text; the host refuses when that line has changed again. */
+  async function confirmRelocation(anchorFor: (side: Side, line: number) => Anchor | undefined) {
+    const answer = relocation.value;
+    const thread = activeThread();
+    if (answer === null || answer === 'asking' || answer.outcome !== 'suggestion' || thread === undefined) {
+      return false;
+    }
+    const anchor = anchorFor(answer.side, answer.line);
+    if (anchor === undefined) {
+      error.value = 'Open the comment’s file to move it within that file.';
+      return false;
+    }
+    const saved = await save({
+      kind: 'move',
+      id: thread.id,
+      revision: thread.revision,
+      anchor,
+      if_text: answer.text,
+    });
+    relocation.value = null;
+    return saved;
+  }
+
   function edit(value: string) {
     text.value = value;
     if (activeThread() === undefined) autosave.cancel();
@@ -361,6 +429,10 @@ export function createDiscussionState(source: ReviewSourceState, load = request)
     threads,
     threadId,
     adding,
+    relocation,
+    suggestRelocation,
+    dismissRelocation,
+    confirmRelocation,
     moving,
     startMove,
     cancelMove,

@@ -6,7 +6,7 @@ mod paths;
 
 pub use content::{
     compare_direct_content, compare_git_content, compare_text_bytes, direct_after_bytes,
-    git_after_bytes, parse_hunks,
+    direct_before_bytes, git_after_bytes, git_before_bytes, parse_hunks,
 };
 pub use git::{GitChange, GitFileChange, GitReview, GitReviewMode, review_git};
 pub use paths::{compare_difftool_paths, compare_paths};

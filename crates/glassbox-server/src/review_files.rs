@@ -7,7 +7,7 @@ use axum::response::{IntoResponse, Response};
 use glassbox_comparison::{
     GitChange, GitFileChange, GitReview, GitReviewMode, compare_difftool_paths,
     compare_direct_content, compare_git_content, compare_paths, compare_text_bytes,
-    direct_after_bytes, git_after_bytes, review_git,
+    direct_after_bytes, direct_before_bytes, git_after_bytes, git_before_bytes, review_git,
 };
 use glassbox_model::feedback::AnchorSide;
 use glassbox_model::{
@@ -371,6 +371,16 @@ impl Comparison {
             ComparisonData::UnavailableLfs { .. } => "lfs-unavailable".into(),
             ComparisonData::Binary => "binary".into(),
         })
+    }
+
+    /// Bytes of one side of the file, `None` when that side does not exist (added or deleted).
+    pub(crate) fn side_bytes(&self, index: usize, side: AnchorSide) -> io::Result<Option<Vec<u8>>> {
+        match (&self.entries, side) {
+            (Entries::Git(review), AnchorSide::Before) => git_before_bytes(review, index),
+            (Entries::Git(review), AnchorSide::After) => git_after_bytes(review, index),
+            (Entries::Direct(entries), AnchorSide::Before) => direct_before_bytes(&entries[index]),
+            (Entries::Direct(entries), AnchorSide::After) => direct_after_bytes(&entries[index]),
+        }
     }
 
     /// Bytes of the displayed side, `None` for a deleted file.

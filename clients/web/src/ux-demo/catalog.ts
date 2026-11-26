@@ -10,6 +10,7 @@ import { DiffFindControlsDemo } from './demos/diff/diff-find-controls.js';
 import { MediaDiffDemo } from './demos/diff/media-diff.js';
 import { TextDiffDemo } from './demos/diff/text-diff.js';
 import { DiscussionDemo } from './demos/discussion/discussion.js';
+import { RelocationOfferDemo } from './demos/discussion/relocation-offer.js';
 import { SavedReviewDialogDemo } from './demos/discussion/saved-review-dialog.js';
 import { ExportDialogDemo } from './demos/handoff/export-dialog.js';
 import { ShareMenuDemo } from './demos/handoff/share-menu.js';
@@ -30,6 +31,7 @@ export const componentDemos = {
   'media-diff': MediaDiffDemo,
   'analysis-controls': AnalysisControlsDemo,
   'review-discussion': DiscussionDemo,
+  'relocation-offer': RelocationOfferDemo,
   'saved-review-dialog': SavedReviewDialogDemo,
   'share-menu': ShareMenuDemo,
   'export-dialog': ExportDialogDemo,

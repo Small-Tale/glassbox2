@@ -47,6 +47,126 @@ pub(crate) struct SourceLinkInput {
     index: usize,
 }
 
+#[derive(Deserialize)]
+pub(crate) struct RelocateInput {
+    selection: review_files::SelectedFile,
+    thread: FeedbackId,
+}
+
+#[derive(Serialize)]
+struct Relocation {
+    /// `suggestion` carries the new place; the rest explain why there is none (HS2-RV5BD8).
+    outcome: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    side: Option<AnchorSide>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    line: Option<u32>,
+    /// The line's text, which a confirming move sends back as `if_text`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    text: Option<String>,
+}
+
+impl Relocation {
+    fn none(outcome: &'static str) -> Self {
+        Self {
+            outcome,
+            side: None,
+            line: None,
+            text: None,
+        }
+    }
+}
+
+/// Suggests where a stale line comment's reviewed text now is, and stores nothing.
+pub(crate) async fn relocate(
+    workspace: Discussion,
+    input: RelocateInput,
+    difftool: Option<DifftoolInput>,
+) -> Response {
+    match tokio::task::spawn_blocking(move || locate(&workspace, input, difftool)).await {
+        Ok(Ok(relocation)) => Json(relocation).into_response(),
+        Ok(Err((status, message))) => (status, message).into_response(),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
+fn locate(
+    workspace: &Discussion,
+    input: RelocateInput,
+    difftool: Option<DifftoolInput>,
+) -> Result<Relocation, ApiError> {
+    let review_files::SelectedFile {
+        source,
+        index,
+        path,
+    } = input.selection;
+    let key = serde_json::to_string(&source).map_err(bad_request)?;
+    let anchor = {
+        let reviews = workspace.0.lock().map_err(storage_error)?;
+        reviews
+            .get(&key)
+            .and_then(|review| {
+                review
+                    .saved
+                    .threads()
+                    .iter()
+                    .find(|thread| thread.id == input.thread && thread.anchor.path == path)
+                    .map(|thread| thread.anchor.clone())
+            })
+            .ok_or_else(|| bad_request("The thread is unavailable in the selected file."))?
+    };
+    if !matches!(anchor.target, AnchorTarget::Line { .. }) {
+        return Err(bad_request("Only a line comment can look for a new line."));
+    }
+    let Some(quote) = anchor.quote.as_deref() else {
+        return Ok(Relocation::none("unavailable"));
+    };
+    let comparison = review_files::load(source, difftool).map_err(bad_request)?;
+    review_files::validate_selection(&comparison, index, &path).map_err(bad_request)?;
+    let hunks = comparison.text_hunks(index).map_err(bad_request)?;
+    let revision = review_files::text_revision(&hunks).map_err(storage_error)?;
+    if !anchor.is_stale(Some(&revision)) {
+        return Ok(Relocation::none("current"));
+    }
+    let Some(bytes) = comparison
+        .side_bytes(index, anchor.side)
+        .map_err(bad_request)?
+    else {
+        return Ok(Relocation::none("missing"));
+    };
+    let text = String::from_utf8_lossy(&bytes);
+    let matches: Vec<u32> = text
+        .split_inclusive('\n')
+        .enumerate()
+        .filter(|(_, line)| line.strip_suffix('\n').unwrap_or(line) == quote)
+        .map(|(offset, _)| u32::try_from(offset + 1).unwrap_or(u32::MAX))
+        .collect();
+    Ok(match matches.as_slice() {
+        [] => Relocation::none("missing"),
+        [line] => {
+            // Move only accepts lines the diff shows, so a match in hidden text is reported, not offered.
+            let shown = hunks.iter().flat_map(|hunk| &hunk.lines).any(|candidate| {
+                let number = match anchor.side {
+                    AnchorSide::Before => candidate.before_line,
+                    AnchorSide::After => candidate.after_line,
+                };
+                number == Some(*line)
+            });
+            if shown {
+                Relocation {
+                    outcome: "suggestion",
+                    side: Some(anchor.side),
+                    line: Some(*line),
+                    text: Some(quote.to_owned()),
+                }
+            } else {
+                Relocation::none("hidden")
+            }
+        }
+        _ => Relocation::none("ambiguous"),
+    })
+}
+
 pub(crate) async fn follow_source_link(workspace: Discussion, input: SourceLinkInput) -> Response {
     match tokio::task::spawn_blocking(move || resolve_source_link(workspace, input)).await {
         Ok(Ok(destination)) => Json(destination).into_response(),
@@ -160,6 +280,10 @@ enum Operation {
         id: FeedbackId,
         revision: u32,
         anchor: ReviewAnchor,
+        /// When set, the destination line must still read exactly this, so a confirmed suggestion cannot land
+        /// on different text if the file changed again (HS2-RV5BD8).
+        #[serde(default)]
+        if_text: Option<String>,
     },
 }
 
@@ -471,6 +595,8 @@ impl Discussion {
                         start: observation.line,
                         end: observation.line,
                     },
+                    // Analysis results carry no source text, so an AI note is never offered a new line.
+                    quote: None,
                 };
                 let origin = ThreadOrigin::Ai {
                     tags: vec![tag.into()],
@@ -611,7 +737,7 @@ fn edit(
     let mut new_context = None;
     match operation {
         Operation::Create {
-            anchor,
+            mut anchor,
             category,
             author,
             markdown,
@@ -636,7 +762,9 @@ fn edit(
                     ));
                 }
             } else {
-                validate_line_anchor(&comparison, index, &path, &anchor, "adding a comment")?;
+                let text =
+                    validate_line_anchor(&comparison, index, &path, &anchor, "adding a comment")?;
+                anchor.quote = Some(text);
             }
             next.add(
                 anchor,
@@ -649,7 +777,8 @@ fn edit(
         Operation::Move {
             id,
             revision,
-            anchor,
+            mut anchor,
+            if_text,
         } => {
             let index = index
                 .ok_or_else(|| bad_request("Choose a changed file before moving a comment."))?;
@@ -666,7 +795,15 @@ fn edit(
                     "Only a line comment of the selected file can move to another line.",
                 ));
             }
-            validate_line_anchor(&comparison, index, &path, &anchor, "moving the comment")?;
+            let text =
+                validate_line_anchor(&comparison, index, &path, &anchor, "moving the comment")?;
+            if if_text.is_some_and(|expected| expected != text) {
+                return Err((
+                    StatusCode::CONFLICT,
+                    "The suggested line has changed. Ask for a new suggestion.".into(),
+                ));
+            }
+            anchor.quote = Some(text);
             next.apply(id, revision, FeedbackChange::Move { anchor })
                 .map_err(model_error)?;
         }
@@ -716,29 +853,33 @@ fn validate_line_anchor(
     path: &str,
     anchor: &ReviewAnchor,
     action: &str,
-) -> Result<(), ApiError> {
+) -> Result<String, ApiError> {
     let hunks = comparison.text_hunks(index).map_err(bad_request)?;
     let revision = review_files::text_revision(&hunks).map_err(storage_error)?;
     let anchor_line = match anchor.target {
         AnchorTarget::Line { start, end } if start == end => Some(start),
         _ => None,
     };
-    let has_line = anchor_line.is_some_and(|target| {
-        hunks.iter().flat_map(|hunk| &hunk.lines).any(|line| {
-            let number = match anchor.side {
-                AnchorSide::Before => line.before_line,
-                AnchorSide::After => line.after_line,
-            };
-            number == Some(target)
-        })
+    let text = anchor_line.and_then(|target| {
+        hunks
+            .iter()
+            .flat_map(|hunk| &hunk.lines)
+            .find(|line| {
+                let number = match anchor.side {
+                    AnchorSide::Before => line.before_line,
+                    AnchorSide::After => line.after_line,
+                };
+                number == Some(target)
+            })
+            .map(|line| line.text.clone())
     });
-    if anchor.path != path || anchor.is_stale(Some(&revision)) || !has_line {
-        return Err((
+    match text {
+        Some(text) if anchor.path == path && !anchor.is_stale(Some(&revision)) => Ok(text),
+        _ => Err((
             StatusCode::CONFLICT,
             format!("The selected line has changed. Reopen the file before {action}."),
-        ));
+        )),
     }
-    Ok(())
 }
 
 fn model_error(error: glassbox_model::feedback::FeedbackError) -> ApiError {

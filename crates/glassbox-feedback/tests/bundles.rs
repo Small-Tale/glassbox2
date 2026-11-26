@@ -27,6 +27,7 @@ fn feedback(text: &str) -> (ReviewFeedback, u32) {
                 side: AnchorSide::After,
                 revision: "file revision".into(),
                 target: AnchorTarget::Line { start: 11, end: 14 },
+                quote: None,
             },
             ThreadOrigin::Reviewer {
                 category: ReviewerCategory::Style,

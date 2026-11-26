@@ -1597,7 +1597,136 @@ test(
       for (const width of [940, 390, 1440]) {
         await page.setViewportSize({ width, height: 900 });
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
+        await capture(page, `move-${width}`);
       }
+    });
+  },
+);
+
+// HS2-RV5BD8: a stale line comment is offered a new line only for one shown match, and only on confirmation.
+test(
+  'HS2-RV5BD8 suggests a new line for a stale comment and keeps ambiguous or missing ones stale',
+  {
+    timeout: 90_000,
+  },
+  async () => {
+    await withWorkbench(async (page, url, { repo }) => {
+      const folder = join(dirname(repo), 'Relocator');
+      await mkdir(folder);
+      const git = (...args) =>
+        execFileSync('git', ['-c', 'commit.gpgsign=false', '-c', 'core.autocrlf=false', ...args], {
+          cwd: folder,
+          windowsHide: true,
+        });
+      const write = (lines) => writeFile(join(folder, 'r.txt'), lines.join('\n') + '\n');
+      git('init', '-q', '--initial-branch=review');
+      await write(['one', 'two', 'needle line', 'four', 'five', 'six', 'seven', 'eight']);
+      git('add', '.');
+      git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'initial');
+      await write(['one', 'two', 'needle line', 'four', 'five', 'SIX', 'seven', 'eight']);
+
+      const button = (name) => page.getByRole('button', { name, exact: true });
+      const thread = page.locator('.text-diff .discussion-inline__thread');
+      const inspector = page.getByRole('region', { name: 'Discussion' });
+      const open = async () => {
+        await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(folder);
+        await button('Open Comparison').click();
+        await page.getByRole('treeitem', { name: /r\.txt/ }).click();
+        await page.locator('.text-diff').waitFor();
+      };
+      const rowOf = () =>
+        thread
+          .first()
+          .evaluate((element) => element.closest('.discussion-inline').previousElementSibling.dataset.afterLine);
+      const openStale = async () => {
+        await page
+          .getByRole('region', { name: 'Stale Discussions' })
+          .locator('.discussion-inline__thread')
+          .first()
+          .click();
+        await inspector.getByText('refers to an earlier version').waitFor();
+      };
+      await page.goto(url);
+      await open();
+      await page.locator('.text-diff__cell[data-after-line="3"]').first().waitFor();
+      await button('Add Comment to After Line 3').click();
+      await inspector.getByRole('textbox', { name: 'Comment', exact: true }).fill('Rename this.');
+      const created = page.waitForResponse(
+        (reply) => reply.url().endsWith('/discussion') && reply.request().postDataJSON().operation?.kind === 'create',
+      );
+      await inspector.getByRole('button', { name: 'Add Comment', exact: true }).click();
+      assert((await created).ok());
+      await thread.first().waitFor();
+      assert.equal(await rowOf(), '3');
+
+      // More than one line now matches, so nothing is offered and the comment stays stale.
+      await write(['one', 'needle line', 'two', 'needle line', 'four', 'five', 'SIX', 'eight']);
+      await page.reload();
+      await open();
+      await openStale();
+      await inspector.getByRole('button', { name: 'Suggest New Line', exact: true }).click();
+      await inspector.getByText('More than one line matches').waitFor();
+      assert.equal(await inspector.getByRole('button', { name: 'Move Here', exact: true }).count(), 0);
+      await capture(page, 'relocate-ambiguous-1440');
+      await inspector.getByRole('button', { name: 'Dismiss', exact: true }).click();
+      await inspector.getByRole('button', { name: 'Suggest New Line', exact: true }).waitFor();
+
+      // No line reads the same any more, so again nothing is offered.
+      await write(['one', 'two', 'needle lines', 'four', 'five', 'SIX', 'seven', 'eight']);
+      await page.reload();
+      await open();
+      await openStale();
+      await inspector.getByRole('button', { name: 'Suggest New Line', exact: true }).click();
+      await inspector.getByText('No line matches the commented text').waitFor();
+      assert.equal(await inspector.getByRole('button', { name: 'Move Here', exact: true }).count(), 0);
+
+      // One shown match is offered; Dismiss leaves everything as it was.
+      await write(['one', 'two', 'four', 'five', 'needle line', 'SIX', 'seven', 'eight']);
+      await page.reload();
+      await open();
+      await openStale();
+      await inspector.getByRole('button', { name: 'Suggest New Line', exact: true }).click();
+      await inspector.getByText('now at After line 5').waitFor();
+      await capture(page, 'relocate-suggestion-1440');
+      await inspector.getByRole('button', { name: 'Dismiss', exact: true }).click();
+      await inspector.getByText('refers to an earlier version').waitFor();
+
+      // The file changes again before the person confirms: the host refuses and the comment stays stale.
+      await inspector.getByRole('button', { name: 'Suggest New Line', exact: true }).click();
+      await inspector.getByText('now at After line 5').waitFor();
+      await write(['one', 'two', 'four', 'five', 'other text', 'SIX', 'seven', 'eight']);
+      const refused = page.waitForResponse(
+        (reply) => reply.url().endsWith('/discussion') && reply.request().postDataJSON().operation?.kind === 'move',
+      );
+      await inspector.getByRole('button', { name: 'Move Here', exact: true }).click();
+      assert.equal((await refused).status(), 409);
+      await inspector.getByRole('alert').waitFor();
+      await inspector.getByText('refers to an earlier version').waitFor();
+
+      // Confirming a fresh suggestion moves the comment onto the current version.
+      await write(['one', 'two', 'four', 'five', 'needle line', 'SIX', 'seven', 'eight']);
+      await page.reload();
+      await open();
+      await openStale();
+      await inspector.getByRole('button', { name: 'Suggest New Line', exact: true }).click();
+      await inspector.getByText('now at After line 5').waitFor();
+      const moved = page.waitForResponse(
+        (reply) => reply.url().endsWith('/discussion') && reply.request().postDataJSON().operation?.kind === 'move',
+      );
+      await inspector.getByRole('button', { name: 'Move Here', exact: true }).click();
+      assert((await moved).ok());
+      await page.waitForFunction(
+        () =>
+          document.querySelector('.text-diff .discussion-inline')?.previousElementSibling?.dataset.afterLine === '5',
+      );
+      assert.equal(await rowOf(), '5');
+      assert.equal(
+        await inspector.getByText('refers to an earlier version').count(),
+        0,
+        'the comment is current again',
+      );
+      assert.equal(await inspector.getByRole('button', { name: 'Suggest New Line', exact: true }).count(), 0);
+      await capture(page, 'relocate-done-1440');
     });
   },
 );
