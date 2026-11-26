@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "setupVersion": "5.0.0-beta.136",
+  "setupVersion": "5.0.0-beta.137",
   "packageManager": "npm",
   "packages": {
     ".": {
@@ -38,17 +38,8 @@
         "package.json#scripts.catalog:check": {
           "sha256": "01d54b2ca5c6d487dff7805f7ba7cb7ac3c69381e491c77b370741c3ac2bea7d"
         },
-        "package.json#scripts.dev": {
-          "sha256": "be7cb12aec368120ae061a4ef8a435b715b2bfb11c978137a15dca47362f7492"
-        },
-        "package.json#scripts.build": {
-          "sha256": "24e649450abb80fd1ee7696b5fa1238257a2d973ed2723da98e1842c65e0d2cd"
-        },
-        "package.json#scripts.test:structure": {
-          "sha256": "1413ad9430212c82278e6a648b7fea14401a320534a9730fede42a98cc396b7b"
-        },
         "package.json#devDependencies.eslint-plugin-kerfjs": {
-          "sha256": "9676964a548e0e936fbe6dc1f584402098ef981abda60d6284a6c50e7620b8bb"
+          "sha256": "82e5913b1cf0c9aa57fefb7647e270d709b4a0ec395e392b41ded9aad6c0dc95"
         },
         "package.json#devDependencies.@typescript-eslint/parser": {
           "sha256": "5569cd8a233b359b3e2a98241ab3eb5c1e26f9014ed16de2b87186ddb6a033a3"
@@ -60,7 +51,7 @@
           "sha256": "9b90e5dbf935f6b5ba752977b087a23541ae1b938a20c0d2ccf4aa3ccf2ba459"
         },
         "package.json#devDependencies.create-kerf-component": {
-          "sha256": "9676964a548e0e936fbe6dc1f584402098ef981abda60d6284a6c50e7620b8bb"
+          "sha256": "82e5913b1cf0c9aa57fefb7647e270d709b4a0ec395e392b41ded9aad6c0dc95"
         },
         "package.json#devDependencies.@eslint/js": {
           "sha256": "dfe87518f7c72d088ecc2477ed36833b5c24e38efb271a55aea88907fe9c460a"
@@ -76,9 +67,6 @@
         },
         "package.json#devDependencies.typescript-eslint": {
           "sha256": "9918530937bd86721179aa1cf0feec4eb2076ab0b45e804eefdc2ee17e61d18f"
-        },
-        "package.json#devDependencies.vite": {
-          "sha256": "855c87894f624e354bad141b791a679dea0b07c2b1f43fbd7d763731dddedf86"
         },
         "tsconfig.json#compilerOptions.target": {
           "sha256": "ffd3bb846b04292d57ed5357a4319c441d352d4ba467da97570bb82cb402b688"
@@ -101,24 +89,6 @@
         "tsconfig.json#compilerOptions.jsxImportSource": {
           "sha256": "d135eae45f7e35e79f394a40253fc30d83707b6f2c8051d8d8a0b265e87d87b9"
         },
-        "src/ux-demo/demos/button.tsx": {
-          "sha256": "bea707dbc552daa384342561615058beffa96eacd545ee08afe59722a6203e7a"
-        },
-        "src/components/index.ts": {
-          "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881"
-        },
-        "src/features/index.ts": {
-          "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881"
-        },
-        "src/platform/index.ts": {
-          "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881"
-        },
-        "src/shared/index.ts": {
-          "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881"
-        },
-        "src/styles.d.ts": {
-          "sha256": "da5bf71d48cf909584a01c80b445f730507068f5b34c920f352e2bfcf0315e4c"
-        },
         ".kerf-ui-profile.json#$schema": {
           "sha256": "4f75e89cfaf676ac4294947aa801762722f7f9e6f9c07f287759ba44ddda996b"
         },
@@ -134,14 +104,6 @@
         "package.json#scripts.kerf:check": "keep",
         "package.json#kerfComponentCatalog": "keep",
         "eslint.config.mjs": "keep",
-        ".prettierignore": "keep",
-        "index.html": "keep",
-        "ux-demo/index.html": "keep",
-        "vite.config.mjs": "keep",
-        "src/app/main.tsx": "keep",
-        "src/ux-demo/main.tsx": "keep",
-        "src/ux-demo/style.css": "keep",
-        "tests/structure.test.mjs": "keep",
         ".kerf-ui-profile.json#catalogs.glassbox2": "keep"
       }
     }
