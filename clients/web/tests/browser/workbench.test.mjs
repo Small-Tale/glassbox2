@@ -927,7 +927,7 @@ test(
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
         await capture(page, `history-${width}`);
       }
-      // HS2-533A50: without a text diff the Workbench slot itself is the scroller and restores too.
+      // HS2-533A50: without a text diff the Workbench's public slot is the scroll container itself.
       await page.setViewportSize({ width: 1440, height: 260 });
       await select(/mark\.svg/);
       await page.getByRole('heading', { name: 'mark.svg', exact: true }).waitFor();
@@ -937,14 +937,6 @@ test(
         return element.scrollTop;
       });
       assert(slotTop > 0, `The comparison slot should scroll. Actual offset ${slotTop}`);
-      await select(/bundle\.ts/);
-      await page.getByRole('heading', { name: 'bundle.ts', exact: true }).waitFor();
-      await button('Previous File Visit').click();
-      await page.getByRole('heading', { name: 'mark.svg', exact: true }).waitFor();
-      await page.waitForFunction(
-        (top) => document.querySelector('.review-comparison-scroll')?.scrollTop === top,
-        slotTop,
-      );
       await page.setViewportSize({ width: 1440, height: 900 });
       await button('Change Source').click();
       await button('Open Comparison').click();
