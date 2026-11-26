@@ -33,20 +33,45 @@ fn main() {
     assert_eq!(args[0], "--difftool");
     let before = PathBuf::from(&args[1]);
     let after = PathBuf::from(&args[2]);
+    if let Some(launches) = env::var_os("DIFFTOOL_TEST_LAUNCHES") {
+        use std::io::Write;
+        let mut launches = fs::OpenOptions::new().append(true).create(true).open(launches).unwrap();
+        writeln!(launches, "launch").unwrap();
+    }
     let mut output = env::var_os("DIFFTOOL_TEST_OUTPUT").map(PathBuf::from).unwrap();
     if before.is_dir() {
         assert!(after.is_dir());
-        output.set_extension("directory");
-        fs::write(output, [
-            fs::read(before.join("sub folder/a & b.txt")).unwrap(),
-            fs::read(after.join("sub folder/a & b.txt")).unwrap(),
-        ].concat()).unwrap();
-    } else {
-        let mut record = fs::OpenOptions::new().append(true).create(true).open(output).unwrap();
+        // Every changed file, in the order Git lists it: path, then both sides.
+        let mut files = Vec::new();
+        let mut stack = vec![PathBuf::new()];
+        while let Some(dir) = stack.pop() {
+            for entry in fs::read_dir(after.join(&dir)).unwrap() {
+                let relative = dir.join(entry.unwrap().file_name());
+                if after.join(&relative).is_dir() {
+                    stack.push(relative);
+                } else {
+                    files.push(relative);
+                }
+            }
+        }
+        files.sort();
         use std::io::Write;
-        writeln!(record, "{}", after.to_string_lossy()).unwrap();
-        record.write_all(&fs::read(&before).unwrap()).unwrap();
-        record.write_all(&fs::read(&after).unwrap()).unwrap();
+        let mut record = fs::OpenOptions::new().append(true).create(true).open(&output).unwrap();
+        for file in &files {
+            writeln!(record, "{}", file.to_string_lossy()).unwrap();
+            record.write_all(&fs::read(before.join(file)).unwrap()).unwrap();
+            record.write_all(&fs::read(after.join(file)).unwrap()).unwrap();
+        }
+        let target = std::path::Path::new("sub folder/a & b.txt");
+        if files.iter().any(|file| file == target) {
+            output.set_extension("directory");
+            fs::write(output, [
+                fs::read(before.join(target)).unwrap(),
+                fs::read(after.join(target)).unwrap(),
+            ].concat()).unwrap();
+        }
+    } else {
+        unreachable!("the wrapper always asks Git for directory mode");
     }
     if env::var_os("DIFFTOOL_TEST_FAIL").is_some() {
         std::process::exit(7);
@@ -207,4 +232,61 @@ fn real_git_accepts_revisions_ranges_and_pathspecs_but_never_another_tool() {
         );
         assert!(!record.exists(), "{args:?} launched a client");
     }
+}
+
+#[test]
+fn one_invocation_is_one_launch_with_every_file_in_order_and_runs_stay_separate() {
+    // HS2-559FEK
+    let scratch = tempfile::tempdir().unwrap();
+    let root = scratch.path().join("repo");
+    fs::create_dir_all(root.join("sub folder")).unwrap();
+    git(&root, &["init", "-q"]);
+    git(&root, &["config", "user.email", "fixture@example.invalid"]);
+    git(&root, &["config", "user.name", "Fixture"]);
+    git(&root, &["config", "core.autocrlf", "false"]);
+    let files = ["z.txt", "sub folder/a & b.txt", "m.txt"];
+    for file in files {
+        fs::write(root.join(file), format!("old {file}\n")).unwrap();
+    }
+    git(&root, &["add", "."]);
+    git(&root, &["commit", "-qm", "initial"]);
+    for file in files {
+        fs::write(root.join(file), format!("new {file}\n")).unwrap();
+    }
+    let client = fixture_client(scratch.path());
+    let record = scratch.path().join("record");
+    let launches = scratch.path().join("launches");
+    let run = || {
+        assert_success(
+            Command::new(env!("CARGO_BIN_EXE_glassbox-cli"))
+                .current_dir(&root)
+                .env("GLASSBOX_DIFFTOOL_CLIENT", &client)
+                .env("DIFFTOOL_TEST_OUTPUT", &record)
+                .env("DIFFTOOL_TEST_LAUNCHES", &launches)
+                .args(["--no-prompt"])
+                .output()
+                .unwrap(),
+        );
+    };
+    run();
+    assert_eq!(fs::read_to_string(&launches).unwrap().lines().count(), 1);
+    let captured = fs::read_to_string(&record).unwrap();
+    let headers: Vec<_> = captured
+        .lines()
+        .filter(|line| files.iter().any(|file| file == line))
+        .collect();
+    assert_eq!(
+        headers,
+        ["m.txt", "sub folder/a & b.txt", "z.txt"],
+        "{captured}"
+    );
+    for file in files {
+        assert!(
+            captured.contains(&format!("old {file}\nnew {file}\n")),
+            "{captured}"
+        );
+    }
+    // A second invocation is its own review.
+    run();
+    assert_eq!(fs::read_to_string(&launches).unwrap().lines().count(), 2);
 }

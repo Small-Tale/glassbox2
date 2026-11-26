@@ -34,11 +34,18 @@ To run the browser host instead, set `GLASSBOX_DIFFTOOL_CLIENT` to the
 directory. Use absolute paths when setting either variable. The browser
 host prints its loopback address. Stop it from the terminal when done.
 
-Git invokes the client once per file or once for an entire directory diff.
-The client runs in the foreground so Git's temporary inputs stay valid until
-the client exits. The wrapper defaults to real directory copies and reports
-client failures. Git's other flags, such as `--symlinks`, can override those
-defaults.
+One `glassbox-cli` invocation is one review (`HS2-559FEK`). The wrapper always
+asks Git for directory mode, so Git launches the client once for every changed
+file in that run, lists the files in a stable order and keeps their temporary
+inputs until the client exits. Separate invocations, including concurrent runs
+in the same repository, are separate reviews. The client runs in the foreground
+and the wrapper reports client failures. It defaults to real directory copies;
+Git's other flags, such as `--symlinks`, can override that.
+
+Plain `git difftool` with the registered default launches the client once per
+file, because Git decides that and the tool entry cannot request directory
+mode. Use `glassbox-cli` or `git difftool --dir-diff` to review a run as one
+unit.
 
 Glassbox is always the selected tool (`HS2-40BYH7`). `glassbox-cli` forwards
 its arguments to `git difftool` in order, after its own fixed options, and

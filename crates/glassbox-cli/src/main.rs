@@ -68,6 +68,9 @@ fn run(args: Vec<OsString>) -> io::Result<ExitStatus> {
             "--tool=glassbox",
             "--no-symlinks",
             "--trust-exit-code",
+            // HS2-559FEK: one invocation is one review. Directory mode makes Git launch the client
+            // once for every changed file, with all inputs kept until it exits.
+            "--dir-diff",
         ])
         .args(args)
         .status()
