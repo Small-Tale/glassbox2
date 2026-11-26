@@ -987,6 +987,8 @@ test(
       const hold = await page.addStyleTag({ content: '.review-comparison-scroll > * { display: none !important; }' });
       await button('Previous File Visit').click();
       await page.getByRole('heading', { name: 'mark.svg', exact: true }).waitFor();
+      // The image element exists once the content is ready, so the restore runs within the next frames.
+      await page.locator('.review-comparison-scroll img[data-media-side]').first().waitFor({ state: 'attached' });
       await page.evaluate(
         () =>
           new Promise((resolve) =>

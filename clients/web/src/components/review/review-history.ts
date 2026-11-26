@@ -82,9 +82,49 @@ export function wireReviewHistory(
   };
   let observedReview = source.review.value;
   let visible: Visit | undefined;
+  let settling: { stop: () => void } | undefined;
+
+  // GB2-XZ3H0G: content that lays out after the restore (a late image) clamps the saved offset, and the clamped
+  // offset must not overwrite the visit. Keep restoring while the content grows, until the offset is reached,
+  // the person scrolls, or a short bound passes.
+  function settle(region: HTMLElement, position: Position) {
+    settling?.stop();
+    const reached = () =>
+      Math.abs(region.scrollTop - position.top) < 1 && Math.abs(region.scrollLeft - position.left) < 1;
+    region.scrollTo({ ...position, behavior: 'instant' });
+    if (reached()) return;
+    const resizes = new ResizeObserver(retry);
+    const mutations = new MutationObserver(retry);
+    const input = new AbortController();
+    const timer = setTimeout(stop, 3000);
+    const handle = { stop };
+    function observeContent() {
+      for (const element of region.querySelectorAll('*')) resizes.observe(element);
+    }
+    function retry() {
+      region.scrollTo({ ...position, behavior: 'instant' });
+      if (reached()) stop();
+      else observeContent();
+    }
+    function stop() {
+      clearTimeout(timer);
+      resizes.disconnect();
+      mutations.disconnect();
+      input.abort();
+      if (settling === handle) settling = undefined;
+    }
+    settling = handle;
+    resizes.observe(region);
+    observeContent();
+    mutations.observe(region, { childList: true, subtree: true });
+    for (const type of ['wheel', 'touchstart', 'pointerdown', 'keydown']) {
+      region.addEventListener(type, stop, { signal: input.signal, passive: true, once: true });
+    }
+  }
 
   function saveVisible() {
     const region = scroller();
+    if (settling !== undefined) return;
     if (region !== null && visible !== undefined && history.current() === visible) {
       history.save({ top: region.scrollTop, left: region.scrollLeft });
     }
@@ -102,21 +142,24 @@ export function wireReviewHistory(
     }
     if (pending || index === undefined) {
       visible = undefined;
+      settling?.stop();
       return;
     }
     if (history.current()?.index !== index) history.visit(index);
     const destination = history.active();
     if (!ready) {
       visible = undefined;
+      settling?.stop();
       return;
     }
     if (destination === undefined || visible === destination) return;
+    settling?.stop();
     const frame = requestAnimationFrame(() => {
       const region = scroller();
       if (region === null) return;
       visible = destination;
       if (destination.position !== null) {
-        region.scrollTo({ ...destination.position, behavior: 'instant' });
+        settle(region, destination.position);
       } else {
         const target = region.querySelector<HTMLElement>('[data-definition-target]');
         if (target !== null) {
@@ -214,6 +257,7 @@ export function wireReviewHistory(
   return {
     reveal,
     dispose() {
+      settling?.stop();
       controller.abort();
       stop();
     },
