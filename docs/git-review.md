@@ -114,6 +114,25 @@ reports when a comparison path has no live file for a desktop action. Git
 difftool inputs represent comparison snapshots, so that mode offers the
 display path only.
 
+## Review progress
+
+Select a changed file and press Mark Reviewed (a check in the selected-file actions) to record that
+you have reviewed it (`HS2-FTEQVQ`). A reviewed file shows a check beside its status badge, and the
+navigator's Files Reviewed bar reads "1 of 12" for the open comparison. Pressing the button again
+clears the mark. Only per-file progress is tracked; there is no review-complete state.
+
+- A mark belongs to the comparison it was made in, identified the way saved reviews identify it, and
+  persists in the per-user settings file under `reviewProgress`, so reopening the same comparison
+  shows it again and another comparison starts empty.
+- A mark records the revision of the content you reviewed: the text revision, both image
+  revisions, or a fixed marker for binary and unavailable Git LFS files. The host checks each marked
+  file when the comparison opens. A file whose content changed since the mark shows "Changed Since
+  Reviewed" instead of a check and is not counted until you review it again. Binary files carry no
+  revision of their own, so a changed binary stays reviewed.
+- `POST /api/v1/review/progress` lists the marks for a source as `reviewed` or `changed`.
+  `POST /api/v1/review/progress/mark` sets or clears one; it answers 409 when the revision the client
+  shows is no longer current, so a mark is never stored against content you did not see.
+
 ## File navigation history
 
 The comparison toolbar offers Previous File Visit and Next File Visit.

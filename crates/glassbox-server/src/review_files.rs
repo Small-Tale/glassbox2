@@ -351,6 +351,28 @@ impl Comparison {
             Entries::Direct(_) => None,
         }
     }
+    /// The display paths of the changed files, in list order.
+    pub(crate) fn paths(&self) -> Vec<String> {
+        (0..self.entries.len())
+            .filter_map(|index| self.entries.metadata(index).map(|file| file.path))
+            .collect()
+    }
+
+    /// Identifies the content a reviewer sees for one file: the text revision, both media revisions, or a
+    /// fixed marker for content with no revision of its own (HS2-FTEQVQ).
+    pub(crate) fn file_revision(&self, index: usize) -> io::Result<String> {
+        Ok(match self.display_content(index)? {
+            ComparisonData::Text(hunks) => text_revision(&hunks)?,
+            ComparisonData::Media { before, after } => format!(
+                "media:{}:{}",
+                before.as_ref().map(media_revision).unwrap_or_default(),
+                after.as_ref().map(media_revision).unwrap_or_default()
+            ),
+            ComparisonData::UnavailableLfs { .. } => "lfs-unavailable".into(),
+            ComparisonData::Binary => "binary".into(),
+        })
+    }
+
     /// Bytes of the displayed side, `None` for a deleted file.
     fn after_bytes(&self, index: usize) -> io::Result<Option<Vec<u8>>> {
         match &self.entries {

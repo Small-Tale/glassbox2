@@ -129,6 +129,9 @@ pages).
 - **Unchanged-line controls are Kerf `Button`s in a `Row`** (`HS2-DZ8ZR6`): compact, plain, with a chevron icon and a
   title-case label that names the count. Failures are an alert `StateBanner`. Their only application CSS spans the
   grid and returns the interface font inside the diff's monospace face (`context-expander.css`).
+- **Review progress is a Kerf `ProgressBar` and a pressed `ToolbarButton`** (`HS2-FTEQVQ`): "Files Reviewed" with a short "1 of 12"
+  value (a longer sentence wraps in the sidebar), a "Mark Reviewed" toggle in the Selected File Actions group, and a `Badge`
+  with a check (reviewed) or an alert (changed since reviewed) beside each row's status badge.
 - **Find is a collapsible Kerf `SearchField` in a `single` `ToolbarControlGroup`** (`HS2-30ZEFE`), with the count as its
   `resultText` (never beside the field) and Previous and Next in their own icon group. Its group uses
   `sizing="grow"` with a `growBasis` so the expanded field stays on the toolbar's row. Match highlights are the native

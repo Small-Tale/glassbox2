@@ -6,13 +6,15 @@ import { Badge } from '@kerfjs/ui/badge';
 import { Button } from '@kerfjs/ui/button';
 import { EmptyState } from '@kerfjs/ui/empty-state';
 import { LucideIcon } from '@kerfjs/ui/lucide-icon';
+import { ProgressBar } from '@kerfjs/ui/progress-bar';
 import { Select } from '@kerfjs/ui/select';
 import { TextField } from '@kerfjs/ui/text-field';
 import { ToolbarButton, ToolbarControlGroup } from '@kerfjs/ui/toolbar-control-group';
 import { TreeList, type TreeListNode } from '@kerfjs/ui/tree-list';
 import { wireTreeList } from '@kerfjs/ui/wire-tree-list';
-import { Copy, ExternalLink, FolderOpen, Link } from 'lucide';
+import { Check, CircleAlert, Copy, ExternalLink, FolderOpen, Link } from 'lucide';
 
+import { type FileProgress, type ReviewProgress } from './review-progress.js';
 import {
   type FileAction,
   gitModes,
@@ -46,7 +48,7 @@ const fileActions = [
 
 type Folder = { folders: Map<string, Folder>; files: TreeListNode[] };
 
-function fileTree(files: readonly ReviewFile[], filter: string) {
+function fileTree(files: readonly ReviewFile[], filter: string, marks: ReadonlyMap<string, FileProgress>) {
   const expanded: string[] = [];
   const root: Folder = { folders: new Map(), files: [] };
   const query = filter.trim().toLocaleLowerCase();
@@ -68,14 +70,30 @@ function fileTree(files: readonly ReviewFile[], filter: string) {
       folder = child;
     }
     const { label, letter, tone } = statuses[file.status];
+    const mark = marks.get(file.path);
     folder.files.push({
       id: `file:${index}`,
       label: name,
       description: file.previous_path ?? undefined,
       trailing: (
-        <Badge size="compact" tone={tone} title={label} label={label}>
-          {letter}
-        </Badge>
+        <>
+          {mark === undefined ? null : (
+            <Badge
+              size="compact"
+              tone={mark === 'reviewed' ? 'success' : 'warning'}
+              title={mark === 'reviewed' ? 'Reviewed' : 'Changed Since Reviewed'}
+              label={mark === 'reviewed' ? 'Reviewed' : 'Changed Since Reviewed'}
+            >
+              <LucideIcon
+                icon={mark === 'reviewed' ? Check : CircleAlert}
+                name={mark === 'reviewed' ? 'check' : 'circle-alert'}
+              />
+            </Badge>
+          )}
+          <Badge size="compact" tone={tone} title={label} label={label}>
+            {letter}
+          </Badge>
+        </>
       ),
     });
   });
@@ -138,10 +156,20 @@ function SourceForm({ state }: { state: ReviewSourceState }) {
   );
 }
 
-export function ReviewNavigator({ id, state }: { id: string; state: ReviewSourceState }) {
+export function ReviewNavigator({
+  id,
+  state,
+  progress,
+}: {
+  id: string;
+  state: ReviewSourceState;
+  /** Per-file review marks and the control that sets them; absent where marking is not offered (HS2-FTEQVQ). */
+  progress?: ReviewProgress;
+}) {
   const review = state.review.value;
   const filter = state.filter.value;
-  const tree = fileTree(review?.files ?? [], filter);
+  const marks = progress?.files.value ?? new Map<string, FileProgress>();
+  const tree = fileTree(review?.files ?? [], filter, marks);
   const selection = state.selected.value;
   return (
     <div class="review-navigator" id={id}>
@@ -166,9 +194,30 @@ export function ReviewNavigator({ id, state }: { id: string; state: ReviewSource
               value={filter}
             />
           ) : null}
+          {progress === undefined || review.files.length === 0 ? null : (
+            <ProgressBar
+              size="compact"
+              tone="success"
+              label="Files Reviewed"
+              value={progress.reviewedCount()}
+              max={review.files.length}
+              valueText={`${progress.reviewedCount()} of ${review.files.length}`}
+              showValue
+            />
+          )}
           {selection === undefined ? null : (
             <>
               <ToolbarControlGroup label="Selected File Actions" content="icon">
+                {progress === undefined ? null : (
+                  <ToolbarButton
+                    action="review-progress-toggle"
+                    pressed={marks.get(review.files[selection]?.path ?? '') === 'reviewed'}
+                    disabled={!progress.ready()}
+                    ariaLabel="Mark Reviewed"
+                    title="Mark Reviewed"
+                    icon={<LucideIcon icon={Check} name="check" />}
+                  />
+                )}
                 {fileActions.map(({ action, label, icon, name }) => (
                   <ToolbarButton
                     action={`review-file-action:${action}`}
@@ -215,8 +264,11 @@ export function wireReviewNavigator(
   {
     wireKeyboard = true,
     onFileSelect,
+    onToggleReviewed,
   }: {
     wireKeyboard?: boolean;
+    /** Marks the selected file reviewed, or clears its mark (HS2-FTEQVQ). */
+    onToggleReviewed?: () => void;
     /** Called each time a changed file is chosen, including the file that is already selected. */
     onFileSelect?: (index: number) => void;
   } = {},
@@ -286,6 +338,7 @@ export function wireReviewNavigator(
       if (!scope(control)) return;
       const action = control.dataset.action;
       if (action === 'review-source-toggle') state.formOpen.value = !state.formOpen.value;
+      if (action === 'review-progress-toggle') onToggleReviewed?.();
       const fileAction = fileActions.find((item) => action === `review-file-action:${item.action}`);
       if (fileAction !== undefined) void state.runFileAction(fileAction.action);
       const rowId = control.dataset.itemId ?? control.closest<HTMLElement>('[data-item-id]')?.dataset.itemId;

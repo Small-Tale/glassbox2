@@ -59,6 +59,7 @@ import {
 } from '../components/review/definition-navigation.js';
 import { createReviewHistory, wireReviewHistory } from '../components/review/review-history.js';
 import { ReviewNavigator, wireReviewNavigator } from '../components/review/review-navigator.js';
+import { createReviewProgress, watchReviewProgress } from '../components/review/review-progress.js';
 import { createReviewSourceState } from '../components/review/review-source.js';
 import {
   createReviewWorkbenchState,
@@ -85,6 +86,8 @@ const history = createReviewHistory();
 const definitions = createDefinitionLookup();
 const textDiff = createTextDiffState();
 const diff = selectedDiff(source);
+const progress = createReviewProgress(source, diff.result);
+void watchReviewProgress(progress);
 const diffContext = createContextExpansion(diff.result, () => {
   const active = source.activeSource.value;
   const index = source.selected.value;
@@ -317,7 +320,7 @@ mount(root, () => {
                   : 'Line Comment'
                 : 'Inspector'
         }
-        navigator={<ReviewNavigator id="glassbox-review-navigator" state={source} />}
+        navigator={<ReviewNavigator id="glassbox-review-navigator" state={source} progress={progress} />}
         comparison={comparison}
         comparisonToolbar={comparisonToolbar}
         comparisonNavigation={
@@ -394,6 +397,7 @@ void wireReviewNavigator(root, 'glassbox-review-navigator', source, {
   onFileSelect: () => {
     if (workbench.files.overlay.value) workbench.files.collapsed.value = true;
   },
+  onToggleReviewed: () => void progress.toggleSelected(),
 });
 const historyNavigation = wireReviewHistory(
   root,

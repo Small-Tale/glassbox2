@@ -122,3 +122,60 @@ fn concurrent_saves_publish_only_complete_snapshots() {
     entries.sort();
     assert_eq!(entries, [".settings.lock", "settings.json"]);
 }
+
+#[test]
+fn reviewed_files_are_kept_per_comparison_and_leave_other_settings_alone() {
+    // HS2-FTEQVQ: marks belong to one comparison identity and share the document safely.
+    let directory = tempdir().unwrap();
+    let store = SettingsStore::in_directory(directory.path());
+    assert!(store.load_reviewed("one").unwrap().is_empty());
+    assert!(!directory.path().join("settings.json").exists());
+
+    store
+        .save(ApplicationSettings {
+            appearance: Appearance::Dark,
+        })
+        .unwrap();
+    store.set_reviewed("one", "src/a.rs", Some("r1")).unwrap();
+    store.set_reviewed("one", "src/b.rs", Some("r2")).unwrap();
+    store.set_reviewed("two", "src/a.rs", Some("r9")).unwrap();
+    assert_eq!(store.load_reviewed("one").unwrap().len(), 2);
+    assert_eq!(store.load_reviewed("one").unwrap()["src/a.rs"], "r1");
+    assert_eq!(store.load_reviewed("two").unwrap()["src/a.rs"], "r9");
+    assert_eq!(store.load().unwrap().appearance, Appearance::Dark);
+
+    store.set_reviewed("one", "src/a.rs", Some("r3")).unwrap();
+    assert_eq!(store.load_reviewed("one").unwrap()["src/a.rs"], "r3");
+    store.set_reviewed("one", "src/a.rs", None).unwrap();
+    store.set_reviewed("one", "never-marked.rs", None).unwrap();
+    assert_eq!(
+        store
+            .load_reviewed("one")
+            .unwrap()
+            .keys()
+            .collect::<Vec<_>>(),
+        ["src/b.rs"]
+    );
+
+    store.set_reviewed("one", "src/b.rs", None).unwrap();
+    store.set_reviewed("two", "src/a.rs", None).unwrap();
+    let document: Value =
+        serde_json::from_slice(&fs::read(directory.path().join("settings.json")).unwrap()).unwrap();
+    assert!(
+        document.get("reviewProgress").is_none(),
+        "an empty record is not kept"
+    );
+    assert_eq!(document["appearance"], "dark");
+}
+
+#[test]
+fn a_malformed_progress_record_is_reported_and_not_overwritten() {
+    let directory = tempdir().unwrap();
+    let path = directory.path().join("settings.json");
+    let original = r#"{"version":1,"reviewProgress":["not","a","map"]}"#;
+    fs::write(&path, original).unwrap();
+    let store = SettingsStore::in_directory(directory.path());
+    assert!(store.load_reviewed("one").is_err());
+    assert!(store.set_reviewed("one", "a.rs", Some("r1")).is_err());
+    assert_eq!(fs::read_to_string(&path).unwrap(), original);
+}

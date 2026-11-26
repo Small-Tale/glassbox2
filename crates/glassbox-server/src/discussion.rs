@@ -537,7 +537,7 @@ impl Discussion {
     }
 }
 
-fn source_identity(
+pub(crate) fn source_identity(
     source: &ReviewSource,
     context: &BundleContext,
     difftool: Option<&DifftoolInput>,
@@ -573,7 +573,7 @@ fn start_review(
     Ok(Review { saved, bundle })
 }
 
-type ApiError = (StatusCode, String);
+pub(crate) type ApiError = (StatusCode, String);
 
 fn bad_request(error: impl std::fmt::Display) -> ApiError {
     (StatusCode::BAD_REQUEST, error.to_string())

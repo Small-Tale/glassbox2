@@ -1,6 +1,6 @@
 //! File-backed Glassbox application preferences shared by local clients.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
@@ -14,6 +14,10 @@ use tempfile::NamedTempFile;
 
 const SETTINGS_VERSION: u32 = 1;
 const ANALYSIS: &str = "analysis";
+const PROGRESS: &str = "reviewProgress";
+
+/// Reviewed files of one comparison: each path with the revision of the content that was reviewed (HS2-FTEQVQ).
+pub type ReviewedFiles = BTreeMap<String, String>;
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AnalysisPreferences {
@@ -136,6 +140,50 @@ impl SettingsStore {
         let preferences = serde_json::to_value(preferences)?;
         self.update(|document| {
             document.extra.insert(ANALYSIS.into(), preferences);
+            Ok(())
+        })
+    }
+
+    /// The files marked reviewed for one comparison identity.
+    pub fn load_reviewed(&self, comparison: &str) -> Result<ReviewedFiles, SettingsError> {
+        let mut document = self.load_document()?;
+        let Some(value) = document.extra.remove(PROGRESS) else {
+            return Ok(ReviewedFiles::new());
+        };
+        let mut all: BTreeMap<String, ReviewedFiles> = serde_json::from_value(value)?;
+        Ok(all.remove(comparison).unwrap_or_default())
+    }
+
+    /// Mark `path` reviewed at `revision`, or clear its mark with `None`, under one comparison identity.
+    pub fn set_reviewed(
+        &self,
+        comparison: &str,
+        path: &str,
+        revision: Option<&str>,
+    ) -> Result<(), SettingsError> {
+        self.update(|document| {
+            let mut all: BTreeMap<String, ReviewedFiles> = match document.extra.remove(PROGRESS) {
+                Some(value) => serde_json::from_value(value)?,
+                None => BTreeMap::new(),
+            };
+            let files = all.entry(comparison.to_owned()).or_default();
+            match revision {
+                Some(revision) => {
+                    files.insert(path.to_owned(), revision.to_owned());
+                }
+                None => {
+                    files.remove(path);
+                }
+            }
+            if files.is_empty() {
+                all.remove(comparison);
+            }
+            if !all.is_empty() {
+                document
+                    .extra
+                    .insert(PROGRESS.into(), serde_json::to_value(all)?);
+            }
+            Ok(())
         })
     }
 
@@ -152,16 +200,22 @@ impl SettingsStore {
     }
 
     pub fn save(&self, settings: ApplicationSettings) -> Result<(), SettingsError> {
-        self.update(|document| document.settings = settings)
+        self.update(|document| {
+            document.settings = settings;
+            Ok(())
+        })
     }
 
-    fn update(&self, change: impl FnOnce(&mut SettingsFile)) -> Result<(), SettingsError> {
+    fn update(
+        &self,
+        change: impl FnOnce(&mut SettingsFile) -> Result<(), SettingsError>,
+    ) -> Result<(), SettingsError> {
         fs::create_dir_all(&self.directory)?;
         let lock = self.open_lock()?;
         FileExt::lock_exclusive(&lock)?;
         let mut document = self.read_file()?;
         document.version = SETTINGS_VERSION;
-        change(&mut document);
+        change(&mut document)?;
 
         let mut temporary = NamedTempFile::new_in(&self.directory)?;
         serde_json::to_writer_pretty(&mut temporary, &document)?;

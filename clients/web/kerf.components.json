@@ -225,7 +225,8 @@
           "tree-list",
           "source-context",
           "lucide-icon",
-          "toolbar-control-group"
+          "toolbar-control-group",
+          "progress-bar"
         ]
       }
     },

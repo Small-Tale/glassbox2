@@ -25,6 +25,7 @@ pub mod browser;
 mod diagrams;
 mod discussion;
 mod export;
+mod progress;
 mod review_files;
 mod storage;
 mod symbols;
@@ -116,6 +117,8 @@ fn router(
     let selected_launch = difftool.clone();
     let media_launch = difftool.clone();
     let context_launch = difftool.clone();
+    let progress_launch = difftool.clone();
+    let mark_launch = difftool.clone();
     let diagram_launch = difftool.clone();
     let renderer = diagrams::Renderer::from_environment();
     let renderer_available = renderer.is_some();
@@ -173,6 +176,14 @@ fn router(
         .route(
             "/api/v1/review/context",
             post(move |Json(input)| review_files::context(input, context_launch)),
+        )
+        .route(
+            "/api/v1/review/progress",
+            post(move |Json(input)| progress::list(input, progress_launch)),
+        )
+        .route(
+            "/api/v1/review/progress/mark",
+            post(move |Json(input)| progress::mark(input, mark_launch)),
         )
         .route(
             "/api/v1/review/media",

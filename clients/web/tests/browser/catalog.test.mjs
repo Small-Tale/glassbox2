@@ -187,3 +187,27 @@ test('HS2-30ZEFE the Text Diff demo finds in lines it reveals', async () => {
     assert.equal(await demo.locator('mark[data-find="current"]').count(), 2);
   });
 });
+
+// HS2-FTEQVQ: the navigator demo marks files for real against fixture marks.
+test('HS2-FTEQVQ the Review Navigator demo shows marks and counts only reviewed files', async () => {
+  await withCatalog(async (page, url) => {
+    await page.goto(`${url}?component=review-navigator`);
+    const example = page.locator('#demo-review-progress');
+    const rows = (title) => example.locator(`[title="${title}"]`);
+    await rows('Reviewed').first().waitFor();
+    assert.equal(await rows('Changed Since Reviewed').count(), 1);
+    assert.match(await example.innerText(), /Files Reviewed\s+1 of 4/u);
+    const mark = example.getByRole('button', { name: 'Mark Reviewed', exact: true });
+    await mark.waitFor();
+    assert.equal(await mark.getAttribute('aria-pressed'), 'false');
+    await mark.click();
+    await page.waitForFunction(() =>
+      /Files Reviewed\s+2 of 4/u.test(document.getElementById('demo-review-progress')?.innerText ?? ''),
+    );
+    assert.equal(await mark.getAttribute('aria-pressed'), 'true');
+    await mark.click();
+    await page.waitForFunction(() =>
+      /Files Reviewed\s+1 of 4/u.test(document.getElementById('demo-review-progress')?.innerText ?? ''),
+    );
+  });
+});

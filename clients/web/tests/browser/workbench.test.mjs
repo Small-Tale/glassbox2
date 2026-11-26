@@ -1297,3 +1297,170 @@ test('HS2-30ZEFE finds, steps and clears matches across layouts, context and fil
     assert.equal(await button('Next Match').isDisabled(), true);
   });
 });
+
+// HS2-FTEQVQ: per-file review progress, persisted by the host with the comparison and rechecked against the file.
+test(
+  'HS2-FTEQVQ marks files reviewed, keeps them across reopening and drops a mark when the file changes',
+  {
+    timeout: 90_000,
+  },
+  async () => {
+    await withWorkbench(async (page, url, { repo }) => {
+      const folder = join(dirname(repo), 'Progress');
+      await mkdir(folder);
+      const git = (...args) =>
+        execFileSync('git', ['-c', 'commit.gpgsign=false', '-c', 'core.autocrlf=false', ...args], {
+          cwd: folder,
+          windowsHide: true,
+        });
+      git('init', '-q', '--initial-branch=review');
+      await writeFile(join(folder, 'a.txt'), 'one\n');
+      await writeFile(join(folder, 'b.txt'), 'two\n');
+      await writeFile(join(folder, 'c.txt'), 'three\n');
+      git('add', '.');
+      git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'initial');
+      await writeFile(join(folder, 'a.txt'), 'one changed\n');
+      await writeFile(join(folder, 'b.txt'), 'two changed\n');
+
+      const button = (name) => page.getByRole('button', { name, exact: true });
+      const mark = button('Mark Reviewed');
+      const bar = page.getByRole('progressbar', { name: 'Files Reviewed' });
+      const row = (name) => page.getByRole('treeitem', { name });
+      const open = async () => {
+        await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(folder);
+        await button('Open Comparison').click();
+        await row(/a\.txt/).waitFor();
+      };
+      const summary = async () =>
+        (await page.locator('.review-navigator').innerText()).match(/Files Reviewed\s+(\d+ of \d+)/u)?.[1];
+      const pressed = async () => mark.getAttribute('aria-pressed');
+      const saved = () => page.waitForResponse((reply) => reply.url().endsWith('/api/v1/review/progress/mark'));
+      await page.goto(url);
+      await open();
+
+      // Nothing is reviewed at first; the mark button needs a loaded file.
+      await bar.waitFor();
+      assert.equal(await summary(), '0 of 2');
+      await row(/a\.txt/).click();
+      await page.locator('.text-diff').waitFor();
+      await page.waitForFunction(() => !document.querySelector('[data-action="review-progress-toggle"]')?.disabled);
+      assert.equal(await pressed(), 'false');
+
+      // Marking a file shows it on its row and in the count.
+      const marking = saved();
+      await mark.click();
+      assert((await marking).ok());
+      await page.waitForFunction(
+        () => document.querySelector('[data-action="review-progress-toggle"]')?.ariaPressed === 'true',
+      );
+      assert.equal(await summary(), '1 of 2');
+      assert.equal(await bar.getAttribute('value'), '1');
+      assert.equal(await bar.getAttribute('max'), '2');
+      assert.equal(
+        await row(/a\.txt/)
+          .locator('[title="Reviewed"]')
+          .count(),
+        1,
+      );
+      assert.equal(
+        await row(/b\.txt/)
+          .locator('[title="Reviewed"]')
+          .count(),
+        0,
+      );
+      await capture(page, 'progress-reviewed-1440');
+
+      // Reopening keeps the mark with the comparison.
+      await page.reload();
+      await open();
+      await bar.waitFor();
+      await page.waitForFunction(() => /Files Reviewed\s+1 of 2/u.test(document.body.innerText));
+      assert.equal(
+        await row(/a\.txt/)
+          .locator('[title="Reviewed"]')
+          .count(),
+        1,
+      );
+
+      // A file that changed after it was marked is no longer counted and says so.
+      await writeFile(join(folder, 'a.txt'), 'one changed again\n');
+      await page.reload();
+      await open();
+      await row(/a\.txt/)
+        .locator('[title="Changed Since Reviewed"]')
+        .waitFor();
+      assert.equal(await summary(), '0 of 2');
+      assert.equal(
+        await row(/a\.txt/)
+          .locator('[title="Changed Since Reviewed"]')
+          .count(),
+        1,
+      );
+      assert.equal(
+        await row(/a\.txt/)
+          .locator('[title="Reviewed"]')
+          .count(),
+        0,
+      );
+      await row(/a\.txt/).click();
+      await page.locator('.text-diff').waitFor();
+      await page.waitForFunction(() => !document.querySelector('[data-action="review-progress-toggle"]')?.disabled);
+      assert.equal(await pressed(), 'false', 'the changed file is not shown as reviewed');
+      await capture(page, 'progress-changed-1440');
+
+      // Reviewing the new content marks it again; pressing again clears it.
+      const again = saved();
+      await mark.click();
+      assert((await again).ok());
+      await page.waitForFunction(() => /Files Reviewed\s+1 of 2/u.test(document.body.innerText));
+      assert.equal(
+        await row(/a\.txt/)
+          .locator('[title="Reviewed"]')
+          .count(),
+        1,
+      );
+      const clearing = saved();
+      await mark.click();
+      assert((await clearing).ok());
+      await page.waitForFunction(() => /Files Reviewed\s+0 of 2/u.test(document.body.innerText));
+      assert.equal(await pressed(), 'false');
+
+      // Another comparison of the same repository starts with its own, empty progress.
+      const marked = saved();
+      await mark.click();
+      assert((await marked).ok());
+      await page.waitForFunction(() => /Files Reviewed\s+1 of 2/u.test(document.body.innerText));
+      await button('Change Source').click();
+      await page.getByRole('combobox', { name: 'Git Changes' }).click();
+      await page.getByRole('option', { name: /Staged/ }).click();
+      await button('Open Comparison').click();
+      await page.getByText('No Changed Files', { exact: true }).waitFor();
+      assert.equal(await bar.count(), 0, 'no progress is shown for a comparison without files');
+
+      // The narrow layout keeps the control and the count reachable.
+      await page.reload();
+      await open();
+      for (const width of [940, 390, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        // A narrow workbench keeps Changed Files in an overlay; open it to see the progress and the row marks.
+        const railState = (open) =>
+          page.waitForFunction((expected) => {
+            const rail = document.querySelector('[aria-label="Changed Files"]');
+            const shown = rail !== null && !rail.inert && rail.getAttribute('aria-hidden') !== 'true';
+            return shown === expected;
+          }, open);
+        if (width < 600) {
+          await railState(false);
+          await button('Show Files').first().click();
+        }
+        await railState(true);
+        await bar.waitFor();
+        await row(/a\.txt/)
+          .locator('[title="Reviewed"]')
+          .waitFor();
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
+        await capture(page, `progress-${width}`);
+      }
+    });
+  },
+);
