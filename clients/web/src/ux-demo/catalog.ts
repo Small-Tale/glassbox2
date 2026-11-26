@@ -83,7 +83,7 @@ export const glassboxCatalog: CatalogPackage = {
         category,
         description: purpose,
         tags: kind === 'composition' ? ['Composition'] : undefined,
-        uses: (uses ?? []).map((use) => (localIds.has(use) ? use : { package: kerfCatalogPackage.package, id: use })),
+        uses: uses.map((use) => (localIds.has(use) ? use : { package: kerfCatalogPackage.package, id: use })),
         resources: catalogResources({
           demoSource: sourceLink(demoSource),
           componentSource: sourceLink(source),
