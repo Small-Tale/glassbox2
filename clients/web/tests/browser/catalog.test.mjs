@@ -211,3 +211,20 @@ test('HS2-FTEQVQ the Review Navigator demo shows marks and counts only reviewed 
     );
   });
 });
+
+// HS2-TGAGQ4: the discussion demo moves its thread for real.
+test('HS2-TGAGQ4 the Review Discussion demo moves a thread to another line and side', async () => {
+  await withCatalog(async (page, url) => {
+    await page.goto(`${url}?component=review-discussion`);
+    const inspector = page.locator('[data-demo="review-discussion"] .discussion-inspector');
+    await inspector.getByRole('button', { name: 'Move Comment', exact: true }).waitFor();
+    await inspector.getByRole('button', { name: 'Move Comment', exact: true }).click();
+    await inspector.getByRole('spinbutton', { name: 'Move to Line' }).fill('30');
+    await inspector.getByRole('button', { name: 'Move', exact: true }).click();
+    await inspector.getByText(/After line 30/u).waitFor();
+    await inspector.getByRole('button', { name: 'Move Comment', exact: true }).click();
+    await inspector.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await inspector.getByText(/After line 30/u).waitFor();
+    assert.equal(await inspector.getByRole('spinbutton', { name: 'Move to Line' }).count(), 0);
+  });
+});

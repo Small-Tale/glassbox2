@@ -1464,3 +1464,140 @@ test(
     });
   },
 );
+
+// HS2-TGAGQ4: a line comment moves to another line or side, validated by the host, and cancelling changes nothing.
+test(
+  'HS2-TGAGQ4 moves a comment thread to another line or side and refuses a destination that is not shown',
+  {
+    timeout: 90_000,
+  },
+  async () => {
+    await withWorkbench(async (page, url, { repo }) => {
+      const folder = join(dirname(repo), 'Mover');
+      await mkdir(folder);
+      const git = (...args) =>
+        execFileSync('git', ['-c', 'commit.gpgsign=false', '-c', 'core.autocrlf=false', ...args], {
+          cwd: folder,
+          windowsHide: true,
+        });
+      const lines = (change = {}) =>
+        Array.from({ length: 12 }, (_, index) => change[index + 1] ?? `line ${index + 1}`).join('\n') + '\n';
+      git('init', '-q', '--initial-branch=review');
+      await writeFile(join(folder, 'm.txt'), lines());
+      git('add', '.');
+      git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'initial');
+      await writeFile(join(folder, 'm.txt'), lines({ 3: 'changed 3', 9: 'changed 9' }));
+
+      const button = (name) => page.getByRole('button', { name, exact: true });
+      const inspector = page.getByRole('region', { name: 'Discussion' });
+      const thread = page.locator('.text-diff .discussion-inline__thread');
+      // The row of the diff that holds the inline thread, as its after-side line number.
+      const rowOf = () =>
+        thread
+          .first()
+          .evaluate((element) => element.closest('.discussion-inline').previousElementSibling.dataset.afterLine);
+      const submit = () =>
+        page.waitForResponse(
+          (reply) => reply.url().endsWith('/discussion') && reply.request().postDataJSON().operation?.kind === 'move',
+        );
+      await page.goto(url);
+      await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(folder);
+      await button('Open Comparison').click();
+      await page.getByRole('treeitem', { name: /m\.txt/ }).click();
+      await page.locator('.text-diff__cell[data-after-line="3"]').first().waitFor();
+
+      // A comment on after line 3 with a reply, so the move has something to keep.
+      await button('Add Comment to After Line 3').click();
+      await inspector.getByRole('textbox', { name: 'Comment', exact: true }).fill('Check the new wording.');
+      const created = page.waitForResponse(
+        (reply) => reply.url().endsWith('/discussion') && reply.request().postDataJSON().operation?.kind === 'create',
+      );
+      await inspector.getByRole('button', { name: 'Add Comment', exact: true }).click();
+      assert((await created).ok());
+      await thread.first().waitFor();
+      await inspector.getByRole('textbox', { name: 'Reply', exact: true }).fill('Reworded.');
+      const replied = page.waitForResponse(
+        (reply) =>
+          reply.url().endsWith('/discussion') && reply.request().postDataJSON().operation?.change?.kind === 'reply',
+      );
+      await inspector.getByRole('button', { name: 'Post Reply', exact: true }).click();
+      assert((await replied).ok());
+      await page.getByText('1 reply', { exact: true }).waitFor();
+      assert.equal(await rowOf(), '3');
+
+      // Cancel leaves the thread where it was.
+      await inspector.getByRole('button', { name: 'Move Comment', exact: true }).click();
+      const line = inspector.getByRole('spinbutton', { name: 'Move to Line' });
+      assert.equal(await line.inputValue(), '3');
+      await line.fill('5');
+      await inspector.getByRole('button', { name: 'Cancel', exact: true }).click();
+      await inspector.getByRole('button', { name: 'Move Comment', exact: true }).waitFor();
+      assert.equal(await rowOf(), '3');
+
+      // A line the diff does not show is refused by the host and the form stays for another try.
+      await inspector.getByRole('button', { name: 'Move Comment', exact: true }).click();
+      await line.fill('99');
+      const refused = submit();
+      await inspector.getByRole('button', { name: 'Move', exact: true }).click();
+      assert.equal((await refused).status(), 409);
+      await inspector.getByRole('alert').filter({ hasText: 'has changed' }).waitFor();
+      assert.equal(await rowOf(), '3');
+      assert.equal(await line.inputValue(), '99');
+      await capture(page, 'move-refused-1440');
+
+      // The keyboard moves it: Enter in the line field submits.
+      await line.fill('5');
+      const moving = submit();
+      await line.press('Enter');
+      assert((await moving).ok());
+      await page.waitForFunction(
+        () =>
+          document.querySelector('.text-diff .discussion-inline')?.previousElementSibling?.dataset.afterLine === '5',
+      );
+      assert.equal(await rowOf(), '5');
+      await page.getByText('1 reply', { exact: true }).waitFor();
+      assert.equal(
+        await inspector.getByRole('spinbutton', { name: 'Move to Line' }).count(),
+        0,
+        'the form closes once saved',
+      );
+      assert.equal(
+        await inspector.getByRole('textbox', { name: 'Reply Author' }).inputValue(),
+        'You',
+        'the closed form leaves the reply fields alone',
+      );
+      await capture(page, 'move-done-1440');
+
+      // Another side: the removed line only exists before the change.
+      await inspector.getByRole('button', { name: 'Move Comment', exact: true }).click();
+      await inspector.getByRole('combobox', { name: 'Move to Side' }).click();
+      await page.getByRole('option', { name: 'Before', exact: true }).click();
+      await line.fill('3');
+      const sideMove = submit();
+      await inspector.getByRole('button', { name: 'Move', exact: true }).click();
+      assert((await sideMove).ok());
+      await page.waitForFunction(
+        () =>
+          document.querySelector('.text-diff .discussion-inline')?.previousElementSibling?.dataset.afterLine === '3',
+      );
+      assert.match(await inspector.innerText(), /Before line 3/u);
+
+      // The move survives a reload, replies included.
+      await page.reload();
+      await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(folder);
+      await button('Open Comparison').click();
+      await page.getByRole('treeitem', { name: /m\.txt/ }).click();
+      await thread.first().waitFor();
+      await thread.first().click();
+      await page.getByText('1 reply', { exact: true }).first().waitFor();
+      assert.match(await inspector.innerText(), /Before line 3/u);
+
+      // Narrow widths keep the form reachable without sideways scrolling.
+      await inspector.getByRole('button', { name: 'Move Comment', exact: true }).click();
+      for (const width of [940, 390, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
+      }
+    });
+  },
+);

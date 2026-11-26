@@ -155,6 +155,12 @@ enum Operation {
         revision: u32,
         change: FeedbackChange,
     },
+    /// Rebinds a line thread to another line or side of the same file (HS2-TGAGQ4).
+    Move {
+        id: FeedbackId,
+        revision: u32,
+        anchor: ReviewAnchor,
+    },
 }
 
 pub(crate) async fn handle(
@@ -630,28 +636,7 @@ fn edit(
                     ));
                 }
             } else {
-                let hunks = comparison.text_hunks(index).map_err(bad_request)?;
-                let revision = review_files::text_revision(&hunks).map_err(storage_error)?;
-                let anchor_line = match anchor.target {
-                    AnchorTarget::Line { start, end } if start == end => Some(start),
-                    _ => None,
-                };
-                let has_line = anchor_line.is_some_and(|target| {
-                    hunks.iter().flat_map(|hunk| &hunk.lines).any(|line| {
-                        let number = match anchor.side {
-                            AnchorSide::Before => line.before_line,
-                            AnchorSide::After => line.after_line,
-                        };
-                        number == Some(target)
-                    })
-                });
-                if anchor.path != path || anchor.is_stale(Some(&revision)) || !has_line {
-                    return Err((
-                        StatusCode::CONFLICT,
-                        "The selected line has changed. Reopen the file before adding a comment."
-                            .into(),
-                    ));
-                }
+                validate_line_anchor(&comparison, index, &path, &anchor, "adding a comment")?;
             }
             next.add(
                 anchor,
@@ -660,6 +645,30 @@ fn edit(
                 markdown,
             )
             .map_err(bad_request)?;
+        }
+        Operation::Move {
+            id,
+            revision,
+            anchor,
+        } => {
+            let index = index
+                .ok_or_else(|| bad_request("Choose a changed file before moving a comment."))?;
+            let comparison =
+                review_files::load(source.clone(), difftool.clone()).map_err(bad_request)?;
+            review_files::validate_selection(&comparison, index, &path).map_err(bad_request)?;
+            let is_line_thread = next.threads().iter().any(|thread| {
+                thread.id == id
+                    && thread.anchor.path == path
+                    && matches!(thread.anchor.target, AnchorTarget::Line { .. })
+            });
+            if !is_line_thread || !matches!(anchor.target, AnchorTarget::Line { .. }) {
+                return Err(bad_request(
+                    "Only a line comment of the selected file can move to another line.",
+                ));
+            }
+            validate_line_anchor(&comparison, index, &path, &anchor, "moving the comment")?;
+            next.apply(id, revision, FeedbackChange::Move { anchor })
+                .map_err(model_error)?;
         }
         Operation::Attach {
             id,
@@ -700,6 +709,46 @@ fn edit(
     Ok(view(&next, &path))
 }
 
+/// A line anchor must name a line the diff shows, on the revision the person is looking at.
+fn validate_line_anchor(
+    comparison: &review_files::Comparison,
+    index: usize,
+    path: &str,
+    anchor: &ReviewAnchor,
+    action: &str,
+) -> Result<(), ApiError> {
+    let hunks = comparison.text_hunks(index).map_err(bad_request)?;
+    let revision = review_files::text_revision(&hunks).map_err(storage_error)?;
+    let anchor_line = match anchor.target {
+        AnchorTarget::Line { start, end } if start == end => Some(start),
+        _ => None,
+    };
+    let has_line = anchor_line.is_some_and(|target| {
+        hunks.iter().flat_map(|hunk| &hunk.lines).any(|line| {
+            let number = match anchor.side {
+                AnchorSide::Before => line.before_line,
+                AnchorSide::After => line.after_line,
+            };
+            number == Some(target)
+        })
+    });
+    if anchor.path != path || anchor.is_stale(Some(&revision)) || !has_line {
+        return Err((
+            StatusCode::CONFLICT,
+            format!("The selected line has changed. Reopen the file before {action}."),
+        ));
+    }
+    Ok(())
+}
+
+fn model_error(error: glassbox_model::feedback::FeedbackError) -> ApiError {
+    use glassbox_model::feedback::FeedbackError;
+    match error {
+        FeedbackError::Conflict { .. } => (StatusCode::CONFLICT, error.to_string()),
+        _ => bad_request(error),
+    }
+}
+
 fn apply_change(
     next: &mut ReviewFeedback,
     path: &str,
@@ -707,7 +756,6 @@ fn apply_change(
     revision: u32,
     change: FeedbackChange,
 ) -> Result<(), ApiError> {
-    use glassbox_model::feedback::FeedbackError;
     let thread = next
         .threads()
         .iter()
@@ -718,11 +766,7 @@ fn apply_change(
             "The thread is unavailable in the selected file.".into(),
         ));
     }
-    next.apply(id, revision, change)
-        .map_err(|error| match error {
-            FeedbackError::Conflict { .. } => (StatusCode::CONFLICT, error.to_string()),
-            _ => bad_request(error),
-        })
+    next.apply(id, revision, change).map_err(model_error)
 }
 
 #[derive(Serialize)]

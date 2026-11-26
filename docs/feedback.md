@@ -54,6 +54,23 @@ anchor. Existing threads on earlier revisions remain available in the
 Inspector with a stale indicator. New AI analysis results are tracked in
 `HS2-05B1PZ`.
 
+### Move Comment (`HS2-TGAGQ4`)
+
+Choose Move Comment in the Inspector to rebind a line thread to another line or
+side of the same file. The form takes a side and a line number, and Enter, or
+the Move button, saves it; Cancel or Escape closes it without changing anything.
+The thread keeps its ID, replies and attachments. Both reviewer comments and AI
+notes can move; image-region threads cannot.
+
+The host validates the destination as it does when creating a comment: the
+line must be one the diff shows on that side, in the revision you are looking
+at, so a destination that is not shown, a file that changed since it opened,
+or a range answers 409 and the thread stays where it was. The form stays open
+with the reason so you can pick another line. A thread edited elsewhere since
+you opened it conflicts rather than being overwritten. Moving a stale thread to
+a line of the current revision rebinds it. Unchanged lines revealed around a
+change are not yet valid destinations (`GB2-5QQPPW`).
+
 The open comparison retains its editable discussions as files are switched.
 Each successful change publishes the current review to its stable local
 handoff bundle, which survives the Glassbox process. New bundle publications

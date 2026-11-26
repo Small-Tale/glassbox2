@@ -94,6 +94,8 @@ export function createDiscussionState(source: ReviewSourceState, load = request)
   const pending = signal(false);
   const error = signal('');
   const staleFile = signal<{ source: ReviewSource; path: string } | null>(null);
+  /** The open Move Comment form: where the active thread would go (HS2-TGAGQ4). */
+  const moving = signal<{ side: Side; line: string } | null>(null);
   const artifact = signal<{ id: number; label: string; preview?: ArtifactPreview; message?: string } | null>(null);
   let artifactRequest: AbortController | undefined;
   let current: Selection | null = null;
@@ -127,6 +129,7 @@ export function createDiscussionState(source: ReviewSourceState, load = request)
     autosave.cancel();
     threadId.value = null;
     adding.value = null;
+    moving.value = null;
     reply.value = '';
     text.value = '';
     error.value = '';
@@ -307,6 +310,45 @@ export function createDiscussionState(source: ReviewSourceState, load = request)
     }
   }
 
+  function startMove() {
+    const { anchor } = activeThread() ?? {};
+    if (anchor?.target.kind !== 'line') return;
+    moving.value = { side: anchor.side, line: String(anchor.target.start) };
+    error.value = '';
+  }
+
+  function cancelMove() {
+    moving.value = null;
+    error.value = '';
+  }
+
+  function editMove(change: Partial<{ side: Side; line: string }>) {
+    const form = moving.value;
+    if (form !== null) moving.value = { ...form, ...change };
+  }
+
+  /** Move the active thread to the chosen side and line of the file on screen; the host validates the destination. */
+  async function submitMove(anchorFor: (side: Side, line: number) => Anchor | undefined) {
+    const form = moving.value;
+    if (form === null || activeThread() === undefined) return false;
+    const line = Number(form.line);
+    if (!Number.isInteger(line) || line < 1) {
+      error.value = 'Enter the number of a line in the file.';
+      return false;
+    }
+    const anchor = anchorFor(form.side, line);
+    if (anchor === undefined) {
+      error.value = 'Open the comment’s file to move it within that file.';
+      return false;
+    }
+    if (!(await saveEdit())) return false;
+    const thread = activeThread();
+    if (thread === undefined) return false;
+    const saved = await save({ kind: 'move', id: thread.id, revision: thread.revision, anchor });
+    if (saved) moving.value = null;
+    return saved;
+  }
+
   function edit(value: string) {
     text.value = value;
     if (activeThread() === undefined) autosave.cancel();
@@ -319,6 +361,11 @@ export function createDiscussionState(source: ReviewSourceState, load = request)
     threads,
     threadId,
     adding,
+    moving,
+    startMove,
+    cancelMove,
+    editMove,
+    submitMove,
     author,
     category,
     text,

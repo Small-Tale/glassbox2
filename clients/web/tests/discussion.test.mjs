@@ -132,3 +132,107 @@ test('HS2-9RWAAQ an explicit save or a thread switch cancels the pending autosav
     state.stop();
   }
 });
+
+// HS2-TGAGQ4: Move Comment keeps the thread and only leaves the form when the host accepts the destination.
+async function moveFixture(respond) {
+  const source = createReviewSourceState(comparison, () => Promise.resolve(comparison));
+  const first = thread(1, 'Check this.');
+  const requests = [];
+  const state = createDiscussionState(source, (selection, operation) => {
+    requests.push(operation);
+    return operation === undefined ? Promise.resolve([first]) : respond(operation, first);
+  });
+  await source.open({ kind: 'paths', before: '/before', after: '/after' });
+  source.selected.value = 0;
+  await setTimeout(0);
+  await state.showThread(1);
+  return { state, requests, first };
+}
+
+const anchorFor = (side, line) => ({ ...anchor, side, target: { kind: 'line', start: line, end: line } });
+
+test('HS2-TGAGQ4 moving sends the thread revision and the destination, then closes the form', async () => {
+  const { state, requests, first } = await moveFixture((operation) =>
+    Promise.resolve([{ ...first_(operation), revision: 2 }]),
+  );
+  function first_(operation) {
+    return { ...thread(1, 'Check this.'), anchor: operation.anchor };
+  }
+  try {
+    state.startMove();
+    assert.deepEqual(state.moving.value, { side: 'after', line: '23' });
+    state.editMove({ side: 'before', line: '9' });
+    assert.equal(await state.submitMove(anchorFor), true);
+    const sent = requests.at(-1);
+    assert.deepEqual(
+      { kind: sent.kind, id: sent.id, revision: sent.revision, side: sent.anchor.side, line: sent.anchor.target.start },
+      { kind: 'move', id: first.id, revision: 1, side: 'before', line: 9 },
+    );
+    assert.equal(state.moving.value, null);
+    assert.equal(state.activeThread().anchor.target.start, 9);
+    assert.equal(state.activeThread().revision, 2);
+  } finally {
+    state.stop();
+  }
+});
+
+test('HS2-TGAGQ4 cancel leaves the thread alone and a refused destination keeps the form open', async () => {
+  const { state, requests } = await moveFixture(() =>
+    Promise.reject(new Error('The selected line has changed. Reopen the file before moving the comment.')),
+  );
+  try {
+    state.startMove();
+    state.cancelMove();
+    assert.equal(state.moving.value, null);
+    assert.equal(requests.filter((operation) => operation?.kind === 'move').length, 0);
+
+    state.startMove();
+    state.editMove({ line: '400' });
+    assert.equal(await state.submitMove(anchorFor), false);
+    assert.deepEqual(state.moving.value, { side: 'after', line: '400' }, 'the form stays for another try');
+    assert.match(state.error.value, /has changed/u);
+    assert.equal(state.activeThread().anchor.target.start, 23);
+    assert.equal(state.pending.value, false);
+  } finally {
+    state.stop();
+  }
+});
+
+test('HS2-TGAGQ4 a bad line number or a missing file asks nothing of the host', async () => {
+  const { state, requests } = await moveFixture(() => Promise.resolve([]));
+  try {
+    state.startMove();
+    for (const line of ['', '0', '-3', '2.5', 'abc']) {
+      state.editMove({ line });
+      assert.equal(await state.submitMove(anchorFor), false, line);
+      assert.match(state.error.value, /line/u);
+    }
+    state.editMove({ line: '5' });
+    assert.equal(await state.submitMove(() => undefined), false);
+    assert.match(state.error.value, /file/u);
+    assert.equal(requests.filter((operation) => operation?.kind === 'move').length, 0);
+    state.resetEditor();
+    assert.equal(state.moving.value, null, 'closing the thread closes the form');
+  } finally {
+    state.stop();
+  }
+});
+
+test('HS2-TGAGQ4 only a line thread can start a move', async () => {
+  const region = {
+    ...thread(1, 'Region.'),
+    anchor: { ...anchor, target: { kind: 'image_region', left: 0, top: 0, width: 1, height: 1 } },
+  };
+  const source = createReviewSourceState(comparison, () => Promise.resolve(comparison));
+  const state = createDiscussionState(source, () => Promise.resolve([region]));
+  try {
+    await source.open({ kind: 'paths', before: '/before', after: '/after' });
+    source.selected.value = 0;
+    await setTimeout(0);
+    await state.showThread(1);
+    state.startMove();
+    assert.equal(state.moving.value, null);
+  } finally {
+    state.stop();
+  }
+});

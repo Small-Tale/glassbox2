@@ -37,7 +37,16 @@ const initial: Thread[] = [
     ],
   },
 ];
-const state = createDiscussionState(source, () => Promise.resolve(initial));
+// Moving a thread rewrites its anchor in memory, the way the host would after validating the destination.
+let saved = initial;
+const state = createDiscussionState(source, (_selection, operation) => {
+  if (operation?.kind === 'move') {
+    saved = saved.map((item) =>
+      item.id === operation.id ? { ...item, revision: item.revision + 1, anchor: operation.anchor as Anchor } : item,
+    );
+  }
+  return Promise.resolve(saved);
+});
 state.threads.value = initial;
 void state.showThread(1);
 
@@ -55,10 +64,16 @@ export function DiscussionDemo() {
 }
 
 export function wireDiscussionDemo(root: HTMLElement) {
+  // Saving needs an open comparison and a selected file, so the demo opens its sample the way a person would.
+  void source.open({ kind: 'paths', before: 'before', after: 'after' }).then(async () => {
+    source.selected.value = 0;
+    await state.refreshCurrent();
+    await state.showThread(1);
+  });
   return wireDiscussion(
     root,
     state,
-    () => undefined,
+    (side, line) => ({ ...anchor, side, target: { kind: 'line', start: line, end: line } }),
     () => undefined,
   );
 }

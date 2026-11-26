@@ -22,6 +22,11 @@ import {
   type Thread,
 } from './discussion-state.js';
 
+const moveSides = [
+  { value: 'before', label: 'Before' },
+  { value: 'after', label: 'After' },
+] as const;
+
 function ThreadLabels({ thread }: { thread: Thread }) {
   const origin = thread.origin;
   if (origin.kind === 'reviewer') {
@@ -230,6 +235,38 @@ export function DiscussionInspector({
               </Button>
             </div>
           ) : null}
+          {thread?.anchor.target.kind !== 'line' ? null : state.moving.value === null ? (
+            <div class="discussion-inspector__actions" data-key="discussion-move-open">
+              <Button action="discussion-move" emphasis="plain" tone="brand" disabled={state.pending.value}>
+                Move Comment
+              </Button>
+            </div>
+          ) : (
+            // Keyed so the browser's morph never reuses the focused Move to Line input for the Reply fields below it.
+            <div data-key="discussion-move-form">
+              <Select
+                name="discussion-move-side"
+                label="Move to Side"
+                choices={moveSides}
+                value={state.moving.value.side}
+                disabled={state.pending.value}
+              />
+              <TextField
+                name="discussion-move-line"
+                label="Move to Line"
+                type="number"
+                value={state.moving.value.line}
+              />
+              <div class="discussion-inspector__actions">
+                <Button action="discussion-move-cancel" emphasis="plain">
+                  Cancel
+                </Button>
+                <Button action="discussion-move-submit" tone="brand" disabled={state.pending.value}>
+                  Move
+                </Button>
+              </div>
+            </div>
+          )}
           {thread?.replies.map(({ message }) => (
             <div class="discussion-inspector__reply">
               <strong>{message.author}</strong>
@@ -272,6 +309,25 @@ export function wireDiscussion(
         if (target.name === 'discussion-reply') state.reply.value = target.value;
       }
       if (target instanceof HTMLInputElement && target.name === 'discussion-author') state.author.value = target.value;
+      if (target instanceof HTMLInputElement && target.name === 'discussion-move-line') {
+        state.editMove({ line: target.value });
+      }
+    },
+    { signal },
+  );
+  root.addEventListener(
+    'keydown',
+    (event) => {
+      const target = event.target;
+      if (state.moving.value === null || !(target instanceof Element)) return;
+      if (target.closest('[name="discussion-move-line"], [name="discussion-move-side"]') === null) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        state.cancelMove();
+      } else if (event.key === 'Enter' && target instanceof HTMLInputElement) {
+        event.preventDefault();
+        void state.submitMove(anchorFor);
+      }
     },
     { signal },
   );
@@ -296,6 +352,14 @@ export function wireDiscussion(
         if (category === undefined) return;
         if (state.adding.value !== null) state.category.value = category;
         else void state.apply({ kind: 'categorize', category });
+      }
+      if (
+        target instanceof HTMLElement &&
+        target.tagName === 'KUI-SELECT' &&
+        target.getAttribute('name') === 'discussion-move-side' &&
+        'value' in target
+      ) {
+        if (target.value === 'before' || target.value === 'after') state.editMove({ side: target.value });
       }
     },
     { signal },
@@ -340,6 +404,9 @@ export function wireDiscussion(
         showInspector();
       }
       if (kind === 'discussion-cancel') state.resetEditor();
+      if (kind === 'discussion-move') state.startMove();
+      if (kind === 'discussion-move-cancel') state.cancelMove();
+      if (kind === 'discussion-move-submit') void state.submitMove(anchorFor);
       if (kind === 'discussion-artifact') void state.previewArtifact(Number(first));
       if (kind === 'discussion-source-link' && reveal !== undefined) void state.openSourceLink(Number(first), reveal);
       if (kind === 'discussion-submit') void state.submitComment();
