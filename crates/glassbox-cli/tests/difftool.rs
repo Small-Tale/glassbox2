@@ -58,7 +58,8 @@ fn main() {
         use std::io::Write;
         let mut record = fs::OpenOptions::new().append(true).create(true).open(&output).unwrap();
         for file in &files {
-            writeln!(record, "{}", file.to_string_lossy()).unwrap();
+            // Record forward slashes so the same expectation holds on Windows.
+            writeln!(record, "{}", file.to_string_lossy().replace('\\', "/")).unwrap();
             record.write_all(&fs::read(before.join(file)).unwrap()).unwrap();
             record.write_all(&fs::read(after.join(file)).unwrap()).unwrap();
         }
