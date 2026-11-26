@@ -72,8 +72,8 @@ files have left the changed-file list. Choose a path to read or edit its stale
 threads in the Inspector. Cleanup removes the editable snapshot and its
 Markdown together, and skips a reopened bundle while it is active.
 
-Choose **Delete** beside a saved review to remove just that review
-(`HS2-42A696`). The dialog first asks for confirmation (Cancel keeps it), then
+Open a saved review's overflow menu and choose **Delete…** to remove just that review
+(`HS2-42A696`). An alert dialog first asks for confirmation (Cancel keeps it), then
 `POST /api/v1/review/saved/delete` removes the exact owned bundle: the
 review must belong to the current comparison and hold a committed snapshot, so
 another comparison's review or an unknown or malformed ID is refused (404 or

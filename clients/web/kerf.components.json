@@ -551,7 +551,7 @@
         "styleSources": ["src/components/diff/media-diff.css"],
         "demoSource": "src/ux-demo/demos/diff/media-diff.tsx",
         "documentation": "docs/ui-conventions.md",
-        "uses": ["toolbar-control-group", "lucide-icon"]
+        "uses": ["lucide-icon", "state-banner", "toolbar-control-group"]
       }
     },
     {
@@ -713,7 +713,7 @@
       "id": "saved-review-dialog",
       "name": "Saved Reviews",
       "kind": "composition",
-      "purpose": "Restore a saved editable review and open discussions outside the changed-file list.",
+      "purpose": "Restore or delete a saved editable review and open discussions outside the changed-file list.",
       "source": "src/components/discussion/saved-review-dialog.tsx",
       "publicExports": [
         {
@@ -754,7 +754,7 @@
         },
         "responsive": {
           "owner": "component",
-          "behaviors": ["wrap-storage-paths", "pin-cleanup-actions", "fit-compact-viewport"]
+          "behaviors": ["fit-compact-viewport"]
         },
         "layout": {
           "roles": ["content"],
@@ -771,7 +771,9 @@
         "publicTokens": []
       },
       "accessibility": {
-        "obligations": ["Name the dialog and announce loading and recovery errors."]
+        "obligations": [
+          "Name the dialog, announce loading and recovery errors, and confirm deletion in an alert dialog."
+        ]
       },
       "diagnostics": [],
       "provenance": {
@@ -780,11 +782,21 @@
       },
       "selection": {
         "useWhen": ["Reopen a saved review or find a discussion on an unchanged file."],
-        "avoidWhen": ["Delete saved feedback or send a review to Hot Sheet."],
-        "styleSources": ["src/components/discussion/saved-review-dialog.css"],
+        "avoidWhen": ["Clear all saved feedback for a project or send a review to Hot Sheet."],
         "demoSource": "src/ux-demo/demos/discussion/saved-review-dialog.tsx",
         "documentation": "docs/ui-conventions.md",
-        "uses": ["button", "workbench-dialog"]
+        "uses": [
+          "button",
+          "empty-state",
+          "list",
+          "list-action-row",
+          "list-header",
+          "list-item",
+          "lucide-icon",
+          "state-banner",
+          "surface-scaffold",
+          "text"
+        ]
       }
     },
     {

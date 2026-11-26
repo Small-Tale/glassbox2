@@ -707,7 +707,7 @@
       "id": "saved-review-dialog",
       "name": "Saved Reviews",
       "kind": "composition",
-      "purpose": "Restore a saved editable review and open discussions outside the changed-file list.",
+      "purpose": "Restore or delete a saved editable review and open discussions outside the changed-file list.",
       "publicExports": [
         {
           "name": "SavedReviewDialog"
@@ -756,8 +756,6 @@
       "responsive": {
         "owner": "component",
         "behaviors": [
-          "wrap-storage-paths",
-          "pin-cleanup-actions",
           "fit-compact-viewport"
         ]
       },
@@ -773,7 +771,7 @@
       },
       "accessibility": {
         "obligations": [
-          "Name the dialog and announce loading and recovery errors."
+          "Name the dialog, announce loading and recovery errors, and confirm deletion in an alert dialog."
         ]
       },
       "boundaries": {

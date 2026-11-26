@@ -1,6 +1,7 @@
 import './media-diff.css';
 
 import { LucideIcon } from '@kerfjs/ui/lucide-icon';
+import { StateBanner } from '@kerfjs/ui/state-banner';
 import { ToolbarButton, ToolbarControlGroup } from '@kerfjs/ui/toolbar-control-group';
 import { signal } from 'kerfjs';
 import { Blend, Code, Columns2, Info, PanelLeft, PanelRight, Rows2, Scan, Split, ZoomIn, ZoomOut } from 'lucide';
@@ -124,9 +125,11 @@ export function MediaDiff({
   return (
     <div class="media-diff" data-media-diff={id} data-mode={mode} data-drawing={String(drawing)}>
       {state.fallback.value === null ? null : (
-        <div class="media-diff__instructions" role="status">
-          {state.fallback.value} is not available for this image, so Side by Side is shown.
-        </div>
+        <StateBanner
+          tone="info"
+          title="Mode Not Available"
+          detail={`${state.fallback.value} is not available for this image, so Side by Side is shown.`}
+        />
       )}
       {drawing ? (
         <div class="media-diff__instructions" id={`${id}-region-help`}>

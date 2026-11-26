@@ -1,19 +1,39 @@
-import './saved-review-dialog.css';
+import '@kerfjs/ui/popup-menu/register';
 
 import { Button } from '@kerfjs/ui/button';
 import { px } from '@kerfjs/ui/css-values';
 import { deviceClass } from '@kerfjs/ui/device-class';
-import { closeDialog, openDialog, WorkbenchDialog } from '@kerfjs/ui/workbench-dialog';
+import { EmptyState } from '@kerfjs/ui/empty-state';
+import { List } from '@kerfjs/ui/list';
+import { ListActionRow } from '@kerfjs/ui/list-action-row';
+import { ListHeader } from '@kerfjs/ui/list-header';
+import { ListItem } from '@kerfjs/ui/list-item';
+import { LucideIcon } from '@kerfjs/ui/lucide-icon';
+import { StateBanner } from '@kerfjs/ui/state-banner';
+import { closeDialog, DialogSurface, openDialog } from '@kerfjs/ui/surface-scaffold';
+import { Text } from '@kerfjs/ui/text';
+import { Ellipsis, FileText, History, Trash2 } from 'lucide';
 
 import type { ReviewSource } from '../review/review-source.js';
-import { createSavedReviewState } from './saved-review-state.js';
+import { createSavedReviewState, type SavedReview } from './saved-review-state.js';
 
 export { createSavedReviewState };
+
+// GB2-FRH9JJ: the Kerf catalog marks `wirePinnablePopover` and `wireOverlaySheets` as required for
+// the whole `surface-scaffold` entry, but these are plain modal dialogs with no pinned popover or
+// bottom sheet to wire. The gap is recorded in docs/ui-conventions.md for the Kerf maintainers.
+/* eslint-disable kerfjs/ui-wiring */
 
 const device = deviceClass();
 
 type SavedReviewState = ReturnType<typeof createSavedReviewState>;
 
+function savedAt(review: SavedReview) {
+  return new Date(review.updated_at * 1000).toLocaleString();
+}
+
+// HS2-42A696 and GB2-FRH9JJ: a single-pane DialogSurface (header, body, footer) whose body is a
+// List of Kerf rows, so the dialog owns every inset and the app adds no CSS of its own.
 export function SavedReviewDialog({
   id,
   state,
@@ -32,85 +52,105 @@ export function SavedReviewDialog({
   const confirming = state.confirming.value;
   const deleting = state.deleting.value;
   return (
-    <WorkbenchDialog
-      id={id}
-      label="Saved Reviews"
-      title="Saved Reviews"
-      embedded={embedded}
-      compact={!embedded && device.value.compact}
-      preferredWidth={px(500)}
-      height={px(420)}
-      main={
-        <section class="saved-review-dialog" aria-label="Saved Feedback">
-          {pending ? <p role="status">Loading saved feedback…</p> : null}
-          {error === '' ? null : <p role="alert">{error}</p>}
-          {confirming !== null ? (
-            <section aria-labelledby={`${id}-confirm`}>
-              <h3 id={`${id}-confirm`}>Delete Saved Review?</h3>
-              <p>{new Date(confirming.updated_at * 1000).toLocaleString() + ' · ' + confirming.id}</p>
-              <p>
-                Copied AI instructions for this review will stop working. Other saved reviews and open reviews are kept.
-              </p>
-            </section>
-          ) : view?.active === true ? (
-            <p>This comparison has an open review.</p>
+    <>
+      <DialogSurface
+        id={id}
+        className="saved-review-dialog"
+        label="Saved Reviews"
+        presentation={embedded ? 'embedded' : device.value.compact ? 'fullscreen' : 'modal'}
+        preferredWidth={px(500)}
+        bodyInset="none"
+        rootAttributes={{ 'data-key': id }}
+        footer={
+          <Button action={`${id}:close`} emphasis="secondary">
+            Close
+          </Button>
+        }
+      >
+        <List gap>
+          {error === '' || confirming !== null ? null : (
+            <StateBanner tone="danger" urgency="alert" title="Saved Reviews Unavailable" detail={error} />
+          )}
+          {pending && view === null ? <EmptyState busy title="Loading Saved Reviews" /> : null}
+          {view?.active === true ? (
+            <EmptyState title="Review Open" detail="This comparison has an open review." />
           ) : view !== null && view.reviews.length === 0 ? (
-            <p>No editable reviews were saved for this comparison.</p>
+            <EmptyState title="No Saved Reviews" detail="No editable reviews were saved for this comparison." />
           ) : null}
-          {confirming === null && view?.active === false && view.reviews.length > 0 ? (
-            <ul>
-              {view.reviews.map((review) => (
-                <li>
-                  <Button action={`${id}:restore:${review.id}`} disabled={pending} emphasis="plain">
-                    {new Date(review.updated_at * 1000).toLocaleString() + ' · ' + review.id}
-                  </Button>
-                  <Button
-                    action={`${id}:ask-delete:${review.id}`}
-                    ariaLabel={`Delete Saved Review ${review.id}`}
-                    disabled={pending}
-                    emphasis="plain"
-                    tone="danger"
-                  >
-                    Delete
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          {confirming !== null || stale.length === 0 ? null : (
+          {view?.active === false
+            ? view.reviews.map((review) => (
+                <ListActionRow
+                  action={`${id}:restore:${review.id}`}
+                  itemId={review.id}
+                  icon={<LucideIcon icon={History} name="history" />}
+                  label={savedAt(review)}
+                  description={review.id}
+                  disabled={pending}
+                  trailingMenu={{
+                    label: `Actions for ${review.id}`,
+                    icon: <LucideIcon icon={Ellipsis} name="ellipsis" />,
+                    disabled: pending,
+                    items: [
+                      {
+                        label: 'Delete…',
+                        action: `${id}:ask-delete:${review.id}`,
+                        icon: <LucideIcon icon={Trash2} name="trash-2" />,
+                        tone: 'danger',
+                      },
+                    ],
+                  }}
+                />
+              ))
+            : null}
+          {stale.length === 0 ? null : (
             <>
-              <h3>Discussions Outside the Changed Files</h3>
-              <ul>
-                {stale.map((path, index) => (
-                  <li>
-                    <Button action={`${id}:path:${index}`} disabled={pending} emphasis="plain">
-                      {path}
-                    </Button>
-                  </li>
-                ))}
-              </ul>
+              <ListHeader label="Discussions Outside the Changed Files" />
+              {stale.map((path, index) => (
+                <ListItem
+                  action={`${id}:path:${index}`}
+                  icon={<LucideIcon icon={FileText} name="file-text" />}
+                  label={path}
+                  disabled={pending}
+                />
+              ))}
             </>
           )}
-        </section>
-      }
-      mainBottomToolbar={{
-        label: 'Saved Review Actions',
-        leading:
-          confirming === null ? undefined : (
-            <Button action={`${id}:cancel-delete`} emphasis="secondary" disabled={deleting}>
-              Cancel
-            </Button>
-          ),
-        trailing:
-          confirming === null ? (
-            <Button action={`${id}:close`}>Close</Button>
-          ) : (
-            <Button action={`${id}:delete`} tone="danger" loading={deleting} disabled={deleting}>
-              Delete Review
-            </Button>
-          ),
-      }}
-    />
+        </List>
+      </DialogSurface>
+      {embedded ? null : (
+        <DialogSurface
+          id={`${id}-delete`}
+          alert
+          label="Delete Saved Review?"
+          size="small"
+          describedBy={`${id}-delete-detail`}
+          bodyInset="none"
+          rootAttributes={{ 'data-key': `${id}-delete` }}
+          footer={
+            <>
+              <Button rootAttributes={{ 'data-dialog-close': '' }} emphasis="secondary" disabled={deleting}>
+                Cancel
+              </Button>
+              <Button action={`${id}:delete`} tone="danger" loading={deleting} disabled={deleting}>
+                Delete Review
+              </Button>
+            </>
+          }
+        >
+          <List>
+            {error === '' || confirming === null ? null : (
+              <StateBanner tone="danger" urgency="alert" title="Could Not Delete the Review" detail={error} />
+            )}
+            {confirming === null ? null : (
+              <Text weight="strong" controlMargins="trbl">{`${savedAt(confirming)} · ${confirming.id}`}</Text>
+            )}
+            <Text id={`${id}-delete-detail`} controlMargins="trbl">
+              Copied AI instructions for this review will stop working. Other saved reviews and open reviews are kept.
+            </Text>
+          </List>
+        </DialogSurface>
+      )}
+    </>
   );
 }
 
@@ -124,22 +164,30 @@ export function wireSavedReviewDialog(
   onOpenPath: (source: ReviewSource, path: string) => Promise<boolean>,
 ) {
   const controller = new AbortController();
-  const dialog = () => root.querySelector<HTMLDialogElement>(`dialog#${CSS.escape(id)}`);
+  const dialog = (dialogId = id) => root.querySelector<HTMLDialogElement>(`dialog#${CSS.escape(dialogId)}`);
   root.addEventListener(
     'click',
     (event) => {
       if (!(event.target instanceof Element)) return;
-      const action = event.target.closest<HTMLButtonElement>('button[data-action]')?.dataset.action;
+      const action = event.target.closest<HTMLElement>('[data-action]')?.dataset.action;
       const modal = dialog();
       const source = getSource();
       if (action === undefined || modal === null || source === null) return;
       if (action === `${id}:close`) closeDialog(modal);
       if (action.startsWith(`${id}:ask-delete:`)) {
         const review = state.view.value?.reviews.find((item) => item.id === action.slice(`${id}:ask-delete:`.length));
-        if (review !== undefined) state.confirmDelete(review);
+        const confirmation = dialog(`${id}-delete`);
+        if (review !== undefined && confirmation !== null) {
+          state.confirmDelete(review);
+          openDialog(confirmation);
+        }
       }
-      if (action === `${id}:cancel-delete`) state.confirmDelete(null);
-      if (action === `${id}:delete`) void state.deleteConfirmed(source);
+      if (action === `${id}:delete`) {
+        void state.deleteConfirmed(source).then((deleted) => {
+          const confirmation = dialog(`${id}-delete`);
+          if (deleted && confirmation !== null) closeDialog(confirmation);
+        });
+      }
       if (action.startsWith(`${id}:restore:`)) {
         void state.update(source, action.slice(`${id}:restore:`.length)).then((opened) => {
           if (opened && getSource() === source) onRestore();
@@ -158,6 +206,23 @@ export function wireSavedReviewDialog(
     },
     { signal: controller.signal },
   );
+  // The confirmation is a native dialog: whichever way it closes, the choice is cleared with it.
+  root.addEventListener(
+    'close',
+    (event) => {
+      if (event.target === dialog(`${id}-delete`)) state.confirmDelete(null);
+    },
+    { capture: true, signal: controller.signal },
+  );
+  root.addEventListener(
+    'kui-request-close',
+    (event) => {
+      if (state.deleting.value && (event.target === dialog() || event.target === dialog(`${id}-delete`))) {
+        event.preventDefault();
+      }
+    },
+    { signal: controller.signal },
+  );
   const open = () => {
     const modal = dialog();
     const source = getSource();
@@ -166,13 +231,6 @@ export function wireSavedReviewDialog(
     void state.update(source);
     openDialog(modal);
   };
-  root.addEventListener(
-    'kui-request-close',
-    (event) => {
-      if (event.target === dialog() && state.deleting.value) event.preventDefault();
-    },
-    { signal: controller.signal },
-  );
   return {
     open,
     dispose: () => {

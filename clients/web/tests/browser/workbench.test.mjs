@@ -679,7 +679,7 @@ test(
       assert.equal(await page.getByRole('treeitem', { name: /bundle\.ts/ }).count(), 0);
       await button('Share Feedback').click();
       await page.getByRole('menuitem', { name: 'Saved Reviews…', exact: true }).click();
-      await savedReviewDialog.getByRole('button', { name: /^(?!Delete).*review-/ }).click();
+      await savedReviewDialog.getByRole('button', { name: /^(?!Actions for).*review-/ }).click();
       await savedReviewDialog.getByRole('button', { name: 'bundle.ts', exact: true }).waitFor();
       for (const width of [1440, 940, 390, 1440]) {
         await page.setViewportSize({ width, height: 900 });
@@ -735,48 +735,44 @@ test('HS2-42A696 saved reviews delete one confirmed review and keep the others',
     assert.equal((await bundles()).length, 2);
 
     await openSaved();
-    const restore = dialog.getByRole('button', { name: /review-/ });
+    const restore = dialog.getByRole('button', { name: /^(?!Actions for).*review-/ });
+    const actions = dialog.getByRole('button', { name: /^Actions for review-/ });
+    const confirmation = page.getByRole('alertdialog', { name: 'Delete Saved Review?', exact: true });
     await restore.first().waitFor();
-    assert.equal(await restore.count(), 4, 'two restore and two delete actions');
-    assert.equal(await dialog.getByRole('button', { name: /^Delete Saved Review review-/ }).count(), 2);
+    assert.equal(await restore.count(), 2);
+    assert.equal(await actions.count(), 2, 'each review has its own overflow menu');
     await capture(page, 'saved-reviews-delete-list');
 
-    // Choosing Delete asks first; Cancel keeps both reviews.
-    await dialog
-      .getByRole('button', { name: /^Delete Saved Review review-/ })
-      .first()
-      .click();
-    await dialog.getByRole('heading', { name: 'Delete Saved Review?' }).waitFor();
-    assert.equal(await restore.count(), 0, 'the list gives way to the confirmation');
+    // Delete… in a review's menu asks first; Cancel keeps both reviews.
+    await actions.first().click();
+    await page.getByRole('menuitem', { name: 'Delete…', exact: true }).click();
+    await confirmation.waitFor();
     for (const width of [1440, 940, 390, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
       await capture(page, `saved-reviews-delete-confirm-${width}`);
     }
-    await button('Cancel').click();
-    await dialog
-      .getByRole('button', { name: /review-/ })
-      .first()
-      .waitFor();
+    await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await confirmation.waitFor({ state: 'hidden' });
+    assert.equal(await restore.count(), 2);
     assert.equal((await bundles()).length, 2);
 
     // Confirming removes exactly that review.
-    await dialog
-      .getByRole('button', { name: /^Delete Saved Review review-/ })
-      .first()
-      .click();
+    await actions.first().click();
+    await page.getByRole('menuitem', { name: 'Delete…', exact: true }).click();
     const removed = page.waitForResponse((response) => response.url().endsWith('/saved/delete'));
-    await button('Delete Review').click();
+    await confirmation.getByRole('button', { name: 'Delete Review', exact: true }).click();
     assert((await removed).ok());
-    await dialog.getByRole('button', { name: /^Delete Saved Review review-/ }).waitFor();
-    assert.equal(await dialog.getByRole('button', { name: /^Delete Saved Review review-/ }).count(), 1);
+    await confirmation.waitFor({ state: 'hidden' });
+    await actions.first().waitFor();
+    assert.equal(await actions.count(), 1);
     assert.equal((await bundles()).length, 1);
     await capture(page, 'saved-reviews-delete-after');
 
     // The remaining review still opens, and an open review offers no delete.
-    await dialog.getByRole('button', { name: /^(?!Delete)(?!Close).*review-/ }).click();
+    await restore.click();
     await dialog.getByText('This comparison has an open review.').waitFor();
-    assert.equal(await dialog.getByRole('button', { name: /^Delete Saved Review/ }).count(), 0);
+    assert.equal(await actions.count(), 0);
     assert.equal((await bundles()).length, 1);
   });
 });

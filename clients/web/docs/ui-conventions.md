@@ -93,3 +93,37 @@ footer after a separate confirmation. See HS2-5TN81D.
 Risk Analysis and Code Guidance use separate normal-size Lucide groups.
 Risk highlights the existing note in place. Guidance and progress sit
 above the diff. See HS2-487RGX.
+
+## Dialogs and Kerf component use (GB2-FRH9JJ)
+
+The guidance in `node_modules/@kerfjs/ui/llms.txt` and the pages it links is the authority: reuse a Kerf
+component, compose primitives, add an application component only for domain behavior, and write CSS only for
+an application-owned selector, never to space, size or restyle a Kerf component. These decisions follow from
+reading it in full (`interaction-conventions.md`, `component-selection.md` decision pass, `surface-scaffold.md`,
+`workbench-dialog.md` and the `Text`, `StateBanner`, `EmptyState`, `ListActionRow`, `ListItem` and `DialogSurface`
+pages).
+
+- **Single-pane dialogs use `DialogSurface`**, not `WorkbenchDialog`. `WorkbenchDialog` is for an editing task
+  with side panels and draws no body inset, which is why dialogs built on it needed an app margin on the content
+  while the footer kept Kerf's own inset: the title, content and footer did not share an edge (`HS2-04T93G`).
+  A `DialogSurface` with `bodyInset="none"` and a `List` body gives one edge for header, rows and footer with no
+  CSS. Saved Reviews is converted; the other dialogs are tracked below.
+- **Rows are rows, text is `Text`, states are components.** A saved review is a `ListActionRow` with a trailing
+  overflow `PopupMenu` whose "Delete…" entry has an icon; a section label is `ListHeader`; absence and loading are
+  `EmptyState`; persistent errors and status are `StateBanner`; paragraphs and headings are `Text`. Do not write
+  `p`, `h1`..`h6`, `ul` or `section` for UI that one of these owns.
+- **A destructive confirmation is an alert `DialogSurface`** (`alert`, `describedBy` the message), Cancel first,
+  the danger action last, Cancel with secondary emphasis like the neighboring dialogs.
+- **Justified application CSS:** `src/components/diff/text-diff.css` sets `grid-auto-rows: min-content` on the
+  application-owned `.text-diff__lines` grid because WebKitGTK keeps stale `auto` row heights after a width
+  shrink (`HS2-JEM47K`); no Kerf component owns that grid. The image viewer's blend, slice and region rules are
+  domain structure Kerf does not provide. Public `--kui-*` tokens in application CSS follow the
+  `foundation.css` contract.
+- **Justified lint suppression:** `kerfjs/ui-wiring` is disabled in `saved-review-dialog.tsx` because the catalog
+  marks `wirePinnablePopover` and `wireOverlaySheets` required for the whole `surface-scaffold` entry, although a
+  plain modal has no pinned popover or bottom sheet to wire. This is a gap to report to Kerf, not a pattern.
+- **Open audit findings** (files not yet aligned): `storage-dialog`, `analysis-settings-dialog` and
+  `export-dialog` still use `WorkbenchDialog` with app CSS and raw text tags; `discussion` uses raw tags and
+  72 lines of CSS; `analysis-controls`, `review-navigator`, `source-context`, `text-diff` and `media-diff` use raw
+  text tags in places; the Share Feedback and Appearance menu entries have no icons, which the conventions require.
+  Each has its own ticket.

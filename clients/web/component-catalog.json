@@ -152,8 +152,9 @@
       ],
       "publicTokens": [],
       "uses": [
-        "toolbar-control-group",
-        "lucide-icon"
+        "lucide-icon",
+        "state-banner",
+        "toolbar-control-group"
       ],
       "source": "src/components/diff/media-diff.tsx",
       "styleSources": [
@@ -277,12 +278,12 @@
       "id": "saved-review-dialog",
       "name": "Saved Reviews",
       "kind": "composition",
-      "purpose": "Restore a saved editable review and open discussions outside the changed-file list.",
+      "purpose": "Restore or delete a saved editable review and open discussions outside the changed-file list.",
       "useWhen": [
         "Reopen a saved review or find a discussion on an unchanged file."
       ],
       "avoidWhen": [
-        "Delete saved feedback or send a review to Hot Sheet."
+        "Clear all saved feedback for a project or send a review to Hot Sheet."
       ],
       "publicClasses": [
         "saved-review-dialog"
@@ -290,12 +291,17 @@
       "publicTokens": [],
       "uses": [
         "button",
-        "workbench-dialog"
+        "empty-state",
+        "list",
+        "list-action-row",
+        "list-header",
+        "list-item",
+        "lucide-icon",
+        "state-banner",
+        "surface-scaffold",
+        "text"
       ],
       "source": "src/components/discussion/saved-review-dialog.tsx",
-      "styleSources": [
-        "src/components/discussion/saved-review-dialog.css"
-      ],
       "demoSource": "src/ux-demo/demos/discussion/saved-review-dialog.tsx",
       "geometry": {
         "margin": "none",
