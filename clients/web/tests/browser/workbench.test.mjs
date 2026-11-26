@@ -970,12 +970,38 @@ test(
       await page.setViewportSize({ width: 1440, height: 260 });
       await select(/mark\.svg/);
       await page.getByRole('heading', { name: 'mark.svg', exact: true }).waitFor();
+      // The first restore of a visit returns the slot to its top, so scroll only once the image is on screen.
+      await page.waitForFunction(
+        () => document.querySelector('.review-comparison-scroll img[data-media-side]')?.naturalWidth > 0,
+      );
       const slotTop = await slot.evaluate(async (element) => {
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         element.scrollTo({ top: 60, behavior: 'instant' });
         return element.scrollTop;
       });
       assert(slotTop > 0, `The comparison slot should scroll. Actual offset ${slotTop}`);
+      // GB2-XZ3H0G: returning to the changed image restores the slot offset although the image lays out late.
+      await select(/bundle\.ts/);
+      await page.getByRole('heading', { name: 'bundle.ts', exact: true }).waitFor();
+      // The held style keeps the images out of layout, as a slow decode does, until the test releases them.
+      const hold = await page.addStyleTag({ content: '.review-comparison-scroll > * { display: none !important; }' });
+      await button('Previous File Visit').click();
+      await page.getByRole('heading', { name: 'mark.svg', exact: true }).waitFor();
+      await page.evaluate(
+        () =>
+          new Promise((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+          ),
+      );
+      await hold.evaluate((element) => {
+        element.remove();
+      });
+      await page.waitForFunction(
+        (top) =>
+          document.querySelector('[data-workbench-main][aria-label="Comparison"] .review-comparison-scroll')
+            ?.scrollTop === top,
+        slotTop,
+      );
       await page.setViewportSize({ width: 1440, height: 900 });
       await button('Change Source').click();
       await button('Open Comparison').click();
