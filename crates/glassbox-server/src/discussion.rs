@@ -568,7 +568,23 @@ impl Discussion {
             .map(|item| item.saved.clone())
             .unwrap_or_default();
         let mut changed = false;
+        // The host reads each analyzed file's lines so an AI note records its line like a reviewer's comment does
+        // (GB2-JWB3SZ); a source that cannot be read simply leaves the notes without a quote.
+        let comparison = review_files::load(source.clone(), difftool.clone()).ok();
+        let paths = comparison.as_ref().map(review_files::Comparison::paths);
         for file in &result.files {
+            let index = paths
+                .as_ref()
+                .and_then(|paths| paths.iter().position(|path| *path == file.path));
+            // Only a file that still shows the analyzed content can vouch for the analyzed line numbers.
+            let current = comparison
+                .as_ref()
+                .zip(index)
+                .filter(|(comparison, index)| {
+                    comparison
+                        .file_revision(*index)
+                        .is_ok_and(|revision| revision == file.revision)
+                });
             let (tag, risk, observations) = match &file.analysis {
                 FileAnalysis::Risk {
                     aggregate,
@@ -595,8 +611,9 @@ impl Discussion {
                         start: observation.line,
                         end: observation.line,
                     },
-                    // Analysis results carry no source text, so an AI note is never offered a new line.
-                    quote: None,
+                    quote: current.and_then(|(comparison, index)| {
+                        file_line(comparison, index, observation.side, observation.line)
+                    }),
                 };
                 let origin = ThreadOrigin::Ai {
                     tags: vec![tag.into()],

@@ -896,6 +896,27 @@ fn analysis_uses_provider_jobs_with_progress_results_cancellation_stale_and_unav
         discussion["threads"][0]["anchor"]["revision"],
         file["revision"]
     );
+    // GB2-JWB3SZ: the host records the analyzed line, so a stale AI note can look for it again.
+    assert_eq!(discussion["threads"][0]["anchor"]["quote"], "after");
+    let thread = discussion["threads"][0]["id"].clone();
+    let relocate = |address| {
+        call(
+            address,
+            "POST",
+            "/api/v1/review/discussion/relocate",
+            json!({"selection":{"source":source,"index":0,"path":"after.txt"},"thread":thread}),
+        )
+    };
+    assert_eq!(relocate(address)["outcome"], "current");
+    std::fs::write(&after, "inserted\nafter\n").unwrap();
+    let found = relocate(address);
+    assert_eq!(
+        (&found["outcome"], &found["line"]),
+        (&json!("suggestion"), &json!(2))
+    );
+    std::fs::write(&after, "after\nafter\n").unwrap();
+    assert_eq!(relocate(address)["outcome"], "ambiguous");
+    std::fs::write(&after, "after\n").unwrap();
 
     let guide = start(address, "guidance");
     let result = wait_for(address, &guide, done);
@@ -908,6 +929,7 @@ fn analysis_uses_provider_jobs_with_progress_results_cancellation_stale_and_unav
     assert_eq!(result["result"]["narrative"][0]["path"], "after.txt");
 
     std::fs::write(&after, "changed before cancellation\n").unwrap();
+    assert_eq!(relocate(address)["outcome"], "missing");
     let cancelled = start(address, "guidance");
     assert_eq!(wait_for(address, &cancelled, ready)["status"], "running");
     assert_eq!(

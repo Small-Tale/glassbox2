@@ -35,7 +35,7 @@ Each thread:
 | `side` | `before` or `after` | Which side of the comparison the thread is on. |
 | `revision` | string | The file revision the anchor was made against. Opaque; equal values mean the same content. |
 | `target` | object | `{"kind":"line","start":N,"end":M}` (one-based, inclusive) or `{"kind":"image_region","left","top","width","height"}` (fractions from 0 to 1 of the untransformed image). |
-| `line_text` | string, optional | The anchored line's text when Glassbox recorded it. Absent for ranges, image regions, AI notes and comments from before it was recorded. |
+| `line_text` | string, optional | The anchored line's text when Glassbox recorded it. Absent for ranges, image regions, AI notes whose file changed before they were published, and comments from before it was recorded. |
 | `origin` | object | `{"kind":"reviewer","category":C}` where `C` is `bug`, `fix`, `style`, `pattern-follow`, `pattern-avoid`, `note` or `remember`; or `{"kind":"ai","tags":[...],"risk":R}` where `risk` is `low`, `medium` or `high` and is absent when not scored. |
 | `messages` | array | The opening message, then the replies in order. |
 

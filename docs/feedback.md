@@ -24,7 +24,7 @@ untransformed image. If the marked revision changes or disappears,
 the anchor is stale. Rebinding an anchor is an explicit edit.
 
 When the host creates or moves a line anchor it also records the anchored line's text as
-the optional `quote` (`HS2-RV5BD8`). Anchors saved before that, and AI notes, have none.
+the optional `quote` (`HS2-RV5BD8`). Anchors saved before that have none. An AI note records its line when the analysis is published, provided the file still matches the analyzed content (`GB2-JWB3SZ`).
 
 Edits, moves, replies, attachment operations, and removals require
 the thread's current revision. A conflict leaves the saved thread
@@ -69,7 +69,7 @@ place only when exactly one line reads the same and the diff shows that line, so
 | More than one match | "More than one line matches the commented text…" | The comment stays stale; nothing is guessed. |
 | No match (the line was reworded or removed) | "No line matches the commented text…" | The comment stays stale. |
 | A match only in unchanged lines the diff hides | "The only match is in unchanged lines the diff does not show…" | The comment stays stale; reveal the lines and move it yourself. |
-| No recorded text (older comments, AI notes) | "This comment did not record its text…" | The comment stays stale (`GB2-JWB3SZ` for AI notes). |
+| No recorded text (older comments, AI notes published for a file that had already changed) | "This comment did not record its text…" | The comment stays stale. |
 
 Matching is exact, so a changed line is never matched by similarity. Move Here is the
 validated Move below, guarded by the suggested text: if the file changed again before you
