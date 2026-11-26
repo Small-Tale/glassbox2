@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "setupVersion": "5.0.0-beta.132",
+  "setupVersion": "5.0.0-beta.136",
   "packageManager": "npm",
   "packages": {
     ".": {
@@ -9,7 +9,7 @@
       "packagePath": ".",
       "managed": {
         ".claude/skills/kerf-app/SKILL.md": {
-          "sha256": "9880f36aa1994da1b02c35fed72079d2484c0f384f68e22ae47d0634b233a1cb"
+          "sha256": "c707fcd01923bd2ed74a33e894e43ff1a7be45b9021e91902884530f09382857"
         },
         ".claude/skills/kerf-ui/SKILL.md": {
           "sha256": "ee6e0e1d4028c37c3cc868ec12459e23cfa42c9dcaac791011c656984ae19310"
@@ -25,12 +25,6 @@
         },
         "package.json#scripts.typecheck": {
           "sha256": "9a8999f9c52288059269c0f40ff8eafd14c9941076ccee86cd4bebb7c09d6b60"
-        },
-        "package.json#scripts.check": {
-          "sha256": "a820edaaa4b64337d82a9da397637146dbf87582e343af463560b7621ba54486"
-        },
-        "package.json#scripts.kerf:check": {
-          "sha256": "a820edaaa4b64337d82a9da397637146dbf87582e343af463560b7621ba54486"
         },
         "package.json#scripts.kerf:doctor": {
           "sha256": "1011e9dad50de7f283342bd939b1a2bee725cc7caf1cea4cb61d3157622d812a"
@@ -54,7 +48,7 @@
           "sha256": "1413ad9430212c82278e6a648b7fea14401a320534a9730fede42a98cc396b7b"
         },
         "package.json#devDependencies.eslint-plugin-kerfjs": {
-          "sha256": "3d0b9b88806f835d53b681f01958ad6866b1ba0ab6590abfb042bf1fb9ff484c"
+          "sha256": "9676964a548e0e936fbe6dc1f584402098ef981abda60d6284a6c50e7620b8bb"
         },
         "package.json#devDependencies.@typescript-eslint/parser": {
           "sha256": "5569cd8a233b359b3e2a98241ab3eb5c1e26f9014ed16de2b87186ddb6a033a3"
@@ -66,7 +60,7 @@
           "sha256": "9b90e5dbf935f6b5ba752977b087a23541ae1b938a20c0d2ccf4aa3ccf2ba459"
         },
         "package.json#devDependencies.create-kerf-component": {
-          "sha256": "3d0b9b88806f835d53b681f01958ad6866b1ba0ab6590abfb042bf1fb9ff484c"
+          "sha256": "9676964a548e0e936fbe6dc1f584402098ef981abda60d6284a6c50e7620b8bb"
         },
         "package.json#devDependencies.@eslint/js": {
           "sha256": "dfe87518f7c72d088ecc2477ed36833b5c24e38efb271a55aea88907fe9c460a"
@@ -85,9 +79,6 @@
         },
         "package.json#devDependencies.vite": {
           "sha256": "855c87894f624e354bad141b791a679dea0b07c2b1f43fbd7d763731dddedf86"
-        },
-        "package.json#kerfComponentCatalog": {
-          "sha256": "3598f0edfca31021f7ce30b673f4351de337586e840c321313de61fe2d1894c5"
         },
         "tsconfig.json#compilerOptions.target": {
           "sha256": "ffd3bb846b04292d57ed5357a4319c441d352d4ba467da97570bb82cb402b688"
@@ -109,24 +100,6 @@
         },
         "tsconfig.json#compilerOptions.jsxImportSource": {
           "sha256": "d135eae45f7e35e79f394a40253fc30d83707b6f2c8051d8d8a0b265e87d87b9"
-        },
-        "index.html": {
-          "sha256": "7fbea20dae9a5b35b1e60ff03cf66c5fd38f59751ea934c89458d8ea722f6aff"
-        },
-        "ux-demo/index.html": {
-          "sha256": "5f92c4810f4c5406ea175a3602ec6b2f753094ca8173bd893e0551a467ced88d"
-        },
-        "vite.config.mjs": {
-          "sha256": "9696c0659aedc24fa83c52559fe540b73d33b199fc119c24b879eb9b411a4f43"
-        },
-        "src/app/main.tsx": {
-          "sha256": "be9d2f7ba77e0eb0f180c3649aa262ff82296e2cd66ea7b794c6ed47c89192a3"
-        },
-        "src/ux-demo/main.tsx": {
-          "sha256": "ff95674126196ad2f445e90981ce4963f101654d6d1d62e57bdec7a25379e69a"
-        },
-        "src/ux-demo/style.css": {
-          "sha256": "fb72b87d894a45223593fdca1ada1a369b5b7131cbd272ac4bc32aaaaaeea01f"
         },
         "src/ux-demo/demos/button.tsx": {
           "sha256": "bea707dbc552daa384342561615058beffa96eacd545ee08afe59722a6203e7a"
@@ -154,15 +127,22 @@
         },
         ".kerf-ui-profile.json#scope": {
           "sha256": "1871de04d1a88117af90b3e8bb6f40ad1047eadb38e21078e89c0913d8d8807b"
-        },
-        ".kerf-ui-profile.json#catalogs.glassbox2": {
-          "sha256": "ff7eedd18452afd5d723ab7bbf74b078899d86df77a04d7ea0e1dfdfa74b8781"
         }
       },
       "resolutions": {
+        "package.json#scripts.check": "keep",
+        "package.json#scripts.kerf:check": "keep",
+        "package.json#kerfComponentCatalog": "keep",
         "eslint.config.mjs": "keep",
         ".prettierignore": "keep",
-        "tests/structure.test.mjs": "keep"
+        "index.html": "keep",
+        "ux-demo/index.html": "keep",
+        "vite.config.mjs": "keep",
+        "src/app/main.tsx": "keep",
+        "src/ux-demo/main.tsx": "keep",
+        "src/ux-demo/style.css": "keep",
+        "tests/structure.test.mjs": "keep",
+        ".kerf-ui-profile.json#catalogs.glassbox2": "keep"
       }
     }
   }
