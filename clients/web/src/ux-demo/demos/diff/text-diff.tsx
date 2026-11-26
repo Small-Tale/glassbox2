@@ -1,13 +1,19 @@
 import { CatalogExample, CatalogExampleStack } from '@kerfjs/ui/catalog';
 import { EmptyState } from '@kerfjs/ui/empty-state';
+import { signal } from 'kerfjs';
 
+import { createContextExpansion, resetContextOnChange } from '../../../components/diff/context-expansion.js';
 import {
   createTextDiffState,
   TextDiff,
   TextDiffToolbar,
+  wireContextExpander,
   wireTextDiffToolbar,
 } from '../../../components/diff/text-diff.js';
 import type { TextHunk } from '../../../components/diff/text-diff-model.js';
+import { LineDiscussion, wireDiscussion } from '../../../components/discussion/discussion.js';
+import { createDiscussionState, type Thread } from '../../../components/discussion/discussion-state.js';
+import { createReviewSourceState, type ReviewFiles } from '../../../components/review/review-source.js';
 import {
   createReviewWorkbenchState,
   ReviewWorkbench,
@@ -18,6 +24,7 @@ import { SourceContext } from '../../../components/review/source-context.js';
 const id = 'catalog-text-diff';
 const workbench = createReviewWorkbenchState();
 const state = createTextDiffState();
+const contextId = 'catalog-text-diff-context';
 const hunks: TextHunk[] = [
   {
     before_start: 21,
@@ -72,6 +79,61 @@ const hunks: TextHunk[] = [
   },
 ];
 
+const fileLines = 120;
+const reviewFiles: ReviewFiles = {
+  identity: 'Fieldnotes',
+  branch: 'feature/review-bundles',
+  comparison: 'Working tree',
+  files: [{ path: 'src/bundle.ts', previous_path: null, status: 'modified' }],
+};
+// A thread on a line the diff hides: it appears with the line once the controls reveal it (HS2-DZ8ZR6).
+const hiddenLineThread: Thread = {
+  id: 1,
+  revision: 1,
+  anchor: { path: 'src/bundle.ts', side: 'after', revision: 'fixture', target: { kind: 'line', start: 50, end: 50 } },
+  origin: { kind: 'reviewer', category: 'style' },
+  opening: { author: 'Reviewer', markdown: 'This helper is easy to miss from the diff.', attachments: [] },
+  replies: [],
+};
+// A second hunk far below the first leaves unchanged runs at the head, between the hunks and at the tail.
+const farHunk: TextHunk = {
+  before_start: 70,
+  before_count: 3,
+  after_start: 72,
+  after_count: 3,
+  lines: [
+    { before_line: 70, after_line: 72, kind: 'context', text: '  return bundles;', ends_with_newline: true },
+    { before_line: 71, after_line: null, kind: 'removed', text: '  cache.clear();', ends_with_newline: true },
+    { before_line: null, after_line: 73, kind: 'added', text: '  cache.delete(review.id);', ends_with_newline: true },
+    { before_line: 72, after_line: 74, kind: 'context', text: '}', ends_with_newline: true },
+  ],
+};
+const discussion = createDiscussionState(
+  createReviewSourceState(reviewFiles, () => Promise.resolve(reviewFiles)),
+  () => Promise.resolve([hiddenLineThread]),
+);
+discussion.threads.value = [hiddenLineThread];
+const demoHunks = [...hunks, farHunk];
+const demoResult = signal<{ kind: 'text'; revision: string; hunks: TextHunk[]; after_lines: number }>({
+  kind: 'text',
+  revision: 'fixture',
+  hunks: demoHunks,
+  after_lines: fileLines,
+});
+// Deterministic lines stand in for the host so the controls run for real without an API call.
+const context = createContextExpansion(
+  demoResult,
+  () => ({ source: { kind: 'paths', before: 'before', after: 'after' }, index: 0, path: 'src/bundle.ts' }),
+  (_selection, _revision, range) =>
+    Promise.resolve({
+      lines: Array.from({ length: range.end - range.start + 1 }, (_, offset) => ({
+        text: `  const unchanged${range.start + offset} = ${range.start + offset};`,
+        ends_with_newline: true,
+      })),
+      total: fileLines,
+    }),
+);
+
 export function TextDiffDemo() {
   return (
     <CatalogExampleStack width="full" rootAttributes={{ 'data-demo': 'text-diff' }}>
@@ -83,7 +145,22 @@ export function TextDiffDemo() {
           comparisonTitle="bundle.ts"
           inspectorTitle="Inspector"
           navigator={<SourceContext identity="feature/review-bundles" comparison="Working tree" />}
-          comparison={<TextDiff hunks={hunks} path="src/bundle.ts" state={state} />}
+          comparison={
+            <TextDiff
+              hunks={demoHunks}
+              path="src/bundle.ts"
+              state={state}
+              context={{ id: contextId, total: fileLines, expansion: context.expansion.value }}
+              rowContent={(_before, after) => (
+                <LineDiscussion
+                  threads={discussion.threads.value.filter(
+                    ({ anchor }) => anchor.target.kind === 'line' && anchor.target.start === after,
+                  )}
+                  active={discussion.threadId.value}
+                />
+              )}
+            />
+          }
           comparisonToolbar={<TextDiffToolbar id={id} state={state} />}
           inspector={<EmptyState title="No Discussion Selected" />}
         />
@@ -112,7 +189,18 @@ export function TextDiffDemo() {
 export function wireTextDiffDemo(root: HTMLElement) {
   const stopView = wireReviewWorkbench(root, id, workbench);
   const stopToolbar = wireTextDiffToolbar(root, id, state);
+  const stopContext = wireContextExpander(root, contextId, (gap, direction) => void context.expand(gap, direction));
+  const stopReset = resetContextOnChange(context, demoResult);
+  const stopDiscussion = wireDiscussion(
+    root,
+    discussion,
+    () => undefined,
+    () => undefined,
+  );
   return () => {
+    stopDiscussion();
+    stopReset();
+    stopContext();
     stopToolbar();
     stopView();
   };

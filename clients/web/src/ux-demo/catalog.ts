@@ -5,6 +5,7 @@ import type { SafeHtml } from 'kerfjs';
 
 import metadata from '../../component-catalog.json';
 import { AnalysisControlsDemo } from './demos/analysis/analysis-controls.js';
+import { ContextExpanderDemo } from './demos/diff/context-expander.js';
 import { MediaDiffDemo } from './demos/diff/media-diff.js';
 import { TextDiffDemo } from './demos/diff/text-diff.js';
 import { DiscussionDemo } from './demos/discussion/discussion.js';
@@ -22,6 +23,7 @@ export const componentDemos = {
   'source-context': SourceContextDemo,
   'appearance-menu': AppearanceMenuDemo,
   'analysis-settings-dialog': AnalysisSettingsDialogDemo,
+  'context-expander': ContextExpanderDemo,
   'text-diff': TextDiffDemo,
   'media-diff': MediaDiffDemo,
   'analysis-controls': AnalysisControlsDemo,

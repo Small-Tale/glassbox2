@@ -10,6 +10,7 @@ import { ChevronLeft, ChevronRight, Code, GitCompareArrows, Workflow } from 'luc
 
 import { AnalysisContext, AnalysisControls, wireAnalysisControls } from '../components/analysis/analysis-controls.js';
 import { createAnalysisState } from '../components/analysis/analysis-state.js';
+import { createContextExpansion, resetContextOnChange } from '../components/diff/context-expansion.js';
 import {
   createMediaDiffState,
   MediaDiff,
@@ -19,7 +20,13 @@ import {
 } from '../components/diff/media-diff.js';
 import { modeForImages } from '../components/diff/media-mode.js';
 import { selectedDiff } from '../components/diff/selected-diff.js';
-import { createTextDiffState, TextDiff, TextDiffToolbar, wireTextDiffToolbar } from '../components/diff/text-diff.js';
+import {
+  createTextDiffState,
+  TextDiff,
+  TextDiffToolbar,
+  wireContextExpander,
+  wireTextDiffToolbar,
+} from '../components/diff/text-diff.js';
 import {
   DiscussionInspector,
   LineCommentAction,
@@ -70,11 +77,20 @@ const history = createReviewHistory();
 const definitions = createDefinitionLookup();
 const textDiff = createTextDiffState();
 const diff = selectedDiff(source);
+const diffContext = createContextExpansion(diff.result, () => {
+  const active = source.activeSource.value;
+  const index = source.selected.value;
+  const file = index === undefined ? undefined : source.review.value?.files[index];
+  return active === null || index === undefined || file === undefined
+    ? null
+    : { source: active, index, path: file.path };
+});
 void effect(() => {
   if (source.activeSource.value === null || source.selected.value === undefined || diff.result.value?.kind !== 'text') {
     definitions.clear();
   }
 });
+void resetContextOnChange(diffContext, diff.result);
 const mediaDiff = createMediaDiffState();
 const mediaId = 'glassbox-media-diff';
 void effect(() => {
@@ -112,6 +128,7 @@ function selectedAnalysis() {
   return { path: file.path, revision: content.revision };
 }
 const diffToolbarId = 'glassbox-text-diff';
+const contextId = 'glassbox-diff-context';
 const appearance = createAppearanceState();
 const appearanceId = 'glassbox-appearance';
 const handoff = createHandoffState();
@@ -202,6 +219,7 @@ mount(root, () => {
               hunks={result.hunks}
               path={file.path}
               state={textDiff}
+              context={{ id: contextId, total: result.after_lines, expansion: diffContext.expansion.value }}
               definition={definition}
               symbols={source.activeSource.value?.kind === 'git' && supportsDefinitions(file.path)}
               lineControl={(side, line) => <LineCommentAction side={side} line={line} />}
@@ -387,6 +405,7 @@ void wireDefinitionNavigation(
   historyNavigation.reveal,
 );
 void wireTextDiffToolbar(root, diffToolbarId, textDiff);
+void wireContextExpander(root, contextId, (gap, direction) => void diffContext.expand(gap, direction));
 root.addEventListener('click', (event) => {
   if (event.target instanceof Element && event.target.closest('button[data-action="toggle-diagram"]') !== null) {
     event.stopImmediatePropagation();

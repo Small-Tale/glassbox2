@@ -265,6 +265,75 @@
       }
     },
     {
+      "key": "glassbox2:context-expander",
+      "package": "glassbox2",
+      "id": "context-expander",
+      "name": "Context Expander",
+      "kind": "component",
+      "purpose": "Reveal unchanged lines hidden between text diff hunks and toward the file ends.",
+      "publicExports": [
+        {
+          "name": "ContextExpander"
+        }
+      ],
+      "sourceLinks": [
+        "src/components/diff/context-expander.tsx"
+      ],
+      "source": "src/components/diff/context-expander.tsx",
+      "parents": {
+        "mode": "any",
+        "entries": []
+      },
+      "contexts": [
+        "application-ui"
+      ],
+      "zones": [],
+      "children": {
+        "mode": "any",
+        "concepts": [],
+        "requiredConcepts": []
+      },
+      "state": [],
+      "wiring": {
+        "required": false,
+        "helpers": [],
+        "obligations": []
+      },
+      "responsive": {
+        "owner": "component",
+        "behaviors": [
+          "wrap-controls"
+        ]
+      },
+      "layout": {
+        "roles": [
+          "content"
+        ],
+        "geometry": {
+          "margin": "none",
+          "border": "none",
+          "padding": "none"
+        }
+      },
+      "accessibility": {
+        "obligations": [
+          "Name each control by the lines it reveals and keep failures announced as alerts."
+        ]
+      },
+      "boundaries": {
+        "rootClass": "context-expander",
+        "publicClasses": [
+          "context-expander"
+        ],
+        "publicTokens": []
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/diff/context-expander.tsx",
+        "composition": "src/components/diff/context-expander.tsx"
+      }
+    },
+    {
       "key": "glassbox2:export-dialog",
       "package": "glassbox2",
       "id": "export-dialog",
@@ -1037,7 +1106,7 @@
       "id": "text-diff",
       "name": "Text Diff",
       "kind": "composition",
-      "purpose": "Review changed text in two independently wrappable layouts.",
+      "purpose": "Review changed text in two independently wrappable layouts, revealing unchanged lines around hunks.",
       "publicExports": [
         {
           "name": "TextDiff"
@@ -1050,6 +1119,9 @@
         },
         {
           "name": "wireTextDiffToolbar"
+        },
+        {
+          "name": "wireContextExpander"
         }
       ],
       "sourceLinks": [
@@ -1073,17 +1145,24 @@
       "wiring": {
         "required": true,
         "helpers": [
-          "wireTextDiffToolbar"
+          "wireTextDiffToolbar",
+          "wireContextExpander"
         ],
         "sources": [
           {
             "export": "wireTextDiffToolbar",
             "source": "src/components/diff/text-diff.tsx",
             "returnsDisposer": true
+          },
+          {
+            "export": "wireContextExpander",
+            "source": "src/components/diff/text-diff.tsx",
+            "returnsDisposer": true
           }
         ],
         "obligations": [
-          "Wire the text diff toolbar layout and wrapping actions."
+          "Wire the text diff toolbar layout and wrapping actions.",
+          "Wire the unchanged-line controls to the context expansion."
         ]
       },
       "responsive": {

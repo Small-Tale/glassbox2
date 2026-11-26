@@ -389,10 +389,75 @@
       }
     },
     {
+      "id": "context-expander",
+      "name": "Context Expander",
+      "kind": "component",
+      "purpose": "Reveal unchanged lines hidden between text diff hunks and toward the file ends.",
+      "source": "src/components/diff/context-expander.tsx",
+      "publicExports": [
+        {
+          "name": "ContextExpander"
+        }
+      ],
+      "sourceLinks": ["src/components/diff/context-expander.tsx"],
+      "composition": {
+        "parents": {
+          "mode": "any",
+          "entries": []
+        },
+        "contexts": ["application-ui"],
+        "zones": [],
+        "children": {
+          "mode": "any",
+          "concepts": [],
+          "requiredConcepts": []
+        },
+        "state": [],
+        "wiring": {
+          "required": false,
+          "helpers": [],
+          "obligations": []
+        },
+        "responsive": {
+          "owner": "component",
+          "behaviors": ["wrap-controls"]
+        },
+        "layout": {
+          "roles": ["content"],
+          "geometry": {
+            "margin": "none",
+            "border": "none",
+            "padding": "none"
+          }
+        }
+      },
+      "boundaries": {
+        "rootClass": "context-expander",
+        "publicClasses": ["context-expander"],
+        "publicTokens": []
+      },
+      "accessibility": {
+        "obligations": ["Name each control by the lines it reveals and keep failures announced as alerts."]
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/diff/context-expander.tsx",
+        "composition": "src/components/diff/context-expander.tsx"
+      },
+      "selection": {
+        "useWhen": ["Offer to reveal unchanged lines inside a text diff."],
+        "avoidWhen": ["Page through lines that are not hidden between changes."],
+        "styleSources": ["src/components/diff/context-expander.css"],
+        "demoSource": "src/ux-demo/demos/diff/context-expander.tsx",
+        "documentation": "docs/ui-conventions.md",
+        "uses": ["button", "lucide-icon", "row", "state-banner"]
+      }
+    },
+    {
       "id": "text-diff",
       "name": "Text Diff",
       "kind": "composition",
-      "purpose": "Review changed text in two independently wrappable layouts.",
+      "purpose": "Review changed text in two independently wrappable layouts, revealing unchanged lines around hunks.",
       "source": "src/components/diff/text-diff.tsx",
       "publicExports": [
         {
@@ -406,6 +471,9 @@
         },
         {
           "name": "wireTextDiffToolbar"
+        },
+        {
+          "name": "wireContextExpander"
         }
       ],
       "sourceLinks": ["src/components/diff/text-diff.tsx"],
@@ -424,15 +492,23 @@
         "state": [],
         "wiring": {
           "required": true,
-          "helpers": ["wireTextDiffToolbar"],
+          "helpers": ["wireTextDiffToolbar", "wireContextExpander"],
           "sources": [
             {
               "export": "wireTextDiffToolbar",
               "source": "src/components/diff/text-diff.tsx",
               "returnsDisposer": true
+            },
+            {
+              "export": "wireContextExpander",
+              "source": "src/components/diff/text-diff.tsx",
+              "returnsDisposer": true
             }
           ],
-          "obligations": ["Wire the text diff toolbar layout and wrapping actions."]
+          "obligations": [
+            "Wire the text diff toolbar layout and wrapping actions.",
+            "Wire the unchanged-line controls to the context expansion."
+          ]
         },
         "responsive": {
           "owner": "component",
@@ -468,7 +544,7 @@
         "styleSources": ["src/components/diff/text-diff.css"],
         "demoSource": "src/ux-demo/demos/diff/text-diff.tsx",
         "documentation": "docs/ui-conventions.md",
-        "uses": ["toolbar-control-group", "lucide-icon"]
+        "uses": ["context-expander", "toolbar-control-group", "lucide-icon"]
       }
     },
     {

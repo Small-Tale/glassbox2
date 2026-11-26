@@ -6,7 +6,8 @@ use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use glassbox_comparison::{
     GitChange, GitFileChange, GitReview, GitReviewMode, compare_difftool_paths,
-    compare_direct_content, compare_git_content, compare_paths, compare_text_bytes, review_git,
+    compare_direct_content, compare_git_content, compare_paths, compare_text_bytes,
+    direct_after_bytes, git_after_bytes, review_git,
 };
 use glassbox_model::feedback::AnchorSide;
 use glassbox_model::{
@@ -83,6 +84,8 @@ enum FileContent {
         revision: String,
         hunks: Vec<TextHunk>,
         diagram: bool,
+        /// Line count of the displayed side, so the client knows how much unchanged text trails the last hunk.
+        after_lines: Option<u32>,
     },
     Media {
         before: Option<MediaMetadata>,
@@ -182,6 +185,12 @@ pub(crate) async fn selected(
         Ok(match result.display_content(input.index)? {
             ComparisonData::Text(hunks) => FileContent::Text {
                 revision: text_revision(&hunks)?,
+                after_lines: match hunks.is_empty() {
+                    true => None,
+                    false => result
+                        .after_bytes(input.index)?
+                        .map(|bytes| line_count(&bytes)),
+                },
                 hunks,
                 diagram: renderer_available
                     && crate::diagrams::DiagramFormat::for_path(Path::new(&input.path)).is_some(),
@@ -197,6 +206,97 @@ pub(crate) async fn selected(
         })
     })
     .await
+}
+
+/// Most unchanged lines one context request may return (HS2-DZ8ZR6).
+pub(crate) const CONTEXT_LIMIT: u32 = 500;
+
+#[derive(Deserialize)]
+pub(crate) struct ContextRequest {
+    #[serde(flatten)]
+    file: SelectedFile,
+    revision: String,
+    /// First displayed-side line, 1-based.
+    start: u32,
+    /// Last displayed-side line, inclusive.
+    end: u32,
+}
+
+#[derive(Serialize)]
+struct ContextLine {
+    text: String,
+    ends_with_newline: bool,
+}
+
+#[derive(Serialize)]
+struct Context {
+    lines: Vec<ContextLine>,
+    total: u32,
+}
+
+fn line_count(bytes: &[u8]) -> u32 {
+    u32::try_from(bytes.split_inclusive(|byte| *byte == b'\n').count()).unwrap_or(u32::MAX)
+}
+
+fn context_lines(bytes: &[u8], start: u32, end: u32) -> io::Result<Context> {
+    let text = std::str::from_utf8(bytes).map_err(io::Error::other)?;
+    let take = (end - start + 1) as usize;
+    let lines = text
+        .split_inclusive('\n')
+        .skip(start as usize - 1)
+        .take(take)
+        .map(|line| ContextLine {
+            text: line.strip_suffix('\n').unwrap_or(line).to_owned(),
+            ends_with_newline: line.ends_with('\n'),
+        })
+        .collect();
+    Ok(Context {
+        lines,
+        total: line_count(bytes),
+    })
+}
+
+/// Returns unchanged lines of the displayed side for the revision the client is showing.
+///
+/// A revision mismatch answers 409 so the client never splices lines from a changed source into a stale diff.
+pub(crate) async fn context(input: ContextRequest, difftool: Option<DifftoolInput>) -> Response {
+    let outcome = tokio::task::spawn_blocking(move || {
+        if input.start == 0 || input.end < input.start || input.end - input.start >= CONTEXT_LIMIT {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "Request between 1 and {CONTEXT_LIMIT} lines, starting at line 1 or later."
+                ),
+            ));
+        }
+        let result = load(input.file.source, difftool)?;
+        validate_selection(&result, input.file.index, &input.file.path)?;
+        if text_revision(&result.text_hunks(input.file.index)?)? != input.revision {
+            return Ok(None);
+        }
+        let bytes = result.after_bytes(input.file.index)?.ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "The file has no displayed lines.",
+            )
+        })?;
+        context_lines(&bytes, input.start, input.end).map(Some)
+    })
+    .await;
+    match outcome {
+        Ok(Ok(Some(context))) => Json(context).into_response(),
+        Ok(Ok(None)) => (
+            StatusCode::CONFLICT,
+            "The file changed after it was opened. Open the comparison again.",
+        )
+            .into_response(),
+        Ok(Err(error)) => (StatusCode::BAD_REQUEST, error.to_string()).into_response(),
+        Err(_) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Could not load the unchanged lines",
+        )
+            .into_response(),
+    }
 }
 
 pub(crate) async fn media(input: SelectedMedia, difftool: Option<DifftoolInput>) -> Response {
@@ -251,6 +351,14 @@ impl Comparison {
             Entries::Direct(_) => None,
         }
     }
+    /// Bytes of the displayed side, `None` for a deleted file.
+    fn after_bytes(&self, index: usize) -> io::Result<Option<Vec<u8>>> {
+        match &self.entries {
+            Entries::Git(review) => git_after_bytes(review, index),
+            Entries::Direct(entries) => direct_after_bytes(&entries[index]),
+        }
+    }
+
     fn display_content(&self, index: usize) -> io::Result<ComparisonData> {
         let content = self.entries.content(index)?;
         if let ComparisonData::Media { before, after } = &content {

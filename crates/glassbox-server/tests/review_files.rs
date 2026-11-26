@@ -208,3 +208,73 @@ async fn reads_git_path_and_difftool_sources_through_the_real_host() -> io::Resu
     assert_eq!(media["after"]["reason"], "missing");
     host.stop().await
 }
+
+#[tokio::test]
+async fn serves_bounded_unchanged_lines_for_the_displayed_revision() -> io::Result<()> {
+    // HS2-DZ8ZR6: context comes from the displayed side and only for the revision the client holds.
+    let scratch = tempfile::tempdir()?;
+    let before = scratch.path().join("before.txt");
+    let after = scratch.path().join("after.txt");
+    let lines: Vec<String> = (1..=30).map(|number| format!("line {number}")).collect();
+    fs::write(&before, lines.join("\n") + "\n")?;
+    let mut changed = lines.clone();
+    changed[14] = "changed 15".into();
+    let tail = changed.join("\n");
+    fs::write(&after, &tail)?;
+    let host = LocalHost::start(None).await?;
+    let selection = json!({
+        "source": {"kind": "paths", "before": before, "after": after},
+        "index": 0,
+        "path": "after.txt",
+    });
+    let (status, file) = post(&host, "file", selection.clone()).await;
+    assert_eq!(status, "HTTP/1.1 200 OK");
+    assert_eq!(file["kind"], "text");
+    assert_eq!(file["after_lines"], 30);
+    let ask = |start: u32, end: u32, revision: &Value| {
+        let mut request = selection.clone();
+        request["revision"] = revision.clone();
+        request["start"] = json!(start);
+        request["end"] = json!(end);
+        request
+    };
+
+    let (status, context) = post(&host, "context", ask(1, 3, &file["revision"])).await;
+    assert_eq!(status, "HTTP/1.1 200 OK");
+    assert_eq!(context["total"], 30);
+    assert_eq!(
+        context["lines"],
+        json!([
+            {"text": "line 1", "ends_with_newline": true},
+            {"text": "line 2", "ends_with_newline": true},
+            {"text": "line 3", "ends_with_newline": true},
+        ])
+    );
+
+    let (_, tail) = post(&host, "context", ask(29, 40, &file["revision"])).await;
+    assert_eq!(tail["lines"].as_array().map(Vec::len), Some(2));
+    assert_eq!(
+        tail["lines"][1],
+        json!({"text": "line 30", "ends_with_newline": false})
+    );
+
+    let (status, _) = post(&host, "context", ask(1, 1000, &file["revision"])).await;
+    assert_eq!(status, "HTTP/1.1 400 Bad Request");
+    let (status, _) = post(&host, "context", ask(0, 3, &file["revision"])).await;
+    assert_eq!(status, "HTTP/1.1 400 Bad Request");
+    let (status, _) = post(&host, "context", ask(5, 4, &file["revision"])).await;
+    assert_eq!(status, "HTTP/1.1 400 Bad Request");
+
+    fs::write(
+        &after,
+        changed.join("\n").replace("line 3", "edited 3") + "\n",
+    )?;
+    let (status, message) = post(&host, "context", ask(1, 3, &file["revision"])).await;
+    assert_eq!(status, "HTTP/1.1 409 Conflict");
+    assert!(
+        message
+            .as_str()
+            .is_some_and(|text| text.contains("changed"))
+    );
+    Ok(())
+}

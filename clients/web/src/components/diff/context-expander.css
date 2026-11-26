@@ -1,0 +1,8 @@
+/*
+ * A grid item of `.text-diff__lines`: it spans every column so the controls sit between whole rows (HS2-DZ8ZR6).
+ * The diff sets a monospace face for code; these controls are interface text, so they return to the UI face.
+ */
+.context-expander {
+  grid-column: 1 / -1;
+  font-family: var(--kui-font-sans);
+}

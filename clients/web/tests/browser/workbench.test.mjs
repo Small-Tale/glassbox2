@@ -1050,3 +1050,113 @@ test('Send to Hot Sheet 2 opens as one dialog with its sections and closes', { t
     await dialog.waitFor({ state: 'hidden' });
   });
 });
+
+// HS2-DZ8ZR6: reveal unchanged lines around hunks and toward the file's ends, against a real host and repository.
+test(
+  'HS2-DZ8ZR6 reveals unchanged context repeatedly in both layouts and refuses a changed source',
+  {
+    timeout: 90_000,
+  },
+  async () => {
+    await withWorkbench(async (page, url, { repo }) => {
+      const context = join(dirname(repo), 'Context');
+      await mkdir(context);
+      const git = (...args) =>
+        execFileSync('git', ['-c', 'commit.gpgsign=false', '-c', 'core.autocrlf=false', ...args], {
+          cwd: context,
+          windowsHide: true,
+        });
+      const lines = (change = {}) =>
+        Array.from({ length: 120 }, (_, index) => change[index + 1] ?? `line ${index + 1}`).join('\n') + '\n';
+      git('init', '-q', '--initial-branch=review');
+      await writeFile(join(context, 'ctx.txt'), lines());
+      git('add', '.');
+      git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'initial');
+      await writeFile(join(context, 'ctx.txt'), lines({ 30: 'changed 30', 90: 'changed 90' }));
+
+      const button = (name) => page.getByRole('button', { name, exact: true });
+      const cell = (line) => page.locator(`.text-diff__cell[data-after-line="${line}"]`).first();
+      const controls = (gap) => page.locator(`.context-expander[data-gap="${gap}"]`);
+      const reveal = async (gap, label, first, last) => {
+        const response = page.waitForResponse((reply) => reply.url().endsWith('/api/v1/review/context'));
+        await controls(gap).getByRole('button', { name: label, exact: true }).click();
+        assert((await response).ok());
+        await cell(first).waitFor();
+        await cell(last).waitFor();
+      };
+      await page.goto(url);
+      await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(context);
+      await button('Open Comparison').click();
+      await page.getByRole('treeitem', { name: /ctx\.txt/ }).click();
+      await button('Inline').click();
+      await page.locator('.text-diff__cell[data-after-line="30"]').waitFor();
+
+      // Head, middle and tail each start collapsed; the first line of the file is not shown.
+      assert.equal(await page.locator('.context-expander').count(), 3);
+      assert.equal(await cell(1).count(), 0);
+      assert.equal(await page.locator('.text-diff__range').count(), 2);
+      assert.deepEqual(await controls(1).getByRole('button').allTextContents(), [
+        'Show 20 Above',
+        'Show 20 Below',
+        'Show All 53',
+      ]);
+      assert.equal(await controls(0).getByRole('button', { name: 'Show 20 Below' }).count(), 0);
+      assert.equal(await controls(2).getByRole('button', { name: 'Show 20 Above' }).count(), 0);
+
+      // Repeated expansion grows from the previous change; the lines it adds are numbered on both sides.
+      await reveal(1, 'Show 20 Below', 34, 53);
+      assert.equal(await cell(54).count(), 0);
+      await reveal(1, 'Show 20 Below', 54, 73);
+      assert.deepEqual(await controls(1).getByRole('button').allTextContents(), ['Show 13 Lines']);
+      assert.equal(await page.locator('[data-after-line="34"][data-before-line="34"]').count(), 1);
+      // Revealed lines are read-only context: the host only accepts comments on lines of the diff.
+      assert.equal(await page.getByRole('button', { name: 'Add Comment to After Line 34' }).count(), 0);
+      assert.equal(await page.getByRole('button', { name: 'Add Comment to After Line 30' }).count(), 1);
+
+      // Closing the last hidden lines merges the hunks: no control and no header between them.
+      await reveal(1, 'Show 13 Lines', 74, 86);
+      assert.equal(await controls(1).count(), 0);
+      assert.equal(await page.locator('.text-diff__range').count(), 1);
+
+      // The ends of the file: above the first change and below the last.
+      await reveal(0, 'Show 20 Above', 7, 26);
+      assert.equal(await cell(6).count(), 0);
+      await controls(0).getByRole('button', { name: 'Show 6 Lines' }).click();
+      await cell(1).waitFor();
+      assert.equal(await controls(0).count(), 0);
+      await reveal(2, 'Show All 27', 94, 120);
+      assert.equal(await page.locator('.context-expander').count(), 0);
+      assert.equal(await page.locator('.text-diff__range').count(), 0);
+      await capture(page, 'context-inline-1440');
+
+      // Side by side shows the same revealed rows on both sides; narrow widths keep the page from scrolling sideways.
+      await button('Side by Side').click();
+      assert.equal(await page.locator('.text-diff__cell[data-side="before"][data-before-line="60"]').count(), 1);
+      assert.equal(await page.locator('.text-diff__cell[data-side="after"][data-after-line="60"]').count(), 1);
+      for (const width of [940, 390, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        await cell(60).waitFor();
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
+        await capture(page, `context-split-${width}`);
+      }
+
+      // A source that changed after the file opened is refused without disturbing what is shown.
+      await page.reload();
+      await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(context);
+      await button('Open Comparison').click();
+      await page.getByRole('treeitem', { name: /ctx\.txt/ }).click();
+      await page.locator('.text-diff__cell[data-after-line="30"]').first().waitFor();
+      await reveal(1, 'Show 20 Below', 34, 53);
+      await capture(page, 'context-partial-1440');
+      await writeFile(join(context, 'ctx.txt'), lines({ 5: 'edited 5', 30: 'changed 30', 90: 'changed 90' }));
+      const refused = page.waitForResponse((reply) => reply.url().endsWith('/api/v1/review/context'));
+      await controls(1).getByRole('button', { name: 'Show 20 Above', exact: true }).click();
+      assert.equal((await refused).status(), 409);
+      await page.getByText('Could Not Show Lines', { exact: true }).waitFor();
+      await page.getByText(/changed after it was opened/u).waitFor();
+      await cell(53).waitFor();
+      assert.equal(await cell(67).count(), 0, 'the refused lines never join the stale diff');
+      await capture(page, 'context-refused-1440');
+    });
+  },
+);

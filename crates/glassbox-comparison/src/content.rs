@@ -67,6 +67,20 @@ fn load_direct_side(side: &glassbox_model::EntrySide) -> io::Result<FileSide<'_>
     Ok(FileSide::new((&side.display_path, bytes)))
 }
 
+/// Bytes of the displayed side of one direct entry, or `None` when it was deleted.
+pub fn direct_after_bytes(entry: &ComparisonEntry) -> io::Result<Option<Vec<u8>>> {
+    entry
+        .after
+        .as_ref()
+        .map(|side| read_local_entry(&side.source_path))
+        .transpose()
+}
+
+/// Bytes of the displayed side of one Git change, or `None` when it was deleted.
+pub fn git_after_bytes(review: &GitReview, index: usize) -> io::Result<Option<Vec<u8>>> {
+    Ok(review.read_change_sides(index)?.after)
+}
+
 pub fn compare_git_content(review: &GitReview, index: usize) -> io::Result<ComparisonData> {
     let contents = review.read_change_sides(index)?;
     let entry = &review.changes[index];

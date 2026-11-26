@@ -46,6 +46,32 @@ and revision. The web host serves the original bytes through
 revision. It accepts region feedback only when the anchor matches that
 side's current revision.
 
+### Unchanged context (`HS2-DZ8ZR6`)
+
+The viewer shows three lines around each change and hides the rest. A control row
+marks every hidden run: before the first change, between two changes and after the
+last one. Each offers "Show 20 Above" (lines directly above the next change),
+"Show 20 Below" (lines directly below the previous change) and "Show All N" when
+the run fits one request (500 lines). A run of 20 lines or fewer has one "Show N
+Lines" control. Pressing a control repeats: each press reveals the next lines,
+numbered on both sides, and the control row stays until nothing is hidden. Once
+the lines touching the next change are shown, the `@@` header for that change is
+dropped, and a fully revealed run merges the two changes into one stretch.
+
+`POST /api/v1/review/context` returns lines `start` to `end` of the displayed side
+for the text `revision` the client holds. It checks the selection like the other
+endpoints, rejects a range over 500 lines, and answers 409 when the source has
+changed since the file opened, so the client never mixes lines from a changed file
+into a stale diff. The file response carries `after_lines`, the displayed side's
+line count, so the trailing run is known without a request. A failed or refused
+request shows a "Could Not Show Lines" alert in the control row and keeps what was
+already revealed. Opening another file, or reloading the comparison, collapses the
+file again.
+
+Revealed lines are read-only context: they show existing discussion anchors, but
+adding a comment is offered only on lines of the diff itself, which is what the
+host accepts. Commenting on revealed lines is `GB2-5QQPPW`.
+
 ## Image viewer
 
 Raster and SVG comparisons open side by side. The toolbar offers stacked,

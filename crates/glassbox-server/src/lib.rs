@@ -115,6 +115,7 @@ fn router(
     let source_launch = difftool.clone();
     let selected_launch = difftool.clone();
     let media_launch = difftool.clone();
+    let context_launch = difftool.clone();
     let diagram_launch = difftool.clone();
     let renderer = diagrams::Renderer::from_environment();
     let renderer_available = renderer.is_some();
@@ -168,6 +169,10 @@ fn router(
             post(move |Json(file)| {
                 review_files::selected(file, selected_launch, renderer_available)
             }),
+        )
+        .route(
+            "/api/v1/review/context",
+            post(move |Json(input)| review_files::context(input, context_launch)),
         )
         .route(
             "/api/v1/review/media",

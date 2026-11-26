@@ -109,3 +109,31 @@ test('HS2-T9J9BE the catalog contrast control drives Kerf’s increased-contrast
     await vite.close();
   }
 });
+
+// HS2-DZ8ZR6: the demo wires the unchanged-line controls to a fixture file, and a thread on a hidden line shows with it.
+test('HS2-DZ8ZR6 the Text Diff demo reveals hidden lines and the discussion anchored on them', async () => {
+  await withCatalog(async (page, url) => {
+    await page.goto(`${url}?component=text-diff`);
+    const demo = page.locator('[data-demo="text-diff"]');
+    const middle = demo.locator('.context-expander[data-gap="1"]');
+    const threads = demo.locator('.discussion-inline__thread');
+    await middle.waitFor();
+    assert.equal(await threads.count(), 0);
+    assert.equal(await demo.locator('.text-diff__cell[data-after-line="50"]').count(), 0);
+    await middle.getByRole('button', { name: 'Show 20 Below', exact: true }).click();
+    await demo.locator('.text-diff__cell[data-after-line="46"]').first().waitFor();
+    assert.equal(await threads.count(), 0, 'the anchored line is still hidden');
+    await middle.getByRole('button', { name: 'Show 20 Below', exact: true }).click();
+    await demo.locator('.text-diff__cell[data-after-line="50"]').first().waitFor();
+    await threads.first().waitFor();
+    assert.match(await threads.first().innerText(), /easy to miss/u);
+    await middle.getByRole('button', { name: 'Show 5 Lines', exact: true }).click();
+    await middle.waitFor({ state: 'detached' });
+    assert.equal(await demo.locator('.text-diff__range').count(), 1);
+    for (const width of [900, 390, 1200]) {
+      await page.setViewportSize({ width, height: 800 });
+      await demo.locator('.text-diff__cell[data-after-line="50"]').first().waitFor();
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
+    }
+  });
+});

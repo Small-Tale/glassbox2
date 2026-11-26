@@ -126,6 +126,9 @@ pages).
   `p`, `h1`..`h6`, `ul` or `section` for UI that one of these owns.
 - **A destructive confirmation is an alert `DialogSurface`** (`alert`, `describedBy` the message), Cancel first,
   the danger action last, Cancel with secondary emphasis like the neighboring dialogs.
+- **Unchanged-line controls are Kerf `Button`s in a `Row`** (`HS2-DZ8ZR6`): compact, plain, with a chevron icon and a
+  title-case label that names the count. Failures are an alert `StateBanner`. Their only application CSS spans the
+  grid and returns the interface font inside the diff's monospace face (`context-expander.css`).
 - **Justified application CSS:** `src/components/diff/text-diff.css` sets `grid-auto-rows: min-content` on the
   application-owned `.text-diff__lines` grid because WebKitGTK keeps stale `auto` row heights after a width
   shrink (`HS2-JEM47K`); no Kerf component owns that grid. The image viewer's blend, slice and region rules are

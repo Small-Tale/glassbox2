@@ -6,6 +6,8 @@ import { type SafeHtml, signal } from 'kerfjs';
 import { Columns2, Rows2, WrapText } from 'lucide';
 
 import type { Definition } from '../review/definition-navigation.js';
+import { ContextExpander } from './context-expander.js';
+import { type ContextDirection, type DiffBlock, diffBlocks, type Expansion } from './context-expansion.js';
 import { type DiffLine, splitLines, syntaxTokens, type TextHunk } from './text-diff-model.js';
 
 export function createTextDiffState() {
@@ -124,8 +126,11 @@ export function TextDiff({
   symbols = false,
   definition,
   snapshot = false,
+  context,
 }: {
   hunks: readonly TextHunk[];
+  /** Unchanged-line controls and revealed lines; absent for a diff that cannot fetch more (HS2-DZ8ZR6). */
+  context?: { id: string; total: number | null | undefined; expansion: Expansion };
   path: string;
   state: TextDiffState;
   lineControl?: LineControl;
@@ -174,7 +179,11 @@ export function TextDiff({
       Math.max(largest, hunk.before_start + hunk.before_count - 1, hunk.after_start + hunk.after_count - 1),
     0,
   );
-  const gutter = Math.max(4, String(lastLine).length + 1);
+  const gutter = Math.max(4, String(Math.max(lastLine, context?.total ?? 0)).length + 1);
+  const blocks: DiffBlock[] =
+    context === undefined
+      ? hunks.map((hunk) => ({ kind: 'hunk', hunk, header: true }))
+      : diffBlocks(hunks, context.total, context.expansion);
   return (
     <div
       class="text-diff"
@@ -192,46 +201,63 @@ export function TextDiff({
             <div class="text-diff__side">After</div>
           </>
         ) : null}
-        {hunks.map((hunk) => (
-          <>
-            <div class="text-diff__range">{`@@ -${range(hunk.before_start, hunk.before_count)} +${range(hunk.after_start, hunk.after_count)} @@`}</div>
-            {layout === 'split'
-              ? splitLines(hunk.lines).map(({ before, after }) => (
-                  <>
-                    <DiffCell
-                      line={before}
-                      side="before"
-                      path={path}
-                      lineControl={lineControl}
-                      symbols={symbols}
-                      definition={definition}
-                    />
-                    <DiffCell
-                      line={after}
-                      side="after"
-                      path={path}
-                      lineControl={lineControl}
-                      symbols={symbols}
-                      definition={definition}
-                    />
-                    {rowContent?.(before?.before_line, after?.after_line)}
-                  </>
-                ))
-              : hunk.lines.map((line) => (
-                  <>
-                    <DiffCell
-                      line={line}
-                      side="both"
-                      path={path}
-                      lineControl={lineControl}
-                      symbols={symbols}
-                      definition={definition}
-                    />
-                    {rowContent?.(line.before_line, line.after_line)}
-                  </>
-                ))}
-          </>
-        ))}
+        {blocks.map((block) => {
+          if (block.kind === 'expand') {
+            const { expansion } = context ?? {};
+            return (
+              <ContextExpander
+                id={context?.id ?? ''}
+                gap={block.gap}
+                hidden={block.hidden}
+                pending={expansion?.pending === block.gap.index}
+                error={expansion?.error?.gap === block.gap.index ? expansion.error.message : null}
+              />
+            );
+          }
+          const lines = block.kind === 'hunk' ? block.hunk.lines : block.lines;
+          return (
+            <>
+              {block.kind === 'hunk' && block.header ? (
+                <div class="text-diff__range">{`@@ -${range(block.hunk.before_start, block.hunk.before_count)} +${range(block.hunk.after_start, block.hunk.after_count)} @@`}</div>
+              ) : null}
+              {layout === 'split'
+                ? splitLines(lines).map(({ before, after }) => (
+                    <>
+                      <DiffCell
+                        line={before}
+                        side="before"
+                        path={path}
+                        lineControl={block.kind === 'hunk' ? lineControl : undefined}
+                        symbols={symbols}
+                        definition={definition}
+                      />
+                      <DiffCell
+                        line={after}
+                        side="after"
+                        path={path}
+                        lineControl={block.kind === 'hunk' ? lineControl : undefined}
+                        symbols={symbols}
+                        definition={definition}
+                      />
+                      {rowContent?.(before?.before_line, after?.after_line)}
+                    </>
+                  ))
+                : lines.map((line) => (
+                    <>
+                      <DiffCell
+                        line={line}
+                        side="both"
+                        path={path}
+                        lineControl={block.kind === 'hunk' ? lineControl : undefined}
+                        symbols={symbols}
+                        definition={definition}
+                      />
+                      {rowContent?.(line.before_line, line.after_line)}
+                    </>
+                  ))}
+            </>
+          );
+        })}
       </div>
     </div>
   );
@@ -247,6 +273,29 @@ export function wireTextDiffToolbar(root: HTMLElement, id: string, state: TextDi
       if (action === `${id}:split`) state.layout.value = 'split';
       if (action === `${id}:inline`) state.layout.value = 'inline';
       if (action === `${id}:wrap`) state.wrap.value = !state.wrap.value;
+    },
+    { signal: controller.signal },
+  );
+  return () => {
+    controller.abort();
+  };
+}
+
+/** Routes the unchanged-line controls (`<id>:<gap>:<direction>`) to `expand` (HS2-DZ8ZR6). */
+export function wireContextExpander(
+  root: HTMLElement,
+  id: string,
+  expand: (gap: number, direction: ContextDirection) => void,
+) {
+  const controller = new AbortController();
+  root.addEventListener(
+    'click',
+    (event) => {
+      if (!(event.target instanceof Element)) return;
+      const action = event.target.closest<HTMLElement>('button[data-action]')?.dataset.action;
+      const [prefix, gap, direction] = action?.split(':') ?? [];
+      if (prefix !== id || (direction !== 'above' && direction !== 'below' && direction !== 'all')) return;
+      expand(Number(gap), direction);
     },
     { signal: controller.signal },
   );
