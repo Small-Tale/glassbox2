@@ -18,6 +18,15 @@ Open `/ux-demo` directly for developer review in Vite or the built client. Run
 `npm run check` to verify catalog metadata, lint, types, Kerf UI Doctor, tests,
 and the build. Inspect wide, medium, and compact browser layouts where UI changes.
 
+## Text and status copy
+
+Plain text in application components uses Kerf `Text` instead of native `p`, `span` and `strong`, and inline error
+feedback uses `StateBanner` (`GB2-BJTE39`). The source context, analysis context and review navigator are converted.
+`SourceContext` keeps a bare root element only because the catalog metadata requires a root class; it has no
+stylesheet. The analysis context strip keeps its own tinted background and wrapping layout (application-owned structure
+until a Kerf strip fits it). The discussion inspector, text diff, media diff and menu entries are still open under
+`GB2-BJTE39`.
+
 ## Review workbench
 
 The browser and Tauri app share the Review Workbench composition

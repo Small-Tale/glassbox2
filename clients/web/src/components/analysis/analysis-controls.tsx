@@ -3,6 +3,7 @@ import './analysis-controls.css';
 import { Badge } from '@kerfjs/ui/badge';
 import { Button } from '@kerfjs/ui/button';
 import { LucideIcon } from '@kerfjs/ui/lucide-icon';
+import { Text } from '@kerfjs/ui/text';
 import { ToolbarButton, ToolbarControlGroup } from '@kerfjs/ui/toolbar-control-group';
 import { ChevronLeft, ChevronRight, Compass, ShieldAlert } from 'lucide';
 
@@ -71,21 +72,21 @@ export function AnalysisContext({ id, state, selection }: { id: string; state: A
   return (
     <div class="analysis-context">
       {riskStatus === '' ? null : (
-        <p role="status">
-          {labels.risk} · {riskStatus}
-        </p>
+        <Text role="status" flush>
+          {`${labels.risk} · ${riskStatus}`}
+        </Text>
       )}
       {guidanceStatus === '' ? null : (
-        <p role="status">
-          {labels.guidance} · {guidanceStatus}
-        </p>
+        <Text role="status" flush>
+          {`${labels.guidance} · ${guidanceStatus}`}
+        </Text>
       )}
       {guide === undefined ? null : (
         <div class="analysis-context__guide">
           <Badge size="compact" tone="info">
             Code Guidance
           </Badge>
-          <span>{step === undefined ? guide.overview : `Line ${step.line} · ${step.text}`}</span>
+          <Text variant="span">{step === undefined ? guide.overview : `Line ${step.line} · ${step.text}`}</Text>
           {guide.steps.length <= 1 ? null : (
             <div class="analysis-context__steps" aria-label="Guidance Steps">
               <Button
@@ -97,9 +98,7 @@ export function AnalysisContext({ id, state, selection }: { id: string; state: A
                 disabled={index === 0}
                 icon={<LucideIcon icon={ChevronLeft} name="chevron-left" />}
               />
-              <span>
-                {index + 1} of {guide.steps.length}
-              </span>
+              <Text variant="span">{`${index + 1} of ${guide.steps.length}`}</Text>
               <Button
                 action={`${id}:next`}
                 ariaLabel="Next Guidance Step"

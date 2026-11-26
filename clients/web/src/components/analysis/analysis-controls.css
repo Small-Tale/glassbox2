@@ -6,10 +6,6 @@
   overflow-wrap: anywhere;
 }
 
-.analysis-context p {
-  margin: 0;
-}
-
 .analysis-context__guide,
 .analysis-context__steps {
   display: flex;

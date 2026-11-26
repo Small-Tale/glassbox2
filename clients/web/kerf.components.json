@@ -61,7 +61,7 @@
       "selection": {
         "useWhen": ["Show the identity and comparison type of the active review."],
         "avoidWhen": ["Offer a source selection action."],
-        "styleSources": ["src/components/review/source-context.css"],
+        "uses": ["text"],
         "demoSource": "src/ux-demo/demos/review/source-context.tsx",
         "documentation": "docs/ui-conventions.md"
       }
@@ -228,7 +228,8 @@
           "toolbar-control-group",
           "progress-bar",
           "segmented-control",
-          "state-banner"
+          "state-banner",
+          "text"
         ]
       }
     },
@@ -462,7 +463,7 @@
         "styleSources": ["src/components/analysis/analysis-controls.css"],
         "demoSource": "src/ux-demo/demos/analysis/analysis-controls.tsx",
         "documentation": "docs/ui-conventions.md",
-        "uses": ["badge", "button", "lucide-icon", "toolbar-control-group"]
+        "uses": ["badge", "button", "lucide-icon", "text", "toolbar-control-group"]
       }
     },
     {

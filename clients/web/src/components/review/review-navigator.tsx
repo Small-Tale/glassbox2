@@ -10,6 +10,7 @@ import { ProgressBar } from '@kerfjs/ui/progress-bar';
 import { SegmentedControl } from '@kerfjs/ui/segmented-control';
 import { Select } from '@kerfjs/ui/select';
 import { StateBanner } from '@kerfjs/ui/state-banner';
+import { Text } from '@kerfjs/ui/text';
 import { TextField } from '@kerfjs/ui/text-field';
 import { ToolbarButton, ToolbarControlGroup } from '@kerfjs/ui/toolbar-control-group';
 import { TreeList, type TreeListNode } from '@kerfjs/ui/tree-list';
@@ -227,7 +228,7 @@ function SourceForm({ state }: { state: ReviewSourceState }) {
       >
         Open Comparison
       </Button>
-      {state.error.value === '' ? null : <p role="alert">{state.error.value}</p>}
+      {state.error.value === '' ? null : <StateBanner tone="danger" urgency="alert" title={state.error.value} />}
     </form>
   );
 }
@@ -301,7 +302,7 @@ export function ReviewNavigator({
           )}
           {ordered === null || ordering === undefined ? null : ordered.status === null ||
             ordered.status.status === 'running' ? (
-            <p role="status">{`Working out the ${order} order…`}</p>
+            <Text role="status" flush>{`Working out the ${order} order…`}</Text>
           ) : ordered.result === null ? (
             <StateBanner
               tone="warning"
@@ -309,7 +310,9 @@ export function ReviewNavigator({
               detail={'message' in ordered.status ? ordered.status.message : 'The analysis did not finish.'}
             />
           ) : (ordered.result.failures?.length ?? 0) > 0 ? (
-            <p role="status">Some files could not be analyzed and are listed apart.</p>
+            <Text role="status" flush>
+              Some files could not be analyzed and are listed apart.
+            </Text>
           ) : null}
           {selection === undefined ? null : (
             <>
@@ -338,9 +341,11 @@ export function ReviewNavigator({
                 ))}
               </ToolbarControlGroup>
               {state.activeSource.value?.kind === 'difftool' ? (
-                <p>Git difftool inputs do not identify a live file.</p>
+                <Text flush>Git difftool inputs do not identify a live file.</Text>
               ) : null}
-              <div role="status">{state.fileActionStatus.value}</div>
+              <Text role="status" flush>
+                {state.fileActionStatus.value}
+              </Text>
             </>
           )}
           {tree.nodes.length === 0 ? (

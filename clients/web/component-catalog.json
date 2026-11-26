@@ -23,6 +23,7 @@
         "badge",
         "button",
         "lucide-icon",
+        "text",
         "toolbar-control-group"
       ],
       "source": "src/components/analysis/analysis-controls.tsx",
@@ -372,7 +373,8 @@
         "toolbar-control-group",
         "progress-bar",
         "segmented-control",
-        "state-banner"
+        "state-banner",
+        "text"
       ],
       "source": "src/components/review/review-navigator.tsx",
       "styleSources": [
@@ -501,10 +503,10 @@
         "source-context"
       ],
       "publicTokens": [],
-      "source": "src/components/review/source-context.tsx",
-      "styleSources": [
-        "src/components/review/source-context.css"
+      "uses": [
+        "text"
       ],
+      "source": "src/components/review/source-context.tsx",
       "demoSource": "src/ux-demo/demos/review/source-context.tsx",
       "geometry": {
         "margin": "none",
