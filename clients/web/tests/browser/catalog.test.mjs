@@ -228,3 +228,40 @@ test('HS2-TGAGQ4 the Review Discussion demo moves a thread to another line and s
     assert.equal(await inspector.getByRole('spinbutton', { name: 'Move to Line' }).count(), 0);
   });
 });
+
+// HS2-5P1B23: the navigator lists files in risk and narrative order and returns to the path tree.
+test('HS2-5P1B23 the Review Navigator demo orders files by risk and narrative and returns to the tree', async () => {
+  await withCatalog(async (page, url) => {
+    await page.goto(`${url}?component=review-navigator`);
+    const example = page.locator('#demo-review-order');
+    const names = () =>
+      example.locator('[role="treeitem"]').evaluateAll((items) => items.map((item) => item.textContent?.trim() ?? ''));
+    await example.getByRole('treeitem', { name: /Highest Risk First/u }).waitFor();
+    let rows = await names();
+    const at = (rows, text) => rows.findIndex((row) => row.includes(text));
+    assert(at(rows, 'settings.ts') < at(rows, 'bundle.ts'), 'highest risk first');
+    assert(at(rows, 'bundle.ts') < at(rows, 'bundle.test.ts'));
+    assert(at(rows, 'bundle.test.ts') < at(rows, 'Not Analyzed'), 'unscored files follow');
+    assert(
+      rows.some((row) => row.includes('README.md')),
+      'every file stays listed',
+    );
+    assert(rows.some((row) => row.includes('High Risk')));
+    await example
+      .getByRole('treeitem', { name: /bundle\.ts/u })
+      .first()
+      .click();
+
+    await example.locator('[data-segment-value="narrative"]').click();
+    await example.getByRole('treeitem', { name: /Review in This Order/u }).waitFor();
+    rows = await names();
+    assert(at(rows, 'bundle.ts') < at(rows, 'settings.ts'), 'narrative order');
+    assert(rows.some((row) => row.includes('Step 1')));
+    assert(at(rows, 'Not in the Narrative') > at(rows, 'settings.ts'));
+
+    await example.locator('[data-segment-value="path"]').click();
+    await example.getByRole('treeitem', { name: /^src$/u }).waitFor();
+    rows = await names();
+    assert(!rows.some((row) => row.includes('Highest Risk First')), 'the path tree is back');
+  });
+});

@@ -7,13 +7,17 @@ import { Button } from '@kerfjs/ui/button';
 import { EmptyState } from '@kerfjs/ui/empty-state';
 import { LucideIcon } from '@kerfjs/ui/lucide-icon';
 import { ProgressBar } from '@kerfjs/ui/progress-bar';
+import { SegmentedControl } from '@kerfjs/ui/segmented-control';
 import { Select } from '@kerfjs/ui/select';
+import { StateBanner } from '@kerfjs/ui/state-banner';
 import { TextField } from '@kerfjs/ui/text-field';
 import { ToolbarButton, ToolbarControlGroup } from '@kerfjs/ui/toolbar-control-group';
 import { TreeList, type TreeListNode } from '@kerfjs/ui/tree-list';
 import { wireTreeList } from '@kerfjs/ui/wire-tree-list';
 import { Check, CircleAlert, Copy, ExternalLink, FolderOpen, Link } from 'lucide';
 
+import type { AnalysisState } from '../analysis/analysis-state.js';
+import { type FileOrder, orderFiles } from './file-order.js';
 import { type FileProgress, type ReviewProgress } from './review-progress.js';
 import {
   type FileAction,
@@ -110,6 +114,78 @@ function fileTree(files: readonly ReviewFile[], filter: string, marks: ReadonlyM
   return { nodes: nodes(root, ''), expanded };
 }
 
+const orderChoices = [
+  { value: 'path', label: 'Path' },
+  { value: 'risk', label: 'Risk' },
+  { value: 'narrative', label: 'Narrative' },
+] satisfies readonly { value: FileOrder; label: string }[];
+
+/** The Risk or Narrative order as sections of files (HS2-5P1B23); the path tree stays one choice away. */
+function orderedTree(
+  files: readonly ReviewFile[],
+  order: 'risk' | 'narrative',
+  analysis: AnalysisState,
+  filter: string,
+  marks: ReadonlyMap<string, FileProgress>,
+) {
+  const status = analysis.modes[order].status.value;
+  const result = status?.status === 'complete' || status?.status === 'partial' ? status.result : null;
+  const query = filter.trim().toLocaleLowerCase();
+  const expanded: string[] = [];
+  const nodes: TreeListNode[] = orderFiles(
+    files.map(({ path }) => path),
+    order,
+    result,
+  ).flatMap((section) => {
+    const children = section.entries.flatMap(({ index, detail, badge }) => {
+      const file = files[index];
+      if (file === undefined || !file.path.toLocaleLowerCase().includes(query)) return [];
+      const mark = marks.get(file.path);
+      const { label, letter, tone } = statuses[file.status];
+      return [
+        {
+          id: `file:${index}`,
+          label: file.path.split('/').at(-1) ?? file.path,
+          description:
+            [file.path.includes('/') ? file.path.slice(0, file.path.lastIndexOf('/')) : '', detail]
+              .filter((part) => part !== '')
+              .join(' · ') || undefined,
+          trailing: (
+            <>
+              {badge === null ? null : (
+                <Badge size="compact" tone={badge.tone} title={badge.label} label={badge.label}>
+                  {badge.label}
+                </Badge>
+              )}
+              {mark === undefined ? null : (
+                <Badge
+                  size="compact"
+                  tone={mark === 'reviewed' ? 'success' : 'warning'}
+                  title={mark === 'reviewed' ? 'Reviewed' : 'Changed Since Reviewed'}
+                  label={mark === 'reviewed' ? 'Reviewed' : 'Changed Since Reviewed'}
+                >
+                  <LucideIcon
+                    icon={mark === 'reviewed' ? Check : CircleAlert}
+                    name={mark === 'reviewed' ? 'check' : 'circle-alert'}
+                  />
+                </Badge>
+              )}
+              <Badge size="compact" tone={tone} title={label} label={label}>
+                {letter}
+              </Badge>
+            </>
+          ),
+        } satisfies TreeListNode,
+      ];
+    });
+    if (children.length === 0) return [];
+    const id = `folder:order:${section.id}`;
+    expanded.push(id);
+    return [{ id, label: section.label, children } satisfies TreeListNode];
+  });
+  return { nodes, expanded, status, result };
+}
+
 function SourceForm({ state }: { state: ReviewSourceState }) {
   const field = (name: string, label: string) => (
     <TextField
@@ -160,16 +236,24 @@ export function ReviewNavigator({
   id,
   state,
   progress,
+  ordering,
 }: {
   id: string;
   state: ReviewSourceState;
   /** Per-file review marks and the control that sets them; absent where marking is not offered (HS2-FTEQVQ). */
   progress?: ReviewProgress;
+  /** The file order and the analysis behind the Risk and Narrative views; absent where ordering is not offered. */
+  ordering?: { order: { readonly value: FileOrder }; analysis: AnalysisState };
 }) {
   const review = state.review.value;
   const filter = state.filter.value;
   const marks = progress?.files.value ?? new Map<string, FileProgress>();
-  const tree = fileTree(review?.files ?? [], filter, marks);
+  const order = ordering?.order.value ?? 'path';
+  const ordered =
+    ordering === undefined || order === 'path'
+      ? null
+      : orderedTree(review?.files ?? [], order, ordering.analysis, filter, marks);
+  const tree = ordered ?? fileTree(review?.files ?? [], filter, marks);
   const selection = state.selected.value;
   return (
     <div class="review-navigator" id={id}>
@@ -205,6 +289,28 @@ export function ReviewNavigator({
               showValue
             />
           )}
+          {ordering === undefined || review.files.length === 0 ? null : (
+            <SegmentedControl
+              id={`${id}-order`}
+              label="Order Files"
+              action="review-file-order"
+              choices={orderChoices}
+              value={order}
+              size="compact"
+            />
+          )}
+          {ordered === null || ordering === undefined ? null : ordered.status === null ||
+            ordered.status.status === 'running' ? (
+            <p role="status">{`Working out the ${order} order…`}</p>
+          ) : ordered.result === null ? (
+            <StateBanner
+              tone="warning"
+              title="Order Unavailable"
+              detail={'message' in ordered.status ? ordered.status.message : 'The analysis did not finish.'}
+            />
+          ) : (ordered.result.failures?.length ?? 0) > 0 ? (
+            <p role="status">Some files could not be analyzed and are listed apart.</p>
+          ) : null}
           {selection === undefined ? null : (
             <>
               <ToolbarControlGroup label="Selected File Actions" content="icon">
@@ -265,10 +371,13 @@ export function wireReviewNavigator(
     wireKeyboard = true,
     onFileSelect,
     onToggleReviewed,
+    onOrder,
   }: {
     wireKeyboard?: boolean;
     /** Marks the selected file reviewed, or clears its mark (HS2-FTEQVQ). */
     onToggleReviewed?: () => void;
+    /** Called with the order chosen in the Order Files control (HS2-5P1B23). */
+    onOrder?: (order: FileOrder) => void;
     /** Called each time a changed file is chosen, including the file that is already selected. */
     onFileSelect?: (index: number) => void;
   } = {},
@@ -339,6 +448,10 @@ export function wireReviewNavigator(
       const action = control.dataset.action;
       if (action === 'review-source-toggle') state.formOpen.value = !state.formOpen.value;
       if (action === 'review-progress-toggle') onToggleReviewed?.();
+      if (action === 'review-file-order') {
+        const value = control.dataset.segmentValue;
+        if (value === 'path' || value === 'risk' || value === 'narrative') onOrder?.(value);
+      }
       const fileAction = fileActions.find((item) => action === `review-file-action:${item.action}`);
       if (fileAction !== undefined) void state.runFileAction(fileAction.action);
       const rowId = control.dataset.itemId ?? control.closest<HTMLElement>('[data-item-id]')?.dataset.itemId;

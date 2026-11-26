@@ -114,6 +114,22 @@ reports when a comparison path has no live file for a desktop action. Git
 difftool inputs represent comparison snapshots, so that mode offers the
 display path only.
 
+## File order
+
+The navigator's **Order Files** control switches the changed-file list between **Path** (the folder tree, the
+default), **Risk** and **Narrative** (`HS2-5P1B23`). Risk lists files highest aggregate risk first under
+"Highest Risk First", each with a High, Medium or Low Risk badge and its rationale; ties fall back to path order.
+Narrative lists the files in the narrative analysis's order under "Review in This Order", numbered Step 1, Step 2
+and so on with each step's reason. Choosing an order runs that analysis if it has not run for this comparison, and
+the list says it is working until the result arrives; Risk also fills in when the Risk Analysis toolbar control
+is turned on.
+
+No file is hidden by an order: files the analysis did not reach stay listed after the ordered ones under
+"Not Analyzed" or "Not in the Narrative", files whose analysis failed are listed apart under "Analysis Failed"
+with the reason, and an unavailable or failed analysis shows its message with every file under the unreached
+heading. Path returns to the folder tree. Selecting, filtering, reviewed marks and file actions work the same in
+every order, and the labels show the file name with its folder and the finding beneath it.
+
 ## Review progress
 
 Select a changed file and press Mark Reviewed (a check in the selected-file actions) to record that

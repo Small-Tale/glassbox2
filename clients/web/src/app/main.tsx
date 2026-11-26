@@ -5,7 +5,7 @@ import './style.css';
 import { EmptyState } from '@kerfjs/ui/empty-state';
 import { LucideIcon } from '@kerfjs/ui/lucide-icon';
 import { ToolbarButton, ToolbarControlGroup } from '@kerfjs/ui/toolbar-control-group';
-import { effect, mount } from 'kerfjs';
+import { effect, mount, signal } from 'kerfjs';
 import { ChevronLeft, ChevronRight, Code, GitCompareArrows, Workflow } from 'lucide';
 
 import { AnalysisContext, AnalysisControls, wireAnalysisControls } from '../components/analysis/analysis-controls.js';
@@ -57,6 +57,7 @@ import {
   supportsDefinitions,
   wireDefinitionNavigation,
 } from '../components/review/definition-navigation.js';
+import type { FileOrder } from '../components/review/file-order.js';
 import { createReviewHistory, wireReviewHistory } from '../components/review/review-history.js';
 import { ReviewNavigator, wireReviewNavigator } from '../components/review/review-navigator.js';
 import { createReviewProgress, watchReviewProgress } from '../components/review/review-progress.js';
@@ -88,6 +89,7 @@ const history = createReviewHistory();
 const definitions = createDefinitionLookup();
 const textDiff = createTextDiffState();
 const diff = selectedDiff(source);
+const fileOrder = signal<FileOrder>('path');
 const progress = createReviewProgress(source, diff.result);
 void watchReviewProgress(progress);
 const diffContext = createContextExpansion(diff.result, () => {
@@ -324,7 +326,14 @@ mount(root, () => {
                   : 'Line Comment'
                 : 'Inspector'
         }
-        navigator={<ReviewNavigator id="glassbox-review-navigator" state={source} progress={progress} />}
+        navigator={
+          <ReviewNavigator
+            id="glassbox-review-navigator"
+            state={source}
+            progress={progress}
+            ordering={{ order: fileOrder, analysis }}
+          />
+        }
         comparison={comparison}
         comparisonToolbar={comparisonToolbar}
         comparisonNavigation={
@@ -404,6 +413,13 @@ void wireReviewNavigator(root, 'glassbox-review-navigator', source, {
     if (workbench.files.overlay.value) workbench.files.collapsed.value = true;
   },
   onToggleReviewed: () => void progress.toggleSelected(),
+  onOrder: (order) => {
+    fileOrder.value = order;
+    // Choosing an analysis order runs that analysis when it has not run for this comparison.
+    if (order !== 'path' && !analysis.modes[order].enabled.value && analysis.modes[order].status.value === null) {
+      void analysis.toggle(order);
+    }
+  },
 });
 const historyNavigation = wireReviewHistory(
   root,

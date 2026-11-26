@@ -3,14 +3,21 @@ import { signal } from 'kerfjs';
 import type { ReviewSource } from '../review/review-source.js';
 
 export type Mode = 'risk' | 'guidance';
+export type JobMode = Mode | 'narrative';
 
 export type Step = { side: 'before' | 'after'; line: number; text: string };
 type FileResult = {
   path: string;
   revision: string;
-  analysis: { kind: 'risk'; rationale: string } | { kind: 'guidance'; overview: string; steps: Step[] };
+  analysis:
+    { kind: 'risk'; rationale: string; aggregate?: number } | { kind: 'guidance'; overview: string; steps: Step[] };
 };
-type Result = { files: FileResult[]; skipped: string[]; failures?: { path: string; message: string }[] };
+type Result = {
+  files: FileResult[];
+  narrative?: { path: string; revision: string | null; reason: string }[];
+  skipped: string[];
+  failures?: { path: string; message: string }[];
+};
 export type Selection = { path: string; revision: string };
 
 type Job = { id: number } & (
@@ -28,7 +35,7 @@ async function json(url: string, options?: RequestInit): Promise<Job> {
 
 const endpoint = '/api/v1/review/analysis';
 const transport = {
-  start: (source: ReviewSource, mode: Mode) =>
+  start: (source: ReviewSource, mode: JobMode) =>
     json(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -50,12 +57,12 @@ function createMode() {
 }
 
 export function createAnalysisState(onComplete: () => void, api = transport) {
-  const modes = { risk: createMode(), guidance: createMode() };
+  const modes = { risk: createMode(), guidance: createMode(), narrative: createMode() };
   const stepIndex = signal(0);
   let current: ReviewSource | null = null;
   let selectedIndex: number | undefined;
 
-  function stop(mode: Mode) {
+  function stop(mode: JobMode) {
     const job = modes[mode];
     job.request?.abort();
     job.request = null;
@@ -66,7 +73,7 @@ export function createAnalysisState(onComplete: () => void, api = transport) {
   function setSource(source: ReviewSource | null) {
     if (source === current) return;
     current = source;
-    for (const mode of ['risk', 'guidance'] as const) {
+    for (const mode of ['risk', 'guidance', 'narrative'] as const) {
       stop(mode);
       modes[mode].status.value = null;
       modes[mode].error.value = '';
@@ -74,7 +81,7 @@ export function createAnalysisState(onComplete: () => void, api = transport) {
     stepIndex.value = 0;
   }
 
-  async function toggle(mode: Mode, selection?: Selection) {
+  async function toggle(mode: JobMode, selection?: Selection) {
     const job = modes[mode];
     if (job.enabled.value) {
       stop(mode);

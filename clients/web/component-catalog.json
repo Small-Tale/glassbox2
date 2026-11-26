@@ -370,7 +370,9 @@
         "source-context",
         "lucide-icon",
         "toolbar-control-group",
-        "progress-bar"
+        "progress-bar",
+        "segmented-control",
+        "state-banner"
       ],
       "source": "src/components/review/review-navigator.tsx",
       "styleSources": [
