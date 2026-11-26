@@ -1730,3 +1730,123 @@ test(
     });
   },
 );
+
+// HS2-9MZ32M: a saved image region is redrawn with keyboard and pointer, and a whole image can be commented.
+test(
+  'HS2-9MZ32M comments on a whole image and redraws its region by keyboard and pointer',
+  {
+    timeout: 90_000,
+  },
+  async () => {
+    await withWorkbench(async (page, url, { repo }) => {
+      const folder = join(dirname(repo), 'Regions');
+      await mkdir(folder);
+      const git = (...args) =>
+        execFileSync('git', ['-c', 'commit.gpgsign=false', '-c', 'core.autocrlf=false', ...args], {
+          cwd: folder,
+          windowsHide: true,
+        });
+      const drawing = (fill) =>
+        `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="#e7eaef"/><circle cx="160" cy="90" r="62" fill="${fill}"/></svg>`;
+      git('init', '-q', '--initial-branch=review');
+      await writeFile(join(folder, 'mark.svg'), drawing('#506b91'));
+      git('add', '.');
+      git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'initial');
+      await writeFile(join(folder, 'mark.svg'), drawing('#3b7c68'));
+
+      const button = (name) => page.getByRole('button', { name, exact: true });
+      const inspector = page.getByRole('region', { name: 'Discussion' });
+      const after = page.locator('[data-media-region-side="after"]');
+      const saved = page.locator('.media-diff__region:not(.media-diff__region--draft)');
+      const draft = page.locator('.media-diff__region--draft');
+      const sent = (kind) =>
+        page.waitForResponse(
+          (reply) => reply.url().endsWith('/discussion') && reply.request().postDataJSON().operation?.kind === kind,
+        );
+      const region = () =>
+        saved.first().evaluate((element) => {
+          const box = element.getBoundingClientRect();
+          const frame = element.parentElement.getBoundingClientRect();
+          return {
+            left: (box.left - frame.left) / frame.width,
+            top: (box.top - frame.top) / frame.height,
+            width: box.width / frame.width,
+            height: box.height / frame.height,
+          };
+        });
+      const close = (actual, expected) => {
+        for (const key of Object.keys(expected)) {
+          assert(Math.abs(actual[key] - expected[key]) < 0.03, `${key}: ${actual[key]} vs ${expected[key]}`);
+        }
+      };
+      await page.goto(url);
+      await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(folder);
+      await button('Open Comparison').click();
+      await page.getByRole('treeitem', { name: /mark\.svg/ }).click();
+      await page.getByRole('img', { name: 'After image' }).waitFor();
+
+      // A whole-image comment is a region over the full image.
+      await button('Comment on Whole After Image').click();
+      await inspector.getByRole('textbox', { name: 'Comment', exact: true }).fill('The palette changed.');
+      const created = sent('create');
+      await inspector.getByRole('button', { name: 'Add Comment', exact: true }).click();
+      assert((await created).ok());
+      await inspector.getByText(/After image region/u).waitFor();
+      await saved.first().waitFor();
+      close(await region(), { left: 0, top: 0, width: 1, height: 1 });
+      await capture(page, 'region-whole-1440');
+
+      // Keyboard: shrink then move the region, and save with Enter.
+      await inspector.getByRole('button', { name: 'Edit Region', exact: true }).click();
+      await draft.waitFor();
+      await after.focus();
+      for (let step = 0; step < 6; step++) await page.keyboard.press('Shift+ArrowLeft');
+      for (let step = 0; step < 6; step++) await page.keyboard.press('Shift+ArrowUp');
+      await page.keyboard.press('ArrowRight');
+      await page.keyboard.press('ArrowDown');
+      const keyboardSave = sent('move');
+      await page.keyboard.press('Enter');
+      assert((await keyboardSave).ok());
+      await draft.waitFor({ state: 'detached' });
+      close(await region(), { left: 0.05, top: 0.05, width: 0.7, height: 0.7 });
+      await inspector.getByText('The palette changed.').first().waitFor();
+      await capture(page, 'region-keyboard-1440');
+
+      // Cancel leaves the saved region alone.
+      await inspector.getByRole('button', { name: 'Edit Region', exact: true }).click();
+      await draft.waitFor();
+      await inspector.getByRole('button', { name: 'Cancel', exact: true }).click();
+      await draft.waitFor({ state: 'detached' });
+      close(await region(), { left: 0.05, top: 0.05, width: 0.7, height: 0.7 });
+
+      // Pointer: drag a new rectangle over the image.
+      await inspector.getByRole('button', { name: 'Edit Region', exact: true }).click();
+      await draft.waitFor();
+      const frame = await after.boundingBox();
+      const at = (x, y) => [frame.x + frame.width * x, frame.y + frame.height * y];
+      const pointerSave = sent('move');
+      await page.mouse.move(...at(0.4, 0.3));
+      await page.mouse.down();
+      await page.mouse.move(...at(0.55, 0.5), { steps: 4 });
+      await page.mouse.move(...at(0.8, 0.9), { steps: 4 });
+      await page.mouse.up();
+      assert((await pointerSave).ok());
+      await draft.waitFor({ state: 'detached' });
+      close(await region(), { left: 0.4, top: 0.3, width: 0.4, height: 0.6 });
+      await capture(page, 'region-pointer-1440');
+
+      // The image changes before the person saves: the host refuses, and the draft returns for another try.
+      await writeFile(join(folder, 'mark.svg'), drawing('#8a3b3b'));
+      await inspector.getByRole('button', { name: 'Edit Region', exact: true }).click();
+      await draft.waitFor();
+      await after.focus();
+      const refused = sent('move');
+      await page.keyboard.press('Enter');
+      assert.equal((await refused).status(), 409);
+      await inspector.getByRole('alert').filter({ hasText: 'has changed' }).waitFor();
+      await draft.waitFor();
+      close(await region(), { left: 0.4, top: 0.3, width: 0.4, height: 0.6 });
+      await capture(page, 'region-refused-1440');
+    });
+  },
+);

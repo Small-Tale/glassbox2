@@ -438,6 +438,10 @@ root.addEventListener('click', (event) => {
     void diff.toggleDiagram();
   }
 });
+function startRegionDraft(seed: NonNullable<ReturnType<typeof discussion.regionSeed>>) {
+  mediaDiff.drawing.value = true;
+  mediaDiff.keyboardRegion.value = seed;
+}
 void wireMediaDiff(root, mediaId, mediaDiff, (side, target) => {
   const index = source.selected.value;
   const file = index === undefined ? undefined : source.review.value?.files[index];
@@ -445,6 +449,14 @@ void wireMediaDiff(root, mediaId, mediaDiff, (side, target) => {
   if (file === undefined || content?.kind !== 'media') return;
   const revision = content[side]?.revision;
   if (revision === undefined) return;
+  if (discussion.regionEdit.value !== null) {
+    // Redrawing a saved region: save it through the host's validated move, and draw again if it is refused.
+    void discussion.saveRegion({ path: file.path, side, revision, target }).then((saved) => {
+      const seed = discussion.regionSeed();
+      if (!saved && seed !== null && discussion.regionEdit.value !== null) startRegionDraft(seed);
+    });
+    return;
+  }
   void discussion.showAdd({ path: file.path, side, revision, target });
   workbench.inspector.collapsed.value = false;
 });
@@ -494,6 +506,26 @@ void wireDiscussion(
     workbench.inspector.collapsed.value = false;
   },
   historyNavigation.reveal,
+  {
+    wholeImage: (side) => {
+      const index = source.selected.value;
+      const file = index === undefined ? undefined : source.review.value?.files[index];
+      const content = diff.result.value;
+      const revision = content?.kind === 'media' ? content[side]?.revision : undefined;
+      if (file === undefined || revision === undefined) return undefined;
+      return {
+        path: file.path,
+        side,
+        revision,
+        target: { kind: 'image_region', left: 0, top: 0, width: 1, height: 1 },
+      };
+    },
+    edit: startRegionDraft,
+    cancel: () => {
+      mediaDiff.drawing.value = false;
+      mediaDiff.keyboardRegion.value = null;
+    },
+  },
 );
 void appearance.load();
 void source.openDifftool();

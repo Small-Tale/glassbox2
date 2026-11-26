@@ -81,7 +81,8 @@ Choose Move Comment in the Inspector to rebind a line thread to another line or
 side of the same file. The form takes a side and a line number, and Enter, or
 the Move button, saves it; Cancel or Escape closes it without changing anything.
 The thread keeps its ID, replies and attachments. Both reviewer comments and AI
-notes can move; image-region threads cannot.
+notes can move. An image-region thread moves and resizes with Edit Region (see
+[Region comments](comparison-content.md#region-comments-hs2-9mz32m)); a line thread cannot become a region.
 
 The host validates the destination as it does when creating a comment: the
 line must be one the diff shows on that side, in the revision you are looking

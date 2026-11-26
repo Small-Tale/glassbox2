@@ -111,6 +111,8 @@ export function createDiscussionState(source: ReviewSourceState, load = request,
   const staleFile = signal<{ source: ReviewSource; path: string } | null>(null);
   /** The open Move Comment form: where the active thread would go (HS2-TGAGQ4). */
   const moving = signal<{ side: Side; line: string } | null>(null);
+  /** The image-region thread whose region is being redrawn on the image (HS2-9MZ32M). */
+  const regionEdit = signal<number | null>(null);
   /** A suggested new line for the active stale thread: asking, the host's answer, or nothing (HS2-RV5BD8). */
   const relocation = signal<'asking' | Relocation | null>(null);
   let relocateSequence = 0;
@@ -148,6 +150,7 @@ export function createDiscussionState(source: ReviewSourceState, load = request,
     threadId.value = null;
     adding.value = null;
     moving.value = null;
+    regionEdit.value = null;
     relocation.value = null;
     relocateSequence++;
     reply.value = '';
@@ -330,6 +333,46 @@ export function createDiscussionState(source: ReviewSourceState, load = request,
     }
   }
 
+  /** Where a region draft starts for the active region thread, as percentages of its image. */
+  function regionSeed() {
+    const thread = activeThread();
+    if (thread?.anchor.target.kind !== 'image_region') return null;
+    const { left, top, width, height } = thread.anchor.target;
+    const percent = (fraction: number) => Math.round(fraction * 10_000) / 100;
+    return {
+      side: thread.anchor.side,
+      bounds: { left: percent(left), top: percent(top), width: percent(width), height: percent(height) },
+    };
+  }
+
+  /** Begin redrawing the active region thread; returns where the draft starts. */
+  function startRegionEdit() {
+    const thread = activeThread();
+    const seed = regionSeed();
+    if (thread === undefined || seed === null) return null;
+    regionEdit.value = thread.id;
+    error.value = '';
+    return seed;
+  }
+
+  function cancelRegionEdit() {
+    regionEdit.value = null;
+    error.value = '';
+  }
+
+  /** Save the redrawn region; a refusal keeps the edit open so another region can be drawn. */
+  async function saveRegion(anchor: Anchor) {
+    const thread = activeThread();
+    if (thread === undefined || regionEdit.value !== thread.id) return false;
+    if (anchor.side !== thread.anchor.side) {
+      error.value = 'A region comment stays on its side of the image.';
+      return false;
+    }
+    const saved = await save({ kind: 'move', id: thread.id, revision: thread.revision, anchor });
+    if (saved) regionEdit.value = null;
+    return saved;
+  }
+
   function startMove() {
     const { anchor } = activeThread() ?? {};
     if (anchor?.target.kind !== 'line') return;
@@ -429,6 +472,11 @@ export function createDiscussionState(source: ReviewSourceState, load = request,
     threads,
     threadId,
     adding,
+    regionEdit,
+    regionSeed,
+    startRegionEdit,
+    cancelRegionEdit,
+    saveRegion,
     relocation,
     suggestRelocation,
     dismissRelocation,

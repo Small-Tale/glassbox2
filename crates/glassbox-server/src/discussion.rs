@@ -785,25 +785,54 @@ fn edit(
             let comparison =
                 review_files::load(source.clone(), difftool.clone()).map_err(bad_request)?;
             review_files::validate_selection(&comparison, index, &path).map_err(bad_request)?;
-            let is_line_thread = next.threads().iter().any(|thread| {
-                thread.id == id
-                    && thread.anchor.path == path
-                    && matches!(thread.anchor.target, AnchorTarget::Line { .. })
-            });
-            if !is_line_thread || !matches!(anchor.target, AnchorTarget::Line { .. }) {
-                return Err(bad_request(
-                    "Only a line comment of the selected file can move to another line.",
-                ));
+            let existing = next
+                .threads()
+                .iter()
+                .find(|thread| thread.id == id && thread.anchor.path == path)
+                .map(|thread| (thread.anchor.side, thread.anchor.target))
+                .ok_or_else(|| bad_request("The thread is unavailable in the selected file."))?;
+            match (existing.1, anchor.target) {
+                (AnchorTarget::Line { .. }, AnchorTarget::Line { .. }) => {
+                    let text = validate_line_anchor(
+                        &comparison,
+                        index,
+                        &path,
+                        &anchor,
+                        "moving the comment",
+                    )?;
+                    if if_text.is_some_and(|expected| expected != text) {
+                        return Err((
+                            StatusCode::CONFLICT,
+                            "The suggested line has changed. Ask for a new suggestion.".into(),
+                        ));
+                    }
+                    anchor.quote = Some(text);
+                }
+                (AnchorTarget::ImageRegion { .. }, AnchorTarget::ImageRegion { .. }) => {
+                    // A region stays on its side of its image; only its bounds change (HS2-9MZ32M).
+                    if anchor.side != existing.0 {
+                        return Err(bad_request(
+                            "A region comment stays on its side of the image.",
+                        ));
+                    }
+                    let revision = comparison
+                        .media_revision(index, anchor.side)
+                        .map_err(bad_request)?;
+                    if anchor.path != path || anchor.is_stale(revision.as_deref()) {
+                        return Err((
+                            StatusCode::CONFLICT,
+                            "The selected image has changed. Reopen the file before moving the comment."
+                                .into(),
+                        ));
+                    }
+                    anchor.quote = None;
+                }
+                _ => {
+                    return Err(bad_request(
+                        "A line comment cannot become an image region, or the reverse.",
+                    ));
+                }
             }
-            let text =
-                validate_line_anchor(&comparison, index, &path, &anchor, "moving the comment")?;
-            if if_text.is_some_and(|expected| expected != text) {
-                return Err((
-                    StatusCode::CONFLICT,
-                    "The suggested line has changed. Ask for a new suggestion.".into(),
-                ));
-            }
-            anchor.quote = Some(text);
             next.apply(id, revision, FeedbackChange::Move { anchor })
                 .map_err(model_error)?;
         }

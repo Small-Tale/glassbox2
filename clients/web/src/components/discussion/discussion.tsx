@@ -159,7 +159,23 @@ export function DiscussionInspector({
     ({ anchor }) => anchor.path === path && anchor.revision !== currentRevision(anchor),
   );
   if (anchor === undefined) {
-    if (stale.length === 0) return <EmptyState title="No Discussion Selected" />;
+    const wholeImage = (['before', 'after'] as const).filter((side) => mediaRevisions?.[side] !== undefined);
+    if (stale.length === 0) {
+      return (
+        <>
+          <EmptyState title="No Discussion Selected" />
+          {wholeImage.length === 0 ? null : (
+            <div class="discussion-inspector__actions">
+              {wholeImage.map((side) => (
+                <Button action={`discussion-whole-image:${side}`} emphasis="plain" tone="brand">
+                  {`Comment on Whole ${side === 'before' ? 'Before' : 'After'} Image`}
+                </Button>
+              ))}
+            </div>
+          )}
+        </>
+      );
+    }
     return (
       <section class="discussion-inspector" aria-label="Stale Discussions">
         <p>These comments refer to an earlier version of this file.</p>
@@ -237,6 +253,22 @@ export function DiscussionInspector({
               </Button>
             </div>
           ) : null}
+          {thread?.anchor.target.kind !== 'image_region' ? null : state.regionEdit.value === null ? (
+            <div class="discussion-inspector__actions" data-key="discussion-region-open">
+              <Button action="discussion-region-edit" emphasis="plain" tone="brand" disabled={state.pending.value}>
+                Edit Region
+              </Button>
+            </div>
+          ) : (
+            <div data-key="discussion-region-edit">
+              <p role="status">Drag on the image, or use the arrow keys (Shift resizes), then press Enter to save.</p>
+              <div class="discussion-inspector__actions">
+                <Button action="discussion-region-cancel" emphasis="plain">
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
           {thread?.anchor.target.kind !== 'line' ? null : state.moving.value === null ? (
             <div class="discussion-inspector__actions" data-key="discussion-move-open">
               <Button action="discussion-move" emphasis="plain" tone="brand" disabled={state.pending.value}>
@@ -299,6 +331,13 @@ export function wireDiscussion(
   anchorFor: (side: Anchor['side'], line: number) => Anchor | undefined,
   showInspector: () => void,
   reveal?: (destination: Definition) => Promise<void>,
+  images?: {
+    /** The anchor covering a whole image of the open file on one side, when that image exists. */
+    wholeImage: (side: Side) => Anchor | undefined;
+    /** Start redrawing a region on the image, from where the saved region is. */
+    edit: (seed: { side: Side; bounds: { left: number; top: number; width: number; height: number } }) => void;
+    cancel: () => void;
+  },
 ) {
   const controller = new AbortController();
   const { signal } = controller;
@@ -406,6 +445,21 @@ export function wireDiscussion(
         showInspector();
       }
       if (kind === 'discussion-cancel') state.resetEditor();
+      if (kind === 'discussion-region-edit') {
+        const seed = state.startRegionEdit();
+        if (seed !== null) images?.edit(seed);
+      }
+      if (kind === 'discussion-region-cancel') {
+        state.cancelRegionEdit();
+        images?.cancel();
+      }
+      if (kind === 'discussion-whole-image' && (first === 'before' || first === 'after')) {
+        const wholeImage = images?.wholeImage(first);
+        if (wholeImage !== undefined) {
+          void state.showAdd(wholeImage);
+          showInspector();
+        }
+      }
       if (kind === 'discussion-relocate') void state.suggestRelocation();
       if (kind === 'discussion-relocate-dismiss') state.dismissRelocation();
       if (kind === 'discussion-relocate-confirm') void state.confirmRelocation(anchorFor);

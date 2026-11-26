@@ -569,3 +569,167 @@ fn a_comment_made_through_the_host_appears_in_the_json_export() {
     assert_eq!(export["threads"][0]["target"]["start"], 4);
     assert_eq!(export["threads"][0]["line_text"], "four");
 }
+
+// HS2-9MZ32M: an image region moves and resizes through the same validated Move, and covers a whole image.
+
+struct Images {
+    selection: Value,
+    before_revision: String,
+    after_revision: String,
+}
+
+fn images(root: &Path, address: SocketAddr) -> Images {
+    let folder = root.join("art");
+    fs::create_dir_all(&folder).unwrap();
+    let svg = |fill: &str| {
+        format!(
+            r#"<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20"><rect width="40" height="20" fill="{fill}"/></svg>"#
+        )
+    };
+    let (before, after) = (folder.join("before.svg"), folder.join("after.svg"));
+    fs::write(&before, svg("#506b91")).unwrap();
+    fs::write(&after, svg("#3b7c68")).unwrap();
+    let selection = json!({
+        "source": {"kind": "paths", "before": before, "after": after},
+        "index": 0,
+        "path": "after.svg",
+    });
+    let (status, file) = post(address, "file", &selection);
+    assert_eq!(status, 200, "{file}");
+    Images {
+        selection,
+        before_revision: file["before"]["revision"].as_str().unwrap().to_owned(),
+        after_revision: file["after"]["revision"].as_str().unwrap().to_owned(),
+    }
+}
+
+fn region(side: &str, revision: &str, left: f64, top: f64, width: f64, height: f64) -> Value {
+    json!({"path": "after.svg", "side": side, "revision": revision,
+           "target": {"kind": "image_region", "left": left, "top": top, "width": width, "height": height}})
+}
+
+fn discuss_images(address: SocketAddr, art: &Images, operation: Value) -> (u16, Value) {
+    post(
+        address,
+        "discussion",
+        &json!({"selection": art.selection, "operation": operation}),
+    )
+}
+
+#[test]
+fn a_region_moves_resizes_and_covers_the_whole_image_on_either_side() {
+    let scratch = tempfile::tempdir().unwrap();
+    let (_host, address) = start(scratch.path());
+    let art = images(scratch.path(), address);
+    let (status, created) = discuss_images(
+        address,
+        &art,
+        json!({"kind": "create", "anchor": region("after", &art.after_revision, 0.1, 0.1, 0.2, 0.2),
+               "category": "note", "author": "Reviewer", "markdown": "The circle is off."}),
+    );
+    assert_eq!(status, 200, "{created}");
+    let id = thread(&created)["id"].as_u64().unwrap();
+    let (_, replied) = discuss_images(
+        address,
+        &art,
+        json!({"kind": "apply", "id": id, "revision": thread(&created)["revision"],
+               "change": {"kind": "reply", "author": "Author", "markdown": "Fixed."}}),
+    );
+
+    // Moved and resized, replies and text kept.
+    let (status, moved) = discuss_images(
+        address,
+        &art,
+        json!({"kind": "move", "id": id, "revision": thread(&replied)["revision"],
+               "anchor": region("after", &art.after_revision, 0.5, 0.25, 0.4, 0.5)}),
+    );
+    assert_eq!(status, 200, "{moved}");
+    assert_eq!(thread(&moved)["anchor"]["target"]["left"], 0.5);
+    assert_eq!(thread(&moved)["anchor"]["target"]["height"], 0.5);
+    assert_eq!(thread(&moved)["replies"].as_array().map(Vec::len), Some(1));
+    assert_eq!(thread(&moved)["opening"]["markdown"], "The circle is off.");
+    assert!(thread(&moved)["anchor"].get("quote").is_none());
+
+    // The whole image is the full region.
+    let (status, whole) = discuss_images(
+        address,
+        &art,
+        json!({"kind": "move", "id": id, "revision": thread(&moved)["revision"],
+               "anchor": region("after", &art.after_revision, 0.0, 0.0, 1.0, 1.0)}),
+    );
+    assert_eq!(status, 200, "{whole}");
+    assert_eq!(thread(&whole)["anchor"]["target"]["width"], 1.0);
+
+    // The before side has its own regions and its own revision.
+    let (status, before) = discuss_images(
+        address,
+        &art,
+        json!({"kind": "create", "anchor": region("before", &art.before_revision, 0.0, 0.0, 1.0, 1.0),
+               "category": "note", "author": "Reviewer", "markdown": "The old image."}),
+    );
+    assert_eq!(status, 200, "{before}");
+    assert_ne!(art.before_revision, art.after_revision);
+}
+
+#[test]
+fn a_refused_region_leaves_the_thread_as_it_was() {
+    let scratch = tempfile::tempdir().unwrap();
+    let (_host, address) = start(scratch.path());
+    let art = images(scratch.path(), address);
+    let (_, created) = discuss_images(
+        address,
+        &art,
+        json!({"kind": "create", "anchor": region("after", &art.after_revision, 0.1, 0.1, 0.2, 0.2),
+               "category": "note", "author": "Reviewer", "markdown": "Region."}),
+    );
+    let id = thread(&created)["id"].as_u64().unwrap();
+    let revision = thread(&created)["revision"].clone();
+    let refuse = |anchor: Value, expected: u16| {
+        let (status, body) = discuss_images(
+            address,
+            &art,
+            json!({"kind": "move", "id": id, "revision": revision, "anchor": anchor}),
+        );
+        assert_eq!(status, expected, "{body}");
+    };
+    // Out of bounds, empty, and negative regions fail the model's bounds.
+    refuse(
+        region("after", &art.after_revision, 0.9, 0.1, 0.3, 0.2),
+        400,
+    );
+    refuse(
+        region("after", &art.after_revision, 0.1, 0.1, 0.0, 0.2),
+        400,
+    );
+    refuse(
+        region("after", &art.after_revision, -0.1, 0.1, 0.2, 0.2),
+        400,
+    );
+    // A revision the image no longer has, the other side, and a line destination are not region moves.
+    refuse(region("after", "stale", 0.2, 0.2, 0.2, 0.2), 409);
+    refuse(
+        region("before", &art.before_revision, 0.2, 0.2, 0.2, 0.2),
+        400,
+    );
+    refuse(
+        json!({"path": "after.svg", "side": "after", "revision": art.after_revision,
+               "target": {"kind": "line", "start": 1, "end": 1}}),
+        400,
+    );
+    let (status, view) = discuss_images(address, &art, json!(null));
+    assert_eq!(status, 200);
+    assert_eq!(thread(&view)["anchor"]["target"]["left"], 0.1);
+    assert_eq!(thread(&view)["revision"], revision);
+
+    // The image changes: the saved region keeps its old revision and the move to it is refused.
+    let after = scratch.path().join("art").join("after.svg");
+    fs::write(
+        &after,
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20"><rect width="9" height="9"/></svg>"#,
+    )
+    .unwrap();
+    refuse(
+        region("after", &art.after_revision, 0.2, 0.2, 0.2, 0.2),
+        409,
+    );
+}

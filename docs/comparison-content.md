@@ -112,3 +112,18 @@ focus either image and use the arrow keys to move the selection or Shift
 with the arrow keys to resize it. Enter opens the comment, and Escape
 cancels. Saved rectangles
 reopen their discussions on the matching image revision (`HS2-B9NHFE`).
+
+### Region comments (`HS2-9MZ32M`)
+
+Select an image region in the Inspector to edit it. **Edit Region** starts the same draft you use to draw a
+new region, placed over the saved one on its own side of the image: arrow keys move it, Shift with the arrow
+keys resizes it, and dragging on the image draws a replacement. Enter, or releasing the drag, saves it;
+Cancel, or Escape, leaves the saved region as it was. Saving is the host's validated move
+(`docs/feedback.md`, "Move Comment"): the region keeps its thread, replies and attachments, must stay inside
+the image with a positive size (400 otherwise), and must carry the image's current revision, so a changed
+image answers 409 and the draft returns for another try. A region stays on its side; one drawn on the other
+image is refused.
+
+When no thread is selected, the Inspector offers **Comment on Whole Before Image** and **Comment on Whole After
+Image** for each image the comparison has. They start a normal comment draft whose region covers the full image
+at its current revision, which is the way to comment on an image as a whole.

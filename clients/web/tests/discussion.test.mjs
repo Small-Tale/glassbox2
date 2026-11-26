@@ -354,3 +354,106 @@ test('HS2-RV5BD8 a late answer for another thread or a failed request is not sho
     failing.state.stop();
   }
 });
+
+// HS2-9MZ32M: a saved image region is redrawn through the validated move, on its own side of the image.
+const regionAnchor = {
+  path,
+  side: 'before',
+  revision: 'image-1',
+  target: { kind: 'image_region', left: 0.1, top: 0.25, width: 0.5, height: 0.125 },
+};
+const drawn = (side, left = 0.4) => ({
+  ...regionAnchor,
+  side,
+  revision: 'image-2',
+  target: { ...regionAnchor.target, left },
+});
+
+async function regionFixture(
+  respond = (operation) => Promise.resolve([{ ...regionThread(), anchor: operation.anchor }]),
+) {
+  const source = createReviewSourceState(comparison, () => Promise.resolve(comparison));
+  const requests = [];
+  const state = createDiscussionState(source, (selection, operation) => {
+    requests.push(operation);
+    return operation === undefined ? Promise.resolve([regionThread()]) : respond(operation);
+  });
+  await source.open({ kind: 'paths', before: '/before', after: '/after' });
+  source.selected.value = 0;
+  await setTimeout(0);
+  await state.showThread(1);
+  return { state, requests };
+}
+
+function regionThread() {
+  return { ...thread(1, 'Region.'), anchor: regionAnchor };
+}
+
+test('HS2-9MZ32M redrawing seeds the draft from the saved region and saves through a move', async () => {
+  const { state, requests } = await regionFixture();
+  try {
+    assert.deepEqual(state.startRegionEdit(), {
+      side: 'before',
+      bounds: { left: 10, top: 25, width: 50, height: 12.5 },
+    });
+    assert.equal(state.regionEdit.value, 1);
+    assert.equal(await state.saveRegion(drawn('before')), true);
+    const sent = requests.at(-1);
+    assert.deepEqual(
+      { kind: sent.kind, id: sent.id, revision: sent.revision, left: sent.anchor.target.left, side: sent.anchor.side },
+      { kind: 'move', id: 1, revision: 1, left: 0.4, side: 'before' },
+    );
+    assert.equal(state.regionEdit.value, null);
+    assert.equal(state.activeThread().anchor.target.left, 0.4);
+  } finally {
+    state.stop();
+  }
+});
+
+test('HS2-9MZ32M cancel and a refused region leave the thread as it was', async () => {
+  const { state, requests } = await regionFixture(() =>
+    Promise.reject(new Error('The selected image has changed. Reopen the file before moving the comment.')),
+  );
+  try {
+    state.startRegionEdit();
+    state.cancelRegionEdit();
+    assert.equal(state.regionEdit.value, null);
+    assert.equal(await state.saveRegion(drawn('before')), false, 'nothing is being edited');
+    assert.equal(requests.filter((operation) => operation?.kind === 'move').length, 0);
+
+    state.startRegionEdit();
+    assert.equal(await state.saveRegion(drawn('before')), false);
+    assert.match(state.error.value, /image has changed/u);
+    assert.equal(state.regionEdit.value, 1, 'the edit stays open for another region');
+    assert.deepEqual(state.regionSeed().bounds, { left: 10, top: 25, width: 50, height: 12.5 });
+    assert.equal(state.activeThread().anchor.target.left, 0.1);
+    assert.equal(state.pending.value, false);
+  } finally {
+    state.stop();
+  }
+});
+
+test('HS2-9MZ32M a region drawn on the other side is refused without asking the host', async () => {
+  const { state, requests } = await regionFixture();
+  try {
+    state.startRegionEdit();
+    assert.equal(await state.saveRegion(drawn('after')), false);
+    assert.match(state.error.value, /stays on its side/u);
+    assert.equal(requests.filter((operation) => operation?.kind === 'move').length, 0);
+    state.resetEditor();
+    assert.equal(state.regionEdit.value, null, 'closing the thread ends the edit');
+  } finally {
+    state.stop();
+  }
+});
+
+test('HS2-9MZ32M only a region thread can be redrawn', async () => {
+  const { state } = await moveFixture(() => Promise.resolve([]));
+  try {
+    assert.equal(state.startRegionEdit(), null, 'a line thread has no region');
+    assert.equal(state.regionEdit.value, null);
+    assert.equal(state.regionSeed(), null);
+  } finally {
+    state.stop();
+  }
+});
