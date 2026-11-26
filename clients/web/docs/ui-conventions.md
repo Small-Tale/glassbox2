@@ -61,6 +61,10 @@ background controls. The footer lists related Glassbox entries and links to
 the specimen, component source, and UI guidance. The `component` query
 parameter links directly to a specimen (`HS2-D2T8BN`).
 
+The catalog's Contrast control sets Kerf's `data-kui-contrast="more"` on the
+document root and the app carries no contrast tokens of its own; the OS
+`prefers-contrast` behavior stays active independently (`HS2-T9J9BE`).
+
 Catalog `uses` describes direct dependencies of the production component.
 The app supplies the Workbench's slot content. Demo fixture components and
 slot content do not create a Workbench dependency. Keep each production

@@ -37,7 +37,9 @@ if (!root) throw new Error('Missing #app root.');
 void effect(() => {
   const page = document.documentElement;
   page.dataset.kuiScheme = theme.value;
-  page.classList.toggle('catalog-contrast', contrast.value);
+  // HS2-T9J9BE: Kerf's shared increased-contrast preview; the OS `prefers-contrast` behavior stays active.
+  if (contrast.value) page.dataset.kuiContrast = 'more';
+  else delete page.dataset.kuiContrast;
   page.classList.toggle('catalog-reduced-motion', reducedMotion.value);
 });
 
