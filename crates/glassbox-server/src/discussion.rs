@@ -901,6 +901,8 @@ fn validate_line_anchor(
                 number == Some(target)
             })
             .map(|line| line.text.clone())
+            // An unchanged line the person revealed around a change is a line of the file too (GB2-5QQPPW).
+            .or_else(|| file_line(comparison, index, anchor.side, target))
     });
     match text {
         Some(text) if anchor.path == path && !anchor.is_stale(Some(&revision)) => Ok(text),
@@ -909,6 +911,21 @@ fn validate_line_anchor(
             format!("The selected line has changed. Reopen the file before {action}."),
         )),
     }
+}
+
+/// The text of one-based line `number` of one side of the file, or `None` when the side has no such line.
+fn file_line(
+    comparison: &review_files::Comparison,
+    index: usize,
+    side: AnchorSide,
+    number: u32,
+) -> Option<String> {
+    let bytes = comparison.side_bytes(index, side).ok().flatten()?;
+    let text = String::from_utf8_lossy(&bytes);
+    let line = text
+        .split_inclusive('\n')
+        .nth(usize::try_from(number.checked_sub(1)?).ok()?)?;
+    Some(line.strip_suffix('\n').unwrap_or(line).to_owned())
 }
 
 fn model_error(error: glassbox_model::feedback::FeedbackError) -> ApiError {

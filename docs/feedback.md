@@ -61,14 +61,14 @@ Inspector with a stale indicator. New AI analysis results are tracked in
 
 A stale line comment offers Suggest New Line. The host looks for the line the comment was
 made on, by its recorded text, on the same side of the file as it is now. It offers a new
-place only when exactly one line reads the same and the diff shows that line:
+place only when exactly one line reads the same and the diff shows that line, so you can see where it lands:
 
 | Outcome | What the Inspector says | What happens |
 | --- | --- | --- |
 | One shown match | "The commented text is now at After line 5." with Dismiss and Move Here | Nothing changes until you choose Move Here. |
 | More than one match | "More than one line matches the commented text…" | The comment stays stale; nothing is guessed. |
 | No match (the line was reworded or removed) | "No line matches the commented text…" | The comment stays stale. |
-| A match only in unchanged lines the diff hides | "The only match is in unchanged lines the diff does not show…" | The comment stays stale (`GB2-5QQPPW` covers moving onto revealed lines). |
+| A match only in unchanged lines the diff hides | "The only match is in unchanged lines the diff does not show…" | The comment stays stale; reveal the lines and move it yourself. |
 | No recorded text (older comments, AI notes) | "This comment did not record its text…" | The comment stays stale (`GB2-JWB3SZ` for AI notes). |
 
 Matching is exact, so a changed line is never matched by similarity. Move Here is the
@@ -85,13 +85,13 @@ notes can move. An image-region thread moves and resizes with Edit Region (see
 [Region comments](comparison-content.md#region-comments-hs2-9mz32m)); a line thread cannot become a region.
 
 The host validates the destination as it does when creating a comment: the
-line must be one the diff shows on that side, in the revision you are looking
-at, so a destination that is not shown, a file that changed since it opened,
-or a range answers 409 and the thread stays where it was. The form stays open
+line must exist on that side of the file, in the revision you are looking
+at, so a line past the end, a file that changed since it opened, or a range
+answers 409 and the thread stays where it was. The form stays open
 with the reason so you can pick another line. A thread edited elsewhere since
 you opened it conflicts rather than being overwritten. Moving a stale thread to
-a line of the current revision rebinds it. Unchanged lines revealed around a
-change are not yet valid destinations (`GB2-5QQPPW`).
+a line of the current revision rebinds it.
+Unchanged lines, whether or not the diff shows them, are valid destinations (`GB2-5QQPPW`).
 
 The open comparison retains its editable discussions as files are switched.
 Each successful change publishes the current review to its stable local

@@ -68,9 +68,9 @@ request shows a "Could Not Show Lines" alert in the control row and keeps what w
 already revealed. Opening another file, or reloading the comparison, collapses the
 file again.
 
-Revealed lines are read-only context: they show existing discussion anchors, but
-adding a comment is offered only on lines of the diff itself, which is what the
-host accepts. Commenting on revealed lines is `GB2-5QQPPW`.
+Revealed lines take comments like the diff's own lines (`GB2-5QQPPW`): the comment action appears on a
+revealed line's number, and the thread shows under that line. The host accepts any line the chosen side of the
+file has, in the revision on screen, so a line past the end or a changed file is still refused (409).
 
 ### Find in the diff (`HS2-30ZEFE`)
 

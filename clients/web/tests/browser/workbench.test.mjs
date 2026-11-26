@@ -1118,9 +1118,24 @@ test(
       await reveal(1, 'Show 20 Below', 54, 73);
       assert.deepEqual(await controls(1).getByRole('button').allTextContents(), ['Show 13 Lines']);
       assert.equal(await page.locator('[data-after-line="34"][data-before-line="34"]').count(), 1);
-      // Revealed lines are read-only context: the host only accepts comments on lines of the diff.
-      assert.equal(await page.getByRole('button', { name: 'Add Comment to After Line 34' }).count(), 0);
+      // Revealed lines take comments like the diff's own lines, and the thread shows under its line (GB2-5QQPPW).
       assert.equal(await page.getByRole('button', { name: 'Add Comment to After Line 30' }).count(), 1);
+      const inspector = page.getByRole('region', { name: 'Discussion' });
+      await button('Add Comment to After Line 34').click();
+      await inspector.getByRole('textbox', { name: 'Comment', exact: true }).fill('On a revealed line.');
+      const created = page.waitForResponse(
+        (reply) => reply.url().endsWith('/discussion') && reply.request().postDataJSON().operation?.kind === 'create',
+      );
+      await inspector.getByRole('button', { name: 'Add Comment', exact: true }).click();
+      assert((await created).ok());
+      const revealedThread = page.locator('.text-diff .discussion-inline__thread');
+      await revealedThread.first().waitFor();
+      assert.equal(
+        await revealedThread
+          .first()
+          .evaluate((element) => element.closest('.discussion-inline').previousElementSibling.dataset.afterLine),
+        '34',
+      );
 
       // Closing the last hidden lines merges the hunks: no control and no header between them.
       await reveal(1, 'Show 13 Lines', 74, 86);

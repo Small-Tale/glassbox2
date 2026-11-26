@@ -733,3 +733,71 @@ fn a_refused_region_leaves_the_thread_as_it_was() {
         409,
     );
 }
+
+// GB2-5QQPPW: an unchanged line the diff does not show is still a line of the file, so it takes a comment.
+
+#[test]
+fn a_comment_anchors_to_an_unchanged_line_outside_the_hunks_but_not_past_the_end() {
+    let scratch = tempfile::tempdir().unwrap();
+    let (_host, address) = start(scratch.path());
+    let folder = scratch.path().join("pair");
+    fs::create_dir_all(&folder).unwrap();
+    let before: Vec<String> = (1..=30).map(|number| format!("line {number}")).collect();
+    let mut after = before.clone();
+    after[2] = "changed 3".into();
+    fs::write(folder.join("before.txt"), before.join("\n") + "\n").unwrap();
+    fs::write(folder.join("after.txt"), after.join("\n")).unwrap();
+    let mut file = Fixture {
+        selection: json!({
+            "source": {"kind": "paths", "before": folder.join("before.txt"), "after": folder.join("after.txt")},
+            "index": 0,
+            "path": "after.txt",
+        }),
+        revision: String::new(),
+    };
+    file.revision = current_revision(address, &file);
+    let create = |side: &str, line: u32| {
+        discuss(
+            address,
+            &file,
+            json!({"kind": "create", "anchor": anchor(&file, side, line, &file.revision),
+                   "category": "note", "author": "Reviewer", "markdown": "On an unchanged line."}),
+        )
+    };
+
+    // Line 20 is far from the one change, on either side, and the host records its text.
+    let (status, after_side) = create("after", 20);
+    assert_eq!(status, 200, "{after_side}");
+    assert_eq!(thread(&after_side)["anchor"]["quote"], "line 20");
+    let (status, both) = create("before", 21);
+    assert_eq!(status, 200, "{both}");
+    assert_eq!(both["threads"].as_array().map(Vec::len), Some(2));
+
+    // The last line, even without a final newline, is a line; the one after it is not.
+    let (status, last) = create("after", 30);
+    assert_eq!(status, 200, "{last}");
+    assert_eq!(last["threads"][2]["anchor"]["quote"], "line 30");
+    assert_eq!(create("after", 31).0, 409);
+    assert_eq!(create("before", 31).0, 409);
+    assert_eq!(create("after", 0).0, 409);
+
+    // A revision the file no longer has still refuses, whatever the line.
+    let (status, _) = discuss(
+        address,
+        &file,
+        json!({"kind": "create", "anchor": anchor(&file, "after", 20, "stale"),
+               "category": "note", "author": "Reviewer", "markdown": "Stale."}),
+    );
+    assert_eq!(status, 409);
+
+    // A comment moves onto an unchanged line too, and takes its text.
+    let id = last["threads"][0]["id"].as_u64().unwrap();
+    let (status, moved) = discuss(
+        address,
+        &file,
+        json!({"kind": "move", "id": id, "revision": last["threads"][0]["revision"],
+               "anchor": anchor(&file, "after", 25, &file.revision)}),
+    );
+    assert_eq!(status, 200, "{moved}");
+    assert_eq!(moved["threads"][0]["anchor"]["quote"], "line 25");
+}

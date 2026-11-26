@@ -240,7 +240,7 @@ export function TextDiff({
                         line={before}
                         side="before"
                         path={path}
-                        lineControl={block.kind === 'hunk' ? lineControl : undefined}
+                        lineControl={lineControl}
                         symbols={symbols}
                         definition={definition}
                         find={find}
@@ -249,7 +249,7 @@ export function TextDiff({
                         line={after}
                         side="after"
                         path={path}
-                        lineControl={block.kind === 'hunk' ? lineControl : undefined}
+                        lineControl={lineControl}
                         symbols={symbols}
                         definition={definition}
                         find={find}
@@ -263,7 +263,7 @@ export function TextDiff({
                         line={line}
                         side="both"
                         path={path}
-                        lineControl={block.kind === 'hunk' ? lineControl : undefined}
+                        lineControl={lineControl}
                         symbols={symbols}
                         definition={definition}
                         find={find}
