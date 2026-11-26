@@ -1160,3 +1160,140 @@ test(
     });
   },
 );
+
+// HS2-30ZEFE: Find within the lines the diff shows, against a real host and repository.
+test('HS2-30ZEFE finds, steps and clears matches across layouts, context and files', { timeout: 90_000 }, async () => {
+  await withWorkbench(async (page, url, { repo }) => {
+    const folder = join(dirname(repo), 'Finder');
+    await mkdir(folder);
+    const git = (...args) =>
+      execFileSync('git', ['-c', 'commit.gpgsign=false', '-c', 'core.autocrlf=false', ...args], {
+        cwd: folder,
+        windowsHide: true,
+      });
+    const lines = (change = {}) =>
+      Array.from({ length: 120 }, (_, index) => change[index + 1] ?? `line ${index + 1}`).join('\n') + '\n';
+    const shared = { 32: 'a Needle in context', 60: 'hidden needle 60' };
+    git('init', '-q', '--initial-branch=review');
+    await writeFile(join(folder, 'find.txt'), lines(shared));
+    await writeFile(join(folder, 'other.txt'), 'one\ntwo\nthree\n');
+    git('add', '.');
+    git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'initial');
+    await writeFile(join(folder, 'find.txt'), lines({ ...shared, 30: 'changed needle 30', 90: 'changed NEEDLE 90' }));
+    await writeFile(join(folder, 'other.txt'), 'one\nneedle other\nthree\n');
+
+    const button = (name) => page.getByRole('button', { name, exact: true });
+    const marks = page.locator('.text-diff mark[data-find]');
+    const current = page.locator('.text-diff mark[data-find="current"]');
+    const field = page.getByRole('searchbox', { name: 'Find in Diff' });
+    // The readout can also sit in a polite live region, so wait for a visible element with exactly this text.
+    const readout = (text) => ({
+      waitFor: () =>
+        page.waitForFunction(
+          ({ source, flags }) => {
+            const pattern = new RegExp(source, flags);
+            return [...document.querySelectorAll('*')].some(
+              (element) =>
+                element.children.length === 0 &&
+                pattern.test(element.textContent?.trim() ?? '') &&
+                element.checkVisibility(),
+            );
+          },
+          text instanceof RegExp
+            ? { source: text.source, flags: text.flags }
+            : { source: `^${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, flags: '' },
+        ),
+    });
+    const currentLine = () =>
+      current.first().evaluate((mark) => mark.closest('.text-diff__cell').getAttribute('data-after-line'));
+    await page.goto(url);
+    await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(folder);
+    await button('Open Comparison').click();
+    await page.getByRole('treeitem', { name: /find\.txt/ }).click();
+    await button('Inline').click();
+    await page.locator('.text-diff__cell[data-after-line="30"]').waitFor();
+
+    // Nothing is marked or counted before a search; the previous and next buttons stay but cannot act.
+    assert.equal(await marks.count(), 0);
+    assert.equal(await button('Next Match').isDisabled(), true);
+
+    // Ctrl+F opens the field with focus in it; the matches ignore case and cover the lines shown.
+    await page.keyboard.press('Control+f');
+    await field.waitFor();
+    await page.keyboard.type('needle');
+    await readout('1 of 3').waitFor();
+    assert.equal(await marks.count(), 3);
+    assert.equal(await current.count(), 1);
+    assert.equal(await currentLine(), '30');
+    await capture(page, 'find-inline-1440');
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await capture(page, 'find-inline-dark-1440');
+    await page.emulateMedia({ colorScheme: 'light' });
+
+    // Enter and Shift+Enter step forward and back, wrapping at both ends; the buttons do the same.
+    await page.keyboard.press('Enter');
+    await readout('2 of 3').waitFor();
+    assert.equal(await currentLine(), '32');
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Enter');
+    await readout('1 of 3').waitFor();
+    await page.keyboard.press('Shift+Enter');
+    await readout('3 of 3').waitFor();
+    assert.equal(await currentLine(), '90');
+    await button('Previous Match').click();
+    await readout('2 of 3').waitFor();
+    await button('Next Match').click();
+    await readout('3 of 3').waitFor();
+
+    // Stepping scrolls the diff to the match.
+    const visible = () =>
+      current.first().evaluate((mark) => {
+        const box = mark.getBoundingClientRect();
+        return box.top >= 0 && box.bottom <= window.innerHeight;
+      });
+    assert(await visible());
+
+    // Lines the diff hides are not searched until they are revealed, and revealing keeps the position.
+    await page
+      .locator('.context-expander[data-gap="1"]')
+      .getByRole('button', { name: 'Show All 53', exact: true })
+      .click();
+    await readout('3 of 4').waitFor();
+    assert.equal(await marks.count(), 4);
+
+    // The split layout shows a context line on both sides, marked on each, and counts it once.
+    await button('Side by Side').click();
+    await page.locator('.text-diff[data-layout="split"] mark[data-find]').first().waitFor();
+    // Context lines 32 and 60 are marked on both sides; added lines 30 and 90 on one.
+    assert.equal(await marks.count(), 6);
+    await readout('3 of 4').waitFor();
+    for (const width of [940, 390, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      await field.waitFor();
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
+      await capture(page, `find-split-${width}`);
+    }
+
+    // Another file keeps the query and starts at its first match.
+    await page.getByRole('treeitem', { name: /other\.txt/ }).click();
+    await readout('1 of 1').waitFor();
+    assert.equal(await marks.count(), 1);
+    await page.getByRole('treeitem', { name: /find\.txt/ }).click();
+    await readout('1 of 3').waitFor();
+
+    // A query with no matches says so, marks nothing and disables stepping.
+    await field.fill('zzzz');
+    await readout('No matches').waitFor();
+    assert.equal(await marks.count(), 0);
+    assert.equal(await button('Next Match').isDisabled(), true);
+    await capture(page, 'find-none-1440');
+
+    // Escape clears the query, the marks and the readout; the field stays for another search.
+    await field.fill('line 3');
+    await readout(/^\d+ of \d+$/).waitFor();
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => document.querySelectorAll('.text-diff mark[data-find]').length === 0);
+    assert.equal(await field.evaluate((element) => element.textContent?.trim()), '');
+    assert.equal(await button('Next Match').isDisabled(), true);
+  });
+});

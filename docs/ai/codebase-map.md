@@ -11,7 +11,7 @@
 - `crates/glassbox-settings` owns versioned per-user JSON settings and atomic file replacement.
 - `crates/glassbox-comparison` owns Git and direct path comparisons, selected-file text/media data, and real-repository and filesystem fixtures.
 - `clients/web/src/app` contains the web app entry point. `clients/web/src/components` groups shared Kerf components by feature.
-- `clients/web/src/components/diff/context-expansion.ts` holds the pure unchanged-line model and fetch state, `context-expander.tsx` the controls; `crates/glassbox-server/src/review_files.rs` serves `POST /api/v1/review/context`.
+- `clients/web/src/components/diff/context-expansion.ts` holds the pure unchanged-line model and fetch state, `context-expander.tsx` the controls; `diff-find.ts` holds the Find model and `diff-find-controls.tsx` its toolbar field and wiring; `crates/glassbox-server/src/review_files.rs` serves `POST /api/v1/review/context`.
 - `clients/web/src/ux-demo` hosts the catalog at `/ux-demo/`. `kerf.components.json` generates the selection and composition catalogs.
 - `clients/web/src/design-mock` contains the approved design fixture for local development.
 - Rust gates are `cargo fmt --all --check`, `cargo clippy --locked --workspace --all-targets -- -D warnings` and `cargo test --locked --workspace --quiet`.

@@ -8,6 +8,7 @@ import { Columns2, Rows2, WrapText } from 'lucide';
 import type { Definition } from '../review/definition-navigation.js';
 import { ContextExpander } from './context-expander.js';
 import { type ContextDirection, type DiffBlock, diffBlocks, type Expansion } from './context-expansion.js';
+import { type FindResult, lineRanges, markTokens } from './diff-find.js';
 import { type DiffLine, splitLines, syntaxTokens, type TextHunk } from './text-diff-model.js';
 
 export function createTextDiffState() {
@@ -61,8 +62,10 @@ function DiffCell({
   lineControl,
   symbols = false,
   definition,
+  find,
 }: {
   line?: DiffLine;
+  find?: FindResult;
   lineControl?: LineControl;
   side: 'before' | 'after' | 'both';
   path: string;
@@ -99,9 +102,16 @@ function DiffCell({
       )}
       <span class="text-diff__marker">{mark}</span>
       <code>
-        {syntaxTokens(line.text, path, symbols).map((token) => (
-          <span data-token={token.kind}>{token.text}</span>
-        ))}
+        {markTokens(syntaxTokens(line.text, path, symbols), find === undefined ? [] : lineRanges(find, line)).map(
+          (token) =>
+            token.mark === null ? (
+              <span data-token={token.kind}>{token.text}</span>
+            ) : (
+              <mark data-find={token.mark}>
+                <span data-token={token.kind}>{token.text}</span>
+              </mark>
+            ),
+        )}
         {line.ends_with_newline ? null : (
           <span class="text-diff__marker" title="No newline at end of file">
             {' '}
@@ -127,10 +137,13 @@ export function TextDiff({
   definition,
   snapshot = false,
   context,
+  find,
 }: {
   hunks: readonly TextHunk[];
   /** Unchanged-line controls and revealed lines; absent for a diff that cannot fetch more (HS2-DZ8ZR6). */
   context?: { id: string; total: number | null | undefined; expansion: Expansion };
+  /** Marks the Find matches in the lines shown (HS2-30ZEFE). */
+  find?: FindResult;
   path: string;
   state: TextDiffState;
   lineControl?: LineControl;
@@ -230,6 +243,7 @@ export function TextDiff({
                         lineControl={block.kind === 'hunk' ? lineControl : undefined}
                         symbols={symbols}
                         definition={definition}
+                        find={find}
                       />
                       <DiffCell
                         line={after}
@@ -238,6 +252,7 @@ export function TextDiff({
                         lineControl={block.kind === 'hunk' ? lineControl : undefined}
                         symbols={symbols}
                         definition={definition}
+                        find={find}
                       />
                       {rowContent?.(before?.before_line, after?.after_line)}
                     </>
@@ -251,6 +266,7 @@ export function TextDiff({
                         lineControl={block.kind === 'hunk' ? lineControl : undefined}
                         symbols={symbols}
                         definition={definition}
+                        find={find}
                       />
                       {rowContent?.(line.before_line, line.after_line)}
                     </>

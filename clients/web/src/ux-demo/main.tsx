@@ -19,6 +19,7 @@ import {
   secondaryGroups,
 } from './catalog.js';
 import { wireAnalysisControlsDemo } from './demos/analysis/analysis-controls.js';
+import { wireDiffFindControlsDemo } from './demos/diff/diff-find-controls.js';
 import { wireMediaDiffDemo } from './demos/diff/media-diff.js';
 import { wireTextDiffDemo } from './demos/diff/text-diff.js';
 import { wireDiscussionDemo } from './demos/discussion/discussion.js';
@@ -130,6 +131,7 @@ void wireReviewWorkbenchDemo(root);
 
 void wireReviewNavigatorDemo(root);
 
+void wireDiffFindControlsDemo(root);
 void wireTextDiffDemo(root);
 void wireMediaDiffDemo(root);
 

@@ -10,7 +10,15 @@ import { ChevronLeft, ChevronRight, Code, GitCompareArrows, Workflow } from 'luc
 
 import { AnalysisContext, AnalysisControls, wireAnalysisControls } from '../components/analysis/analysis-controls.js';
 import { createAnalysisState } from '../components/analysis/analysis-state.js';
-import { createContextExpansion, resetContextOnChange } from '../components/diff/context-expansion.js';
+import { createContextExpansion, diffBlocks, resetContextOnChange } from '../components/diff/context-expansion.js';
+import {
+  createFindState,
+  findMatches,
+  findReadout,
+  findResult,
+  resetFindOnChange,
+} from '../components/diff/diff-find.js';
+import { DiffFindControls, wireDiffFind } from '../components/diff/diff-find-controls.js';
 import {
   createMediaDiffState,
   MediaDiff,
@@ -91,6 +99,8 @@ void effect(() => {
   }
 });
 void resetContextOnChange(diffContext, diff.result);
+const find = createFindState();
+void resetFindOnChange(find, diff.result);
 const mediaDiff = createMediaDiffState();
 const mediaId = 'glassbox-media-diff';
 void effect(() => {
@@ -129,6 +139,7 @@ function selectedAnalysis() {
 }
 const diffToolbarId = 'glassbox-text-diff';
 const contextId = 'glassbox-diff-context';
+const findId = 'glassbox-diff-find';
 const appearance = createAppearanceState();
 const appearanceId = 'glassbox-appearance';
 const handoff = createHandoffState();
@@ -213,6 +224,8 @@ mount(root, () => {
           );
           break;
         }
+        const shown = diffBlocks(result.hunks, result.after_lines, diffContext.expansion.value);
+        const found = findResult(shown, find.query.value, find.current.value);
         comparison =
           result.hunks.length > 0 ? (
             <TextDiff
@@ -220,6 +233,7 @@ mount(root, () => {
               path={file.path}
               state={textDiff}
               context={{ id: contextId, total: result.after_lines, expansion: diffContext.expansion.value }}
+              find={found}
               definition={definition}
               symbols={source.activeSource.value?.kind === 'git' && supportsDefinitions(file.path)}
               lineControl={(side, line) => <LineCommentAction side={side} line={line} />}
@@ -237,6 +251,7 @@ mount(root, () => {
         comparisonToolbar = (
           <>
             <TextDiffToolbar id={diffToolbarId} state={textDiff} />
+            <DiffFindControls id={findId} state={find} readout={findReadout(found)} matches={found.matches.length} />
             <AnalysisControls id={analysisId} state={analysis} />
             {diagramControl}
           </>
@@ -405,6 +420,13 @@ void wireDefinitionNavigation(
   historyNavigation.reveal,
 );
 void wireTextDiffToolbar(root, diffToolbarId, textDiff);
+void wireDiffFind(root, findId, find, () => {
+  const content = diff.result.value;
+  return content?.kind === 'text'
+    ? findMatches(diffBlocks(content.hunks, content.after_lines, diffContext.expansion.peek()), find.query.peek())
+        .length
+    : 0;
+});
 void wireContextExpander(root, contextId, (gap, direction) => void diffContext.expand(gap, direction));
 root.addEventListener('click', (event) => {
   if (event.target instanceof Element && event.target.closest('button[data-action="toggle-diagram"]') !== null) {

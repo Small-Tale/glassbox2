@@ -72,6 +72,27 @@ Revealed lines are read-only context: they show existing discussion anchors, but
 adding a comment is offered only on lines of the diff itself, which is what the
 host accepts. Commenting on revealed lines is `GB2-5QQPPW`.
 
+### Find in the diff (`HS2-30ZEFE`)
+
+A Find field in the text diff's toolbar searches the lines the diff is showing:
+the lines of every change plus any unchanged lines you have revealed. Lines still
+hidden are not searched, which the field's placeholder, "Find in Shown Lines", says;
+reveal them and the matches update. Press Ctrl+F (Cmd+F on macOS) while a text diff is
+open, or choose the search icon, to open the field with focus in it.
+
+- Matching ignores case and treats the query as plain text. Every match is
+  highlighted and the current one is stronger. The field reads out "3 of 12" or
+  "No matches".
+- Enter and Shift+Enter, or the Previous and Next buttons, move through the matches
+  and wrap at both ends. The diff scrolls to the current match. Matches are ordered by
+  the lines' order in the diff, with removed lines before the added lines that replace
+  them, in both layouts.
+- Side by Side shows an unchanged line on both sides and marks it on each, but counts
+  it once. Inline marks it once.
+- Another file keeps the query and starts at its first match. Escape clears the query,
+  the highlights and the count; Escape again on the empty field collapses it. Stepping
+  and the buttons are disabled, not hidden, while there is nothing to step to.
+
 ## Image viewer
 
 Raster and SVG comparisons open side by side. The toolbar offers stacked,

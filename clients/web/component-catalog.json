@@ -139,6 +139,36 @@
       "documentation": "docs/ui-conventions.md"
     },
     {
+      "id": "diff-find-controls",
+      "name": "Diff Find Controls",
+      "kind": "composition",
+      "purpose": "Find text in the lines a diff shows, with a match count and previous and next.",
+      "useWhen": [
+        "Search the text a comparison shows."
+      ],
+      "avoidWhen": [
+        "Filter a list of files or search across the whole repository."
+      ],
+      "publicClasses": [],
+      "publicTokens": [],
+      "uses": [
+        "lucide-icon",
+        "search-field",
+        "toolbar-control-group"
+      ],
+      "source": "src/components/diff/diff-find-controls.tsx",
+      "styleSources": [
+        "src/components/diff/text-diff.css"
+      ],
+      "demoSource": "src/ux-demo/demos/diff/diff-find-controls.tsx",
+      "geometry": {
+        "margin": "none",
+        "border": "none",
+        "padding": "none"
+      },
+      "documentation": "docs/ui-conventions.md"
+    },
+    {
       "id": "export-dialog",
       "name": "Hot Sheet Export",
       "kind": "composition",

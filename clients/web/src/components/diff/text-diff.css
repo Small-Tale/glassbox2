@@ -126,3 +126,15 @@
 .text-diff__number > button:focus-visible {
   opacity: 1;
 }
+
+/* Find matches (HS2-30ZEFE): Kerf has no text-highlight primitive, so the native mark takes public tokens. */
+.text-diff mark {
+  background: var(--kui-color-warning-fill-normal);
+  color: inherit;
+}
+
+.text-diff mark[data-find='current'] {
+  background: var(--kui-color-warning-fill-loud);
+  color: var(--kui-color-warning-on-loud);
+  outline: 2px solid var(--kui-color-warning-border-loud);
+}

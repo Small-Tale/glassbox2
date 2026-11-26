@@ -334,6 +334,87 @@
       }
     },
     {
+      "key": "glassbox2:diff-find-controls",
+      "package": "glassbox2",
+      "id": "diff-find-controls",
+      "name": "Diff Find Controls",
+      "kind": "composition",
+      "purpose": "Find text in the lines a diff shows, with a match count and previous and next.",
+      "publicExports": [
+        {
+          "name": "DiffFindControls"
+        },
+        {
+          "name": "wireDiffFind"
+        }
+      ],
+      "sourceLinks": [
+        "src/components/diff/diff-find-controls.tsx"
+      ],
+      "source": "src/components/diff/diff-find-controls.tsx",
+      "parents": {
+        "mode": "any",
+        "entries": []
+      },
+      "contexts": [
+        "application-ui"
+      ],
+      "zones": [],
+      "children": {
+        "mode": "any",
+        "concepts": [],
+        "requiredConcepts": []
+      },
+      "state": [],
+      "wiring": {
+        "required": true,
+        "helpers": [
+          "wireDiffFind"
+        ],
+        "sources": [
+          {
+            "export": "wireDiffFind",
+            "source": "src/components/diff/diff-find-controls.tsx",
+            "returnsDisposer": true
+          }
+        ],
+        "obligations": [
+          "Wire the search field, the step buttons and Ctrl or Cmd+F to the matches in the lines shown."
+        ]
+      },
+      "responsive": {
+        "owner": "component",
+        "behaviors": [
+          "grow-search-beside-siblings"
+        ]
+      },
+      "layout": {
+        "roles": [
+          "content"
+        ],
+        "geometry": {
+          "margin": "none",
+          "border": "none",
+          "padding": "none"
+        }
+      },
+      "accessibility": {
+        "obligations": [
+          "Name the field, announce the match count politely, and keep previous and next mounted but disabled without matches."
+        ]
+      },
+      "boundaries": {
+        "rootClass": null,
+        "publicClasses": [],
+        "publicTokens": []
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/diff/diff-find-controls.tsx",
+        "composition": "src/components/diff/diff-find-controls.tsx"
+      }
+    },
+    {
       "key": "glassbox2:export-dialog",
       "package": "glassbox2",
       "id": "export-dialog",

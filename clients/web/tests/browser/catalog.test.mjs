@@ -137,3 +137,53 @@ test('HS2-DZ8ZR6 the Text Diff demo reveals hidden lines and the discussion anch
     }
   });
 });
+
+// HS2-30ZEFE: the demos run Find for real, beside the catalog's own search.
+test('HS2-30ZEFE the Diff Find Controls demo searches its diff and steps through matches', async () => {
+  await withCatalog(async (page, url) => {
+    await page.goto(`${url}?component=diff-find-controls`);
+    const demo = page.locator('[data-demo="diff-find-controls"]');
+    const marks = demo.locator('mark[data-find]');
+    await demo.getByRole('button', { name: 'Next Match', exact: true }).waitFor();
+    assert.equal(await demo.getByRole('button', { name: 'Next Match', exact: true }).isDisabled(), true);
+    await page.keyboard.press('Control+f');
+    const field = demo.getByRole('searchbox', { name: 'Find in Diff' });
+    await field.waitFor();
+    await page.keyboard.type('needle');
+    await demo.getByText('1 of 6', { exact: true }).first().waitFor();
+    // Six matches; the two context lines show on both sides of the split layout, so eight marks.
+    assert.equal(await marks.count(), 8);
+    assert.equal(await demo.locator('mark[data-find="current"]').count(), 2, 'the first match is on a context line');
+    await page.keyboard.press('Enter');
+    await demo.getByText('2 of 6', { exact: true }).first().waitFor();
+    await page.keyboard.press('Shift+Enter');
+    await page.keyboard.press('Shift+Enter');
+    await demo.getByText('6 of 6', { exact: true }).first().waitFor();
+    await field.fill('absent');
+    await demo.getByText('No matches', { exact: true }).first().waitFor();
+    assert.equal(await marks.count(), 0);
+  });
+});
+
+test('HS2-30ZEFE the Text Diff demo finds in lines it reveals', async () => {
+  await withCatalog(async (page, url) => {
+    await page.goto(`${url}?component=text-diff`);
+    const demo = page.locator('[data-demo="text-diff"]');
+    await demo.locator('.context-expander[data-gap="1"]').waitFor();
+    await page.keyboard.press('Control+f');
+    await demo.getByRole('searchbox', { name: 'Find in Diff' }).waitFor();
+    await page.keyboard.type('unchanged50');
+    await demo.getByText('No matches', { exact: true }).first().waitFor();
+    await demo
+      .locator('.context-expander[data-gap="1"]')
+      .getByRole('button', { name: 'Show 20 Below', exact: true })
+      .click();
+    await demo
+      .locator('.context-expander[data-gap="1"]')
+      .getByRole('button', { name: 'Show 20 Below', exact: true })
+      .click();
+    await demo.getByText('1 of 1', { exact: true }).first().waitFor();
+    // A revealed context line sits on both sides of the split layout, so its match is marked twice.
+    assert.equal(await demo.locator('mark[data-find="current"]').count(), 2);
+  });
+});

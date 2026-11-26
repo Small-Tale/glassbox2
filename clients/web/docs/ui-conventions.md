@@ -129,6 +129,10 @@ pages).
 - **Unchanged-line controls are Kerf `Button`s in a `Row`** (`HS2-DZ8ZR6`): compact, plain, with a chevron icon and a
   title-case label that names the count. Failures are an alert `StateBanner`. Their only application CSS spans the
   grid and returns the interface font inside the diff's monospace face (`context-expander.css`).
+- **Find is a collapsible Kerf `SearchField` in a `single` `ToolbarControlGroup`** (`HS2-30ZEFE`), with the count as its
+  `resultText` (never beside the field) and Previous and Next in their own icon group. Its group uses
+  `sizing="grow"` with a `growBasis` so the expanded field stays on the toolbar's row. Match highlights are the native
+  `mark` element with public `--kui-color-warning-*` tokens in `text-diff.css`; Kerf ships no text-highlight primitive (`KF-25NG0X`); remove the rule when it does.
 - **Justified application CSS:** `src/components/diff/text-diff.css` sets `grid-auto-rows: min-content` on the
   application-owned `.text-diff__lines` grid because WebKitGTK keeps stale `auto` row heights after a width
   shrink (`HS2-JEM47K`); no Kerf component owns that grid. The image viewer's blend, slice and region rules are

@@ -454,6 +454,85 @@
       }
     },
     {
+      "id": "diff-find-controls",
+      "name": "Diff Find Controls",
+      "kind": "composition",
+      "purpose": "Find text in the lines a diff shows, with a match count and previous and next.",
+      "source": "src/components/diff/diff-find-controls.tsx",
+      "publicExports": [
+        {
+          "name": "DiffFindControls"
+        },
+        {
+          "name": "wireDiffFind"
+        }
+      ],
+      "sourceLinks": ["src/components/diff/diff-find-controls.tsx"],
+      "composition": {
+        "parents": {
+          "mode": "any",
+          "entries": []
+        },
+        "contexts": ["application-ui"],
+        "zones": [],
+        "children": {
+          "mode": "any",
+          "concepts": [],
+          "requiredConcepts": []
+        },
+        "state": [],
+        "wiring": {
+          "required": true,
+          "helpers": ["wireDiffFind"],
+          "sources": [
+            {
+              "export": "wireDiffFind",
+              "source": "src/components/diff/diff-find-controls.tsx",
+              "returnsDisposer": true
+            }
+          ],
+          "obligations": [
+            "Wire the search field, the step buttons and Ctrl or Cmd+F to the matches in the lines shown."
+          ]
+        },
+        "responsive": {
+          "owner": "component",
+          "behaviors": ["grow-search-beside-siblings"]
+        },
+        "layout": {
+          "roles": ["content"],
+          "geometry": {
+            "margin": "none",
+            "border": "none",
+            "padding": "none"
+          }
+        }
+      },
+      "boundaries": {
+        "rootClass": null,
+        "publicClasses": [],
+        "publicTokens": []
+      },
+      "accessibility": {
+        "obligations": [
+          "Name the field, announce the match count politely, and keep previous and next mounted but disabled without matches."
+        ]
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/diff/diff-find-controls.tsx",
+        "composition": "src/components/diff/diff-find-controls.tsx"
+      },
+      "selection": {
+        "useWhen": ["Search the text a comparison shows."],
+        "avoidWhen": ["Filter a list of files or search across the whole repository."],
+        "styleSources": ["src/components/diff/text-diff.css"],
+        "demoSource": "src/ux-demo/demos/diff/diff-find-controls.tsx",
+        "documentation": "docs/ui-conventions.md",
+        "uses": ["lucide-icon", "search-field", "toolbar-control-group"]
+      }
+    },
+    {
       "id": "text-diff",
       "name": "Text Diff",
       "kind": "composition",

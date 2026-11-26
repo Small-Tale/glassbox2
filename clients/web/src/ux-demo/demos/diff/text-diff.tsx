@@ -2,7 +2,13 @@ import { CatalogExample, CatalogExampleStack } from '@kerfjs/ui/catalog';
 import { EmptyState } from '@kerfjs/ui/empty-state';
 import { signal } from 'kerfjs';
 
-import { createContextExpansion, resetContextOnChange } from '../../../components/diff/context-expansion.js';
+import {
+  createContextExpansion,
+  diffBlocks,
+  resetContextOnChange,
+} from '../../../components/diff/context-expansion.js';
+import { createFindState, findMatches, findReadout, findResult } from '../../../components/diff/diff-find.js';
+import { DiffFindControls, wireDiffFind } from '../../../components/diff/diff-find-controls.js';
 import {
   createTextDiffState,
   TextDiff,
@@ -25,6 +31,8 @@ const id = 'catalog-text-diff';
 const workbench = createReviewWorkbenchState();
 const state = createTextDiffState();
 const contextId = 'catalog-text-diff-context';
+const findId = 'catalog-text-diff-find';
+const find = createFindState();
 const hunks: TextHunk[] = [
   {
     before_start: 21,
@@ -135,6 +143,11 @@ const context = createContextExpansion(
 );
 
 export function TextDiffDemo() {
+  const found = findResult(
+    diffBlocks(demoHunks, fileLines, context.expansion.value),
+    find.query.value,
+    find.current.value,
+  );
   return (
     <CatalogExampleStack width="full" rootAttributes={{ 'data-demo': 'text-diff' }}>
       <CatalogExample label="Text Review" viewport={{ width: 'full', height: 'app', frame: 'solid' }}>
@@ -151,6 +164,7 @@ export function TextDiffDemo() {
               path="src/bundle.ts"
               state={state}
               context={{ id: contextId, total: fileLines, expansion: context.expansion.value }}
+              find={found}
               rowContent={(_before, after) => (
                 <LineDiscussion
                   threads={discussion.threads.value.filter(
@@ -161,7 +175,12 @@ export function TextDiffDemo() {
               )}
             />
           }
-          comparisonToolbar={<TextDiffToolbar id={id} state={state} />}
+          comparisonToolbar={
+            <>
+              <TextDiffToolbar id={id} state={state} />
+              <DiffFindControls id={findId} state={find} readout={findReadout(found)} matches={found.matches.length} />
+            </>
+          }
           inspector={<EmptyState title="No Discussion Selected" />}
         />
       </CatalogExample>
@@ -191,6 +210,12 @@ export function wireTextDiffDemo(root: HTMLElement) {
   const stopToolbar = wireTextDiffToolbar(root, id, state);
   const stopContext = wireContextExpander(root, contextId, (gap, direction) => void context.expand(gap, direction));
   const stopReset = resetContextOnChange(context, demoResult);
+  const stopFind = wireDiffFind(
+    root,
+    findId,
+    find,
+    () => findMatches(diffBlocks(demoHunks, fileLines, context.expansion.peek()), find.query.peek()).length,
+  );
   const stopDiscussion = wireDiscussion(
     root,
     discussion,
@@ -198,6 +223,7 @@ export function wireTextDiffDemo(root: HTMLElement) {
     () => undefined,
   );
   return () => {
+    stopFind();
     stopDiscussion();
     stopReset();
     stopContext();
