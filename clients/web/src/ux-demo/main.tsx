@@ -5,10 +5,19 @@ import '@kerfjs/ui/popup-menu/register';
 import './style.css';
 
 import { Catalog, type CatalogBackgroundStyle, CatalogExample } from '@kerfjs/ui/catalog';
+import { Text } from '@kerfjs/ui/text';
 import { wireCatalog } from '@kerfjs/ui/wire-catalog';
 import { effect, mount, signal } from 'kerfjs';
 
-import { catalogSections, componentDemos, isCatalogId, isDemoId, kerfReferences, kerfSections } from './catalog.js';
+import {
+  componentDemos,
+  defaultEntry,
+  demoIdOf,
+  graph,
+  primarySections,
+  resolveCatalogId,
+  secondaryGroups,
+} from './catalog.js';
 import { wireAnalysisControlsDemo } from './demos/analysis/analysis-controls.js';
 import { wireMediaDiffDemo } from './demos/diff/media-diff.js';
 import { wireTextDiffDemo } from './demos/diff/text-diff.js';
@@ -23,9 +32,12 @@ import { wireAppearanceMenuDemo } from './demos/settings/appearance-menu.js';
 import { wireStorageDialogDemo } from './demos/settings/storage-dialog.js';
 
 const urlParam = 'component';
-const initial = new URLSearchParams(location.search).get(urlParam);
-const active = signal(initial !== null && isCatalogId(initial) ? initial : 'source-context');
-const kerfExpanded = signal(initial !== null && kerfReferences.has(initial));
+// HS2-S9EG8B: ids are qualified by Kerf's composed catalog; a bare Glassbox id from an older link still resolves.
+const initial = resolveCatalogId(new URLSearchParams(location.search).get(urlParam)) ?? defaultEntry;
+const active = signal(initial);
+const expandedGroups = signal<ReadonlySet<string>>(new Set([graph.entries.get(initial)?.package ?? '']));
+const showDiscouraged = signal(false);
+const discouragedGroup = '@awesome.me/webawesome';
 const theme = signal<'light' | 'dark'>(matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 const contrast = signal(false);
 const reducedMotion = signal(false);
@@ -45,24 +57,28 @@ void effect(() => {
 
 mount(root, () => {
   const id = active.value;
-  const reference = kerfReferences.get(id);
+  const demo = demoIdOf(id);
   return (
     <Catalog
       brand={{ title: 'Glassbox', subtitle: 'Component Catalog' }}
-      sections={catalogSections}
+      sections={primarySections}
       active={id}
-      secondarySections={{ label: 'Kerf UI', sections: kerfSections, collapsible: true, expanded: kerfExpanded.value }}
+      secondarySections={secondaryGroups.map((group) => ({
+        ...group,
+        collapsible: true,
+        expanded: expandedGroups.value.has(group.id),
+        tagFilter:
+          group.id === discouragedGroup
+            ? { tag: 'Discouraged', label: 'Show Discouraged', show: showDiscouraged.value }
+            : undefined,
+      }))}
       content={
-        isDemoId(id) ? (
-          componentDemos[id]()
-        ) : (
-          <CatalogExample label="Kerf UI Reference">
-            <ul>
-              {reference?.useWhen.map((guidance) => (
-                <li>{guidance}</li>
-              ))}
-            </ul>
+        demo === undefined ? (
+          <CatalogExample label="Library Reference">
+            <Text>This library entry has no Glassbox preview. Its demo, source and guidance are linked below.</Text>
           </CatalogExample>
+        ) : (
+          componentDemos[demo]()
         )
       }
       collapsed={collapsed.value}
@@ -76,12 +92,19 @@ mount(root, () => {
 });
 void wireCatalog(root, {
   onSelect: (id) => {
-    if (!isCatalogId(id)) return;
-    if (kerfReferences.has(id)) kerfExpanded.value = true;
+    const owner = graph.entries.get(id)?.package;
+    if (owner === undefined) return;
+    if (!expandedGroups.peek().has(owner)) expandedGroups.value = new Set([...expandedGroups.peek(), owner]);
     active.value = id;
   },
-  onToggleSecondary: () => {
-    kerfExpanded.value = !kerfExpanded.value;
+  onToggleSecondary: (id) => {
+    if (id === undefined) return;
+    const next = new Set(expandedGroups.peek());
+    if (!next.delete(id)) next.add(id);
+    expandedGroups.value = next;
+  },
+  onToggleSecondaryFilter: (show) => {
+    showDiscouraged.value = show;
   },
   onToggleSidebar: () => {
     collapsed.value = !collapsed.value;

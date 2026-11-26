@@ -71,10 +71,14 @@ slot content do not create a Workbench dependency. Keep each production
 component source represented and declare its required wiring in
 `kerf.components.json` (`HS2-R1ZZ67`).
 
-The collapsed Kerf UI section lists the upstream components named by
-Glassbox's direct dependencies. Entries show guidance from the installed
-Kerf catalog, link to upstream documentation, and link back to the
-Glassbox components that use them (`HS2-RBX2HQ`).
+The catalog is one Glassbox package that imports Kerf's own library catalog
+(`@kerfjs/ui/catalog-library`) and is composed with `composeCatalog`, so the
+Kerf UI and Web Awesome groups, their Uses and Used by menus and the direct
+links between Glassbox and library entries come from Kerf rather than an app
+projection (`HS2-RBX2HQ`, `HS2-S9EG8B`). The library groups start collapsed
+and Web Awesome keeps Kerf's Show Discouraged switch. Entries are addressed
+by Kerf's qualified id, for example `?component=@kerfjs/ui:button`; a bare
+Glassbox id such as `?component=saved-review-dialog` still opens its entry.
 
 ## Discussion
 
