@@ -47,7 +47,9 @@ Plain `git difftool` with the registered default also opens one review per run
 file's temporary inputs when the tool returns. Git numbers the files of a run
 (`GIT_DIFF_PATH_COUNTER` of `GIT_DIFF_PATH_TOTAL`), and the registered entry
 passes the run's process id (`$PPID`, the same `git diff` for every file) and the
-file's repository path (`$MERGED`). Every file but the last is copied into a
+file's repository path (`$MERGED`). On Windows the shell's `$PPID` is not a per-run
+key, so `glassbox-cli` keys the run by the creation time of the nearest `git.exe`
+above it, the same `git diff` for every file (`GB2-3VR7XA`). Every file but the last is copied into a
 private staging folder (`glassbox-difftool-<id>` under the temporary directory)
 and its launch returns at once; the last file opens the client once on the two
 staged folders, which it compares as a directory pair, waits for it, and removes
@@ -58,8 +60,8 @@ that reaches the next one. A run of one file, a launch without the numbering
 (an older registered entry, or `--dir-diff`, which Git does not number) and
 every other case open the client per launch, as before. Limits: a renamed file
 shows as a modification of its new path, a run stopped before its last file
-never opens the client, and on Windows every file still opens its own review
-because the shell's `$PPID` is not a per-run key there.
+never opens the client, and on Windows a launch with no `git.exe` ancestor opens
+its own review as before.
 
 Glassbox is always the selected tool (`HS2-40BYH7`). `glassbox-cli` forwards
 its arguments to `git difftool` in order, after its own fixed options, and

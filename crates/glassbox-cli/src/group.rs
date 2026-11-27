@@ -25,6 +25,76 @@ pub struct Group {
     path: PathBuf,
 }
 
+/// The creation time of the nearest `git.exe` above this process, in decimal 100 ns ticks. Every file of one run
+/// is launched under the same `git diff`, whose creation time no other process shares, so it is a per-run key that
+/// survives the emulated process ids of Git for Windows' shell.
+#[cfg(windows)]
+fn windows_run_key() -> Option<String> {
+    use std::mem::{size_of, zeroed};
+    use windows_sys::Win32::Foundation::{CloseHandle, FILETIME, INVALID_HANDLE_VALUE};
+    use windows_sys::Win32::System::Diagnostics::ToolHelp::{
+        CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW,
+        TH32CS_SNAPPROCESS,
+    };
+    use windows_sys::Win32::System::Threading::{
+        GetCurrentProcessId, GetProcessTimes, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+    };
+
+    // SAFETY: plain Win32 calls on a snapshot handle that is closed on every path; the entry structure is
+    // zero-initialised with its size set, as the API requires.
+    unsafe {
+        let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if snapshot == INVALID_HANDLE_VALUE {
+            return None;
+        }
+        let mut processes: Vec<(u32, u32, String)> = Vec::new();
+        let mut entry: PROCESSENTRY32W = zeroed();
+        entry.dwSize = size_of::<PROCESSENTRY32W>() as u32;
+        let mut more = Process32FirstW(snapshot, &mut entry) != 0;
+        while more {
+            let length = entry
+                .szExeFile
+                .iter()
+                .position(|unit| *unit == 0)
+                .unwrap_or(entry.szExeFile.len());
+            let name = String::from_utf16_lossy(&entry.szExeFile[..length]);
+            processes.push((entry.th32ProcessID, entry.th32ParentProcessID, name));
+            more = Process32NextW(snapshot, &mut entry) != 0;
+        }
+        CloseHandle(snapshot);
+
+        let mut current = GetCurrentProcessId();
+        for _ in 0..16 {
+            let (_, parent, _) = processes.iter().find(|(pid, _, _)| *pid == current)?;
+            let parent = *parent;
+            let (_, _, name) = processes.iter().find(|(pid, _, _)| *pid == parent)?;
+            if name.eq_ignore_ascii_case("git.exe") {
+                let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, parent);
+                if handle.is_null() {
+                    return None;
+                }
+                let mut times: [FILETIME; 4] = zeroed();
+                let ok = GetProcessTimes(
+                    handle,
+                    &mut times[0],
+                    &mut times[1],
+                    &mut times[2],
+                    &mut times[3],
+                );
+                CloseHandle(handle);
+                if ok == 0 {
+                    return None;
+                }
+                let created =
+                    (u64::from(times[0].dwHighDateTime) << 32) | u64::from(times[0].dwLowDateTime);
+                return Some(created.to_string());
+            }
+            current = parent;
+        }
+        None
+    }
+}
+
 /// The staged review a group's last launch opens.
 #[derive(Debug)]
 pub struct Staged {
@@ -42,15 +112,16 @@ impl Staged {
 
 impl Group {
     pub fn from_environment() -> Option<Self> {
-        // `$PPID` in Git for Windows' shell is not a per-run key: two concurrent runs shared one value in CI, so
-        // their files landed in one review. Until a reliable key is found there, Windows opens one review per
-        // file as before.
-        if cfg!(windows) {
-            return None;
-        }
         let var = |name: &str| std::env::var_os(name);
+        // `$PPID` in Git for Windows' shell is not a per-run key: two concurrent runs shared one value in CI, so
+        // their files landed in one review. Windows therefore keys a run by the native `git diff` process that
+        // started this tool instead (GB2-3VR7XA), and opens one review per file when it cannot find one.
+        #[cfg(windows)]
+        let session = windows_run_key().map(std::ffi::OsString::from);
+        #[cfg(not(windows))]
+        let session = var("GLASSBOX_DIFFTOOL_SESSION");
         Self::parse(
-            var("GLASSBOX_DIFFTOOL_SESSION").as_deref(),
+            session.as_deref(),
             var("GIT_DIFF_PATH_COUNTER").as_deref(),
             var("GIT_DIFF_PATH_TOTAL").as_deref(),
             var("GLASSBOX_DIFFTOOL_PATH").as_deref(),
