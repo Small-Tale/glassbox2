@@ -115,11 +115,18 @@ function fileTree(files: readonly ReviewFile[], filter: string, marks: ReadonlyM
   return { nodes: nodes(root, ''), expanded };
 }
 
+/** What each order does, shown under the control and as each choice's tooltip (GB2-173Q1Q). */
+const orderDescriptions = {
+  path: 'A to Z by path.',
+  risk: 'Highest risk first. Runs a risk analysis.',
+  narrative: 'In reading order. Runs an analysis.',
+} as const satisfies Record<FileOrder, string>;
+
 const orderChoices = [
-  { value: 'path', label: 'Path' },
-  { value: 'risk', label: 'Risk' },
-  { value: 'narrative', label: 'Narrative' },
-] satisfies readonly { value: FileOrder; label: string }[];
+  { value: 'path', label: 'Path', title: orderDescriptions.path },
+  { value: 'risk', label: 'Risk', title: orderDescriptions.risk },
+  { value: 'narrative', label: 'Narrative', title: orderDescriptions.narrative },
+] satisfies readonly { value: FileOrder; label: string; title: string }[];
 
 /** The Risk or Narrative order as sections of files (HS2-5P1B23); the path tree stays one choice away. */
 function orderedTree(
@@ -291,14 +298,19 @@ export function ReviewNavigator({
             />
           )}
           {ordering === undefined || review.files.length === 0 ? null : (
-            <SegmentedControl
-              id={`${id}-order`}
-              label="Order Files"
-              action="review-file-order"
-              choices={orderChoices}
-              value={order}
-              size="compact"
-            />
+            <>
+              <SegmentedControl
+                id={`${id}-order`}
+                label="Order Files"
+                action="review-file-order"
+                choices={orderChoices}
+                value={order}
+                size="compact"
+              />
+              <Text size="compact" tone="quiet" wrap="anywhere">
+                {orderDescriptions[order]}
+              </Text>
+            </>
           )}
           {ordered === null || ordering === undefined ? null : ordered.status === null ||
             ordered.status.status === 'running' ? (

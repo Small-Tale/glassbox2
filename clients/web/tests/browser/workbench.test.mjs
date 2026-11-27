@@ -662,6 +662,8 @@ test('GB2-WYTJSX empty states say how to start', { timeout: 60_000 }, async () =
     await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(repo);
     await page.getByRole('button', { name: 'Open Comparison', exact: true }).click();
     await page.getByText('Choose a changed file in the list.', { exact: true }).waitFor();
+    // GB2-173Q1Q: the selected file order is described under its control.
+    await page.getByText('A to Z by path.', { exact: true }).waitFor();
     assert.equal(await page.getByText('Open a Git repository or compare two files to start.').count(), 0);
     for (const width of [1440, 940, 390, 1440]) {
       await page.setViewportSize({ width, height: 900 });

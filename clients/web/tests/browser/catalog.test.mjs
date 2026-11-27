@@ -256,6 +256,13 @@ test('HS2-5P1B23 the Review Navigator demo orders files by risk and narrative an
     const names = () =>
       example.locator('[role="treeitem"]').evaluateAll((items) => items.map((item) => item.textContent?.trim() ?? ''));
     await example.getByRole('treeitem', { name: /Highest Risk First/u }).waitFor();
+    // GB2-173Q1Q: the selected order says what it does, and each choice carries the same words as its tooltip.
+    await example.getByText('Highest risk first. Runs a risk analysis.', { exact: true }).waitFor();
+    assert.equal(
+      await example.locator('[data-segment-value="risk"]').getAttribute('title'),
+      'Highest risk first. Runs a risk analysis.',
+    );
+    assert.equal(await example.locator('[data-segment-value="path"]').getAttribute('title'), 'A to Z by path.');
     let rows = await names();
     const at = (rows, text) => rows.findIndex((row) => row.includes(text));
     assert(at(rows, 'settings.ts') < at(rows, 'bundle.ts'), 'highest risk first');
@@ -273,6 +280,12 @@ test('HS2-5P1B23 the Review Navigator demo orders files by risk and narrative an
 
     await example.locator('[data-segment-value="narrative"]').click();
     await example.getByRole('treeitem', { name: /Review in This Order/u }).waitFor();
+    await example.getByText('In reading order. Runs an analysis.', { exact: true }).waitFor();
+    assert.equal(
+      await example.getByText('Highest risk first. Runs a risk analysis.').count(),
+      0,
+      'one description at a time',
+    );
     rows = await names();
     assert(at(rows, 'bundle.ts') < at(rows, 'settings.ts'), 'narrative order');
     assert(rows.some((row) => row.includes('Step 1')));
@@ -280,6 +293,7 @@ test('HS2-5P1B23 the Review Navigator demo orders files by risk and narrative an
 
     await example.locator('[data-segment-value="path"]').click();
     await example.getByRole('treeitem', { name: /^src$/u }).waitFor();
+    await example.getByText('A to Z by path.', { exact: true }).waitFor();
     rows = await names();
     assert(!rows.some((row) => row.includes('Highest Risk First')), 'the path tree is back');
   });
