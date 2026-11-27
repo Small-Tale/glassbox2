@@ -112,11 +112,11 @@ struct Opened {
     opened: bool,
 }
 
-/// Finds the attachment and checks it, answering the response to return when it cannot be used.
+/// Finds the attachment and checks it, answering the status and message to return when it cannot be used.
 async fn verified_attachment(
     discussion: Discussion,
     input: AttachmentInput,
-) -> Result<(Kind, FeedbackId, Vec<u8>), Response> {
+) -> Result<(Kind, FeedbackId, Vec<u8>), (StatusCode, String)> {
     let id = input.attachment;
     let found = tokio::task::spawn_blocking(move || {
         discussion.attachment(&input.selection, input.thread, input.attachment)
@@ -124,17 +124,16 @@ async fn verified_attachment(
     .await;
     let (filename, bytes) = match found {
         Ok(Ok(Some(item))) => item,
-        Ok(Ok(None)) => return Err(StatusCode::NOT_FOUND.into_response()),
-        Ok(Err((status, message))) => return Err((status, message).into_response()),
-        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR.into_response()),
+        Ok(Ok(None)) => return Err((StatusCode::NOT_FOUND, String::new())),
+        Ok(Err(error)) => return Err(error),
+        Err(_) => return Err((StatusCode::INTERNAL_SERVER_ERROR, String::new())),
     };
     match verified(&filename, &bytes) {
         Some(kind) => Ok((kind, id, bytes)),
         None => Err((
             StatusCode::UNSUPPORTED_MEDIA_TYPE,
-            "This attachment cannot be previewed or opened.",
-        )
-            .into_response()),
+            "This attachment cannot be previewed or opened.".into(),
+        )),
     }
 }
 
@@ -143,7 +142,7 @@ async fn verified_attachment(
 pub(crate) async fn preview(discussion: Discussion, input: AttachmentInput) -> Response {
     let (kind, _, bytes) = match verified_attachment(discussion, input).await {
         Ok(found) => found,
-        Err(response) => return response,
+        Err(refusal) => return refusal.into_response(),
     };
     let mut response = Response::new(Body::from(bytes));
     let headers = response.headers_mut();
@@ -159,7 +158,7 @@ pub(crate) async fn preview(discussion: Discussion, input: AttachmentInput) -> R
 pub(crate) async fn open(discussion: Discussion, input: AttachmentInput) -> Response {
     let (kind, id, bytes) = match verified_attachment(discussion, input).await {
         Ok(found) => found,
-        Err(response) => return response,
+        Err(refusal) => return refusal.into_response(),
     };
     let launched = tokio::task::spawn_blocking(move || {
         let path = write_private_copy(id, kind, &bytes)?;
