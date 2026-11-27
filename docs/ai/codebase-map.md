@@ -21,6 +21,6 @@
 - `clients/web/src/ux-demo` hosts the catalog at `/ux-demo/`. `kerf.components.json` generates the selection and composition catalogs.
 - `clients/web/src/design-mock` contains the approved design fixture for local development.
 - Rust gates are `cargo fmt --all --check`, `cargo clippy --locked --workspace --all-targets -- -D warnings` and `cargo test --locked --workspace --quiet`.
-- Web gates are `npm --prefix clients/web run check`, including formatting, ESLint, typecheck, metadata, Kerf Doctor, structure tests and build. The GitHub workflow runs both gate sets.
+- Web gates are `npm --prefix clients/web run check`, including formatting, ESLint, typecheck, metadata, Kerf Doctor, structure tests and build. The GitHub workflow runs both gate sets on macOS and Linux. See the [macOS and Linux verification record](../release-verification.md) for feature coverage and installed-package checks.
 
 - CI runs the shared Rust gate and built-client Tauri startup checks on Ubuntu, macOS, and Windows. See [platform checks](../hosting.md#first-release-platform-checks).

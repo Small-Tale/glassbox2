@@ -41,6 +41,10 @@ the inputs held by the host for the lifetime of that launch.
 
 ## First-release platform checks
 
+The CI workflow runs the web lint, typecheck, unit tests and build on macOS and
+Linux. The [release verification record](release-verification.md) maps the accepted
+features to automated coverage and gives the installed-package test plan.
+
 The CI workflow runs the complete shared Rust test and Clippy gates on
 macOS, Linux, and Windows. These cover Git and difftool launches, direct
 paths, feedback and attachment round trips, retention and cleanup, and
