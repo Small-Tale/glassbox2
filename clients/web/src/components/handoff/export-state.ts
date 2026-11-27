@@ -79,7 +79,12 @@ export function createExportState(load = preview, deliver = send) {
   const loading = signal(false);
   const sending = signal(false);
   const attempted = signal(false);
+  /** A delivery failure: shown as an alert, only after an attempt (GB2-8JB784). */
   const message = signal('');
+  /** Why the project could not be found or loaded; shown with the project, not as a failed send. */
+  const projectMessage = signal('');
+  /** A condition found on opening that blocks sending, such as an unsaved comment. */
+  const notice = signal('');
   const receipt = signal<Receipt | null>(null);
   let source: ReviewSource | null = null;
   let generation = 0;
@@ -95,7 +100,7 @@ export function createExportState(load = preview, deliver = send) {
     if (source === null) return;
     const request = ++generation;
     loading.value = true;
-    message.value = '';
+    projectMessage.value = '';
     try {
       const result = await load(source, path);
       if (request !== generation) return;
@@ -110,10 +115,10 @@ export function createExportState(load = preview, deliver = send) {
         const revisions = new Map(result.feedback.entries.map(({ id, revision }) => [id, revision]));
         included.value = current.filter(({ id, revision }) => revisions.get(id) === revision);
       }
-      message.value = result.message ?? '';
+      projectMessage.value = result.message ?? '';
     } catch (error) {
       if (request === generation)
-        message.value = error instanceof Error ? error.message : 'Could not load the project.';
+        projectMessage.value = error instanceof Error ? error.message : 'Could not load the project.';
     } finally {
       if (request === generation) loading.value = false;
     }
@@ -137,7 +142,7 @@ export function createExportState(load = preview, deliver = send) {
     if (await flush()) {
       if (request === generation) await update(null);
     } else if (request === generation) {
-      message.value = 'Save the current comment before sending this review.';
+      notice.value = 'Save the current comment before sending this review.';
     }
   }
 
@@ -146,6 +151,7 @@ export function createExportState(load = preview, deliver = send) {
     attempted.value = false;
     receipt.value = null;
     message.value = '';
+    notice.value = '';
   }
 
   async function revise() {
@@ -202,6 +208,18 @@ export function createExportState(load = preview, deliver = send) {
     );
   }
 
+  /** Why Create Ticket cannot be pressed yet, or `null` when it can or the reason is already on screen. */
+  function blockedReason(): string | null {
+    if (sending.value || loading.value || receipt.value !== null) return null;
+    if (changingDestination.value) return 'Finish choosing the project, or close the project field.';
+    if (destination.value === null) return 'Choose a Hot Sheet project first.';
+    if (included.value?.length === 0) return 'Select at least one thread to send.';
+    if (mode.value === 'existing' && ticketReference(reference.value) === undefined) {
+      return 'Enter a ticket ID or paste a reference.';
+    }
+    return null;
+  }
+
   async function submit() {
     if (source === null || destination.value === null || !canSend()) return;
     const selected = ticketReference(reference.value);
@@ -249,6 +267,9 @@ export function createExportState(load = preview, deliver = send) {
     sending,
     attempted,
     message,
+    projectMessage,
+    notice,
+    blockedReason,
     receipt,
     open,
     close,

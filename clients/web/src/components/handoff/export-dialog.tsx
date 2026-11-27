@@ -79,16 +79,34 @@ export function ExportDialog({ id, state, embedded = false }: { id: string; stat
         ) : receipt === null ? null : (
           <StateBanner tone="success" title={`Feedback sent to ${receipt.ticket}.`} />
         )}
+        {state.notice.value === '' ? null : (
+          <StateBanner tone="warning" title="Not Ready to Send" detail={state.notice.value} />
+        )}
 
         <ListHeader label="Hot Sheet Project" />
         <ListInsetText>
           <Text weight="strong" wrap="anywhere" flush>
-            {destination?.name ?? (state.loading.value ? 'Finding Project…' : 'Choose a Project')}
+            {destination?.name ?? (state.loading.value ? 'Finding Project…' : 'None chosen')}
           </Text>
-          {destination === null ? null : (
-            <Text tone="quiet" size="compact" wrap="anywhere" flush>
-              {destination.path}
-            </Text>
+          {destination === null ? (
+            state.loading.value ? null : (
+              <Text tone="quiet" size="compact" wrap="anywhere" flush>
+                {state.projectMessage.value === ''
+                  ? 'Use Change Project to choose a Hot Sheet 2 project.'
+                  : `${state.projectMessage.value.replace(/[.!?]?$/u, '.')} Use Change Project to choose one.`}
+              </Text>
+            )
+          ) : (
+            <>
+              <Text tone="quiet" size="compact" wrap="anywhere" flush>
+                {destination.path}
+              </Text>
+              {state.projectMessage.value === '' ? null : (
+                <Text tone="quiet" size="compact" wrap="anywhere" flush>
+                  {state.projectMessage.value}
+                </Text>
+              )}
+            </>
           )}
         </ListInsetText>
         <ListItem
@@ -182,7 +200,7 @@ export function ExportDialog({ id, state, embedded = false }: { id: string; stat
         <Text controlMargins="rl">
           {feedback.threads === 0
             ? included === null
-              ? 'No feedback has been recorded.'
+              ? 'No feedback has been recorded yet. Add a comment on a line in the diff to include it.'
               : 'No threads selected.'
             : `${feedback.threads} ${feedback.threads === 1 ? 'thread' : 'threads'} · ${files}`}
         </Text>
@@ -219,6 +237,11 @@ export function ExportDialog({ id, state, embedded = false }: { id: string; stat
                 />
               </ListInsetControl>
             ))}
+        {state.blockedReason() === null ? null : (
+          <Text role="status" tone="quiet" controlMargins="rl">
+            {state.blockedReason()}
+          </Text>
+        )}
       </List>
     </DialogSurface>
   );

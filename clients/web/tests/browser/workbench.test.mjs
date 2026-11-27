@@ -1384,6 +1384,19 @@ test('Send to Hot Sheet 2 opens as one dialog with its sections and closes', { t
       await dialog.getByText(heading, { exact: true }).waitFor();
     }
     await dialog.getByRole('textbox', { name: 'Title', exact: true }).waitFor();
+    // GB2-8JB784: nothing was sent, so nothing failed; the missing project names itself, the disabled button says
+    // why, and the empty feedback says what to do next.
+    await dialog.getByText('None chosen', { exact: true }).waitFor();
+    await dialog.getByText(/for this project\. Use Change Project to choose one\./u).waitFor();
+    await dialog.getByText('Choose a Hot Sheet project first.', { exact: true }).waitFor();
+    await dialog
+      .getByText('No feedback has been recorded yet. Add a comment on a line in the diff to include it.', {
+        exact: true,
+      })
+      .waitFor();
+    assert.equal(await dialog.getByRole('alert').count(), 0, 'no failure is reported before an attempt');
+    assert.equal(await dialog.getByText('Could Not Send Feedback').count(), 0);
+    assert(await button('Create Ticket').isDisabled());
     for (const width of [1440, 940, 390, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       await dialog.getByRole('button', { name: 'Cancel', exact: true }).waitFor();
