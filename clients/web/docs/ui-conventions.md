@@ -27,7 +27,13 @@ stylesheet. The analysis context strip keeps its own tinted background and wrapp
 until a Kerf strip fits it). The discussion inspector converts too: inline threads are `ContentItem` toggles inside a `wireContentItems` root, replies
 are framed `ContentItem`s, action groups are `Row`s and statuses are `Text`. `discussion.css` keeps only the inline
 thread band (it places itself across the diff grid), the inspector's grid and the diagram artifact sizing, which are
-application-owned structure. The text diff, media diff and menu entries are still open under `GB2-BJTE39`.
+application-owned structure. The media diff's region instructions and statuses use `Text` and its slice position is a Kerf `Slider`. Every Share
+Feedback and Appearance menu entry has a Lucide icon, and their status copy is `Text`.
+
+Recorded exceptions (`GB2-BJTE39`): the text diff keeps native `div` and `span` cells because the line grid, line
+numbers, change markers and syntax tokens are domain rendering with no Kerf equivalent; the media diff keeps its
+overlay, viewport and region layers for the same reason; `.review-workbench` is a bare root that gives the Kerf
+`Workbench` a definite block size.
 
 ## Review workbench
 

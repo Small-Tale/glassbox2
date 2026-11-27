@@ -1,10 +1,10 @@
 import '@kerfjs/ui/popup-menu/register';
-import './share-menu.css';
 
 import { LucideIcon } from '@kerfjs/ui/lucide-icon';
 import { PopupMenu } from '@kerfjs/ui/popup-menu';
+import { Text } from '@kerfjs/ui/text';
 import { ToolbarControlGroup } from '@kerfjs/ui/toolbar-control-group';
-import { Share2 } from 'lucide';
+import { Archive, Copy, Send, Share2 } from 'lucide';
 
 import type { ReviewSource } from '../review/review-source.js';
 import type { HandoffState } from './handoff-state.js';
@@ -38,9 +38,16 @@ export function ShareMenu({
         placement="top-end"
         disabled={!ready || state.pending.value}
         items={[
-          { label: 'Send to Hot Sheet 2…', value: 'export', disabled: !exportReady },
-          { label: 'Copy AI Instruction', value: 'copy' },
-          ...(savedReviews ? [{ label: 'Saved Reviews…', value: 'saved' }] : []),
+          {
+            label: 'Send to Hot Sheet 2…',
+            value: 'export',
+            disabled: !exportReady,
+            icon: <LucideIcon icon={Send} name="send" />,
+          },
+          { label: 'Copy AI Instruction', value: 'copy', icon: <LucideIcon icon={Copy} name="copy" /> },
+          ...(savedReviews
+            ? [{ label: 'Saved Reviews…', value: 'saved', icon: <LucideIcon icon={Archive} name="archive" /> }]
+            : []),
         ]}
         rootAttributes={{ 'data-share-menu': id }}
       />
@@ -51,9 +58,9 @@ export function ShareMenu({
 export function ShareStatus({ state }: { state: HandoffState }) {
   const message = state.status.value;
   return message === '' ? null : (
-    <span class="share-status" role="status">
+    <Text variant="span" role="status" wrap="anywhere">
       {message}
-    </span>
+    </Text>
   );
 }
 

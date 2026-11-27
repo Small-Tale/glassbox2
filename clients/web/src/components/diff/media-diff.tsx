@@ -3,9 +3,11 @@ import './media-diff.css';
 import { Button } from '@kerfjs/ui/button';
 import { LucideIcon } from '@kerfjs/ui/lucide-icon';
 import { Row } from '@kerfjs/ui/row';
+import { Slider } from '@kerfjs/ui/slider';
 import { StateBanner } from '@kerfjs/ui/state-banner';
 import { Text } from '@kerfjs/ui/text';
 import { ToolbarButton, ToolbarControlGroup } from '@kerfjs/ui/toolbar-control-group';
+import { wireSliders } from '@kerfjs/ui/wire-sliders';
 import { signal } from 'kerfjs';
 import {
   Blend,
@@ -155,21 +157,28 @@ export function MediaDiff({
       )}
       {drawing ? (
         <div class="media-diff__instructions" id={`${id}-region-help`}>
-          Drag on an image, or focus it and use arrow keys to move the region. Hold Shift to resize. Press Enter to add
-          a comment or Escape to cancel.
-          <div role="status">
+          <Text>
+            Drag on an image, or focus it and use arrow keys to move the region. Hold Shift to resize. Press Enter to
+            add a comment or Escape to cancel.
+          </Text>
+          <Text role="status">
             {keyboardRegion === null
-              ? null
+              ? ''
               : `${labels[keyboardRegion.side]} region at ${keyboardRegion.bounds.left}% from the left and ${keyboardRegion.bounds.top}% from the top, ${keyboardRegion.bounds.width}% wide by ${keyboardRegion.bounds.height}% high.`}
-          </div>
+          </Text>
         </div>
       ) : null}
       {mode === 'difference' || mode === 'slice' ? (
         <>
           {mode === 'slice' ? (
-            <label>
-              Slice position <input type="range" data-media-slice value={String(state.slice.value)} />
-            </label>
+            <Slider
+              id={`${id}-slice`}
+              label="Slice position"
+              min={0}
+              max={100}
+              value={state.slice.value}
+              action={`${id}:slice`}
+            />
           ) : null}
           <div class="media-diff__viewport" tabindex="0" aria-label="Overlaid Images">
             <div
@@ -426,7 +435,7 @@ export function wireMediaDiff(
     'input',
     (event) => {
       const input = event.target;
-      if (input instanceof HTMLInputElement && input.matches(`[data-media-diff="${id}"] [data-media-slice]`)) {
+      if (input instanceof HTMLInputElement && input.dataset.action === `${id}:slice`) {
         state.slice.value = input.valueAsNumber;
       }
     },
@@ -480,7 +489,9 @@ export function wireMediaDiff(
     },
     options,
   );
+  const stopSliders = wireSliders(root);
   return () => {
     controller.abort();
+    stopSliders();
   };
 }

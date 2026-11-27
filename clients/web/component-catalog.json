@@ -95,7 +95,8 @@
       "uses": [
         "toolbar-control-group",
         "lucide-icon",
-        "popup-menu"
+        "popup-menu",
+        "text"
       ],
       "source": "src/components/settings/appearance-menu.tsx",
       "demoSource": "src/ux-demo/demos/settings/appearance-menu.tsx",
@@ -228,6 +229,7 @@
         "button",
         "lucide-icon",
         "row",
+        "slider",
         "state-banner",
         "text",
         "toolbar-control-group"
@@ -473,19 +475,16 @@
         "Choose an application appearance."
       ],
       "publicClasses": [
-        "share-menu",
-        "share-status"
+        "share-menu"
       ],
       "publicTokens": [],
       "uses": [
         "toolbar-control-group",
         "lucide-icon",
-        "popup-menu"
+        "popup-menu",
+        "text"
       ],
       "source": "src/components/handoff/share-menu.tsx",
-      "styleSources": [
-        "src/components/handoff/share-menu.css"
-      ],
       "demoSource": "src/ux-demo/demos/handoff/share-menu.tsx",
       "geometry": {
         "margin": "none",

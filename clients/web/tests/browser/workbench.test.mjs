@@ -91,6 +91,20 @@ async function exerciseWorkbench(page, url, paths, settings) {
   assert.equal(await page.evaluate(() => Reflect.has(window, 'mediaScriptRan')), false);
   await button('SVG Source').click();
   assert.equal(await page.locator('.media-diff pre').count(), 2);
+  // GB2-BJTE39: the slice position is a Kerf Slider whose keyboard value reaches the overlay.
+  await button('Slice').click();
+  const slice = page.getByRole('slider', { name: 'Slice position' });
+  await slice.focus();
+  await page.keyboard.press('End');
+  assert.equal(await slice.inputValue(), '100');
+  await page.waitForFunction(() =>
+    document.querySelector('.media-diff__overlay')?.style.cssText.includes('--glassbox-slice: 100%'),
+  );
+  await page.keyboard.press('Home');
+  await page.waitForFunction(() =>
+    document.querySelector('.media-diff__overlay')?.style.cssText.includes('--glassbox-slice: 0%'),
+  );
+  await capture(page, 'media-slice');
   await button('Side by Side').click();
   await button('Add Region Comment').focus();
   await page.keyboard.press('Enter');

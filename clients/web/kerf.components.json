@@ -788,7 +788,7 @@
         "styleSources": ["src/components/diff/media-diff.css"],
         "demoSource": "src/ux-demo/demos/diff/media-diff.tsx",
         "documentation": "docs/ui-conventions.md",
-        "uses": ["button", "lucide-icon", "row", "state-banner", "text", "toolbar-control-group"]
+        "uses": ["button", "lucide-icon", "row", "slider", "state-banner", "text", "toolbar-control-group"]
       }
     },
     {
@@ -940,7 +940,7 @@
       },
       "boundaries": {
         "rootClass": "share-menu",
-        "publicClasses": ["share-menu", "share-status"],
+        "publicClasses": ["share-menu"],
         "publicTokens": []
       },
       "accessibility": {
@@ -956,8 +956,7 @@
         "avoidWhen": ["Choose an application appearance."],
         "demoSource": "src/ux-demo/demos/handoff/share-menu.tsx",
         "documentation": "docs/ui-conventions.md",
-        "uses": ["toolbar-control-group", "lucide-icon", "popup-menu"],
-        "styleSources": ["src/components/handoff/share-menu.css"]
+        "uses": ["toolbar-control-group", "lucide-icon", "popup-menu", "text"]
       }
     },
     {
@@ -1389,7 +1388,7 @@
         "avoidWhen": ["Choose a setting unrelated to appearance."],
         "demoSource": "src/ux-demo/demos/settings/appearance-menu.tsx",
         "documentation": "docs/ui-conventions.md",
-        "uses": ["toolbar-control-group", "lucide-icon", "popup-menu"]
+        "uses": ["toolbar-control-group", "lucide-icon", "popup-menu", "text"]
       }
     },
     {

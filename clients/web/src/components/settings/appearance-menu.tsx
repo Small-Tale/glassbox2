@@ -2,22 +2,27 @@ import '@kerfjs/ui/popup-menu/register';
 
 import { LucideIcon } from '@kerfjs/ui/lucide-icon';
 import { PopupMenu } from '@kerfjs/ui/popup-menu';
+import { Text } from '@kerfjs/ui/text';
 import { ToolbarControlGroup } from '@kerfjs/ui/toolbar-control-group';
-import { SunMoon } from 'lucide';
+import { Monitor, Moon, Sun, SunMoon } from 'lucide';
 
-import { type Appearance, type AppearanceState, isAppearance } from './appearance-state.js';
+import { type AppearanceState, isAppearance } from './appearance-state.js';
 
 const choices = [
-  { label: 'System', value: 'system' },
-  { label: 'Light', value: 'light' },
-  { label: 'Dark', value: 'dark' },
-] satisfies { label: string; value: Appearance }[];
+  { label: 'System', value: 'system', icon: <LucideIcon icon={Monitor} name="monitor" /> },
+  { label: 'Light', value: 'light', icon: <LucideIcon icon={Sun} name="sun" /> },
+  { label: 'Dark', value: 'dark', icon: <LucideIcon icon={Moon} name="moon" /> },
+] as const;
 
 export function AppearanceMenu({ id, state }: { id: string; state: AppearanceState }) {
   const appearance = state.appearance.value;
   return (
     <>
-      {state.status.value === '' ? null : <span role="status">{state.status.value}</span>}
+      {state.status.value === '' ? null : (
+        <Text variant="span" role="status">
+          {state.status.value}
+        </Text>
+      )}
       <ToolbarControlGroup
         label="Appearance"
         className="appearance-menu"
