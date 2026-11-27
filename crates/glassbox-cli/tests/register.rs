@@ -94,7 +94,9 @@ fn ok(output: &Output) -> String {
     text(&output.stdout)
 }
 
-const COMMAND: &str = r#"glassbox-cli --git-difftool "$LOCAL" "$REMOTE""#;
+const COMMAND: &str = r#"GLASSBOX_DIFFTOOL_SESSION="$PPID" GLASSBOX_DIFFTOOL_PATH="$MERGED" glassbox-cli --git-difftool "$LOCAL" "$REMOTE""#;
+/// What earlier versions registered (GB2-FXJSSM).
+const LEGACY_COMMAND: &str = r#"glassbox-cli --git-difftool "$LOCAL" "$REMOTE""#;
 
 #[test]
 fn registering_twice_writes_one_global_entry_and_keeps_unrelated_settings() {
@@ -359,4 +361,216 @@ fn plain_git_difftool_launches_glassbox_once_registered_and_stops_after_unregist
         "Glassbox launched after it was unregistered"
     );
     assert_eq!(sandbox.value("--global", "diff.tool"), None);
+}
+
+#[test]
+fn an_earlier_registration_is_updated_in_place_and_still_unregisters() {
+    // GB2-FXJSSM: the old per-file command is still Glassbox's entry.
+    let sandbox = Sandbox::new();
+    sandbox.git(&[
+        "config",
+        "--global",
+        "difftool.glassbox.cmd",
+        LEGACY_COMMAND,
+    ]);
+    sandbox.git(&["config", "--global", "diff.tool", "glassbox"]);
+    let report = ok(&sandbox.cli(&["--register-git-difftool", "--global"]));
+    assert!(
+        report.contains("Updated the Glassbox tool entry"),
+        "{report}"
+    );
+    assert_eq!(
+        sandbox
+            .value("--global", "difftool.glassbox.cmd")
+            .as_deref(),
+        Some(COMMAND)
+    );
+    let again = ok(&sandbox.cli(&["--register-git-difftool", "--global"]));
+    assert!(
+        !again.contains("Updated"),
+        "a current entry is not rewritten: {again}"
+    );
+
+    sandbox.git(&[
+        "config",
+        "--global",
+        "difftool.glassbox.cmd",
+        LEGACY_COMMAND,
+    ]);
+    let removed = ok(&sandbox.cli(&["--unregister-git-difftool", "--global"]));
+    assert!(
+        removed.contains("Removed the Glassbox tool entry"),
+        "{removed}"
+    );
+    assert_eq!(sandbox.value("--global", "difftool.glassbox.cmd"), None);
+}
+
+/// A client that records one line per launch: `file|before>after`, or for a directory pair `dir|` and then
+/// `path=before>after` entries separated by `;` (`-` for a side that does not exist), sorted by path.
+fn recording_client(dir: &Path) -> PathBuf {
+    let source = dir.join("recording.rs");
+    fs::write(
+        &source,
+        r#"
+use std::{env, fs, io::Write, path::{Path, PathBuf}};
+fn side(path: &Path) -> String {
+    fs::read_to_string(path).map(|text| text.trim().to_owned()).unwrap_or_else(|_| "-".into())
+}
+fn files(root: &Path, relative: &Path, found: &mut Vec<String>) {
+    for entry in fs::read_dir(root.join(relative)).unwrap() {
+        let relative = relative.join(entry.unwrap().file_name());
+        if root.join(&relative).is_dir() {
+            files(root, &relative, found);
+        } else {
+            found.push(relative.to_string_lossy().replace('\\', "/"));
+        }
+    }
+}
+fn main() {
+    let args: Vec<_> = env::args_os().skip(1).collect();
+    assert_eq!(args[0], "--difftool");
+    let (before, after) = (PathBuf::from(&args[1]), PathBuf::from(&args[2]));
+    let line = if before.is_dir() && after.is_dir() {
+        let mut paths = Vec::new();
+        files(&before, Path::new(""), &mut paths);
+        files(&after, Path::new(""), &mut paths);
+        paths.sort();
+        paths.dedup();
+        let entries: Vec<_> = paths
+            .iter()
+            .map(|path| format!("{path}={}>{}", side(&before.join(path)), side(&after.join(path))))
+            .collect();
+        format!("dir|{}\n", entries.join(";"))
+    } else {
+        format!("file|{}>{}\n", side(&before), side(&after))
+    };
+    let output = env::var_os("DIFFTOOL_TEST_OUTPUT").map(PathBuf::from).unwrap();
+    let mut record = fs::OpenOptions::new().append(true).create(true).open(output).unwrap();
+    record.write_all(line.as_bytes()).unwrap();
+    if let Some(wait) = env::var_os("DIFFTOOL_TEST_WAIT") {
+        std::thread::sleep(std::time::Duration::from_millis(wait.to_string_lossy().parse().unwrap()));
+    }
+}
+"#,
+    )
+    .unwrap();
+    let binary = dir.join(format!("recording{}", env::consts::EXE_SUFFIX));
+    let built = Command::new("rustc")
+        .arg(&source)
+        .arg("-o")
+        .arg(&binary)
+        .output()
+        .unwrap();
+    assert!(built.status.success(), "{}", text(&built.stderr));
+    binary
+}
+
+#[test]
+fn one_plain_git_difftool_run_opens_one_review_and_separate_runs_stay_separate() {
+    // GB2-FXJSSM
+    let sandbox = Sandbox::new();
+    let (nested, deleted) = ("sub folder/b & c.txt", "gone.txt");
+    fs::create_dir_all(sandbox.root.join("sub folder")).unwrap();
+    for (name, text) in [
+        ("a.txt", "old a"),
+        (nested, "old b"),
+        (deleted, "old gone"),
+        ("keep.txt", "same"),
+    ] {
+        fs::write(sandbox.root.join(name), format!("{text}\n")).unwrap();
+    }
+    sandbox.git(&["add", "."]);
+    sandbox.git(&["commit", "-qm", "initial"]);
+    fs::write(sandbox.root.join("a.txt"), "new a\n").unwrap();
+    fs::write(sandbox.root.join(nested), "new b\n").unwrap();
+    fs::remove_file(sandbox.root.join(deleted)).unwrap();
+    fs::write(sandbox.root.join("added.txt"), "new added\n").unwrap();
+    sandbox.git(&["add", "-A"]);
+    let client = recording_client(sandbox._scratch.path());
+    let record = sandbox._scratch.path().join("record");
+    let cli_dir = Path::new(env!("CARGO_BIN_EXE_glassbox-cli"))
+        .parent()
+        .unwrap();
+    let path = env::join_paths(
+        std::iter::once(cli_dir.to_path_buf())
+            .chain(env::split_paths(&env::var_os("PATH").unwrap())),
+    )
+    .unwrap();
+    let staging = sandbox._scratch.path().join("staging");
+    fs::create_dir_all(&staging).unwrap();
+    let run = |extra: &[&str], wait: &str| {
+        let mut command = sandbox.command("git");
+        command
+            .env("PATH", &path)
+            .env("GLASSBOX_DIFFTOOL_CLIENT", &client)
+            .env("DIFFTOOL_TEST_OUTPUT", &record)
+            .env("DIFFTOOL_TEST_WAIT", wait)
+            // Staging goes under the temporary directory, so give this run its own to inspect afterwards.
+            .env("TMPDIR", &staging)
+            .env("TEMP", &staging)
+            .env("TMP", &staging)
+            .args(["difftool", "--no-prompt", "HEAD"])
+            .args(extra);
+        command
+    };
+    let launches = || -> Vec<String> {
+        fs::read_to_string(&record)
+            .unwrap_or_default()
+            .lines()
+            .map(str::to_owned)
+            .collect()
+    };
+    ok(&sandbox.cli(&["--register-git-difftool", "--local"]));
+
+    // Four changed files: one launch, one review with every file and both sides, added and deleted included.
+    ok(&run(&[], "0").output().unwrap());
+    assert_eq!(
+        launches(),
+        [
+            "dir|a.txt=old a>new a;added.txt=->new added;gone.txt=old gone>-;sub folder/b & c.txt=old b>new b"
+        ]
+    );
+
+    // A second run is its own review.
+    ok(&run(&[], "0").output().unwrap());
+    assert_eq!(launches().len(), 2);
+
+    // A run of one file is not grouped: the client gets the two files, as before.
+    let _ = fs::remove_file(&record);
+    ok(&run(&["--", "a.txt"], "0").output().unwrap());
+    assert_eq!(launches(), ["file|old a>new a"]);
+
+    // Two runs at once stay apart, each with only its own files.
+    let _ = fs::remove_file(&record);
+    ok(&run(&["--", "a.txt", "added.txt"], "0").output().unwrap());
+    assert_eq!(launches(), ["dir|a.txt=old a>new a;added.txt=->new added"]);
+    let _ = fs::remove_file(&record);
+    let first = run(&["--", "a.txt", "gone.txt"], "400").spawn().unwrap();
+    let second = run(&["--", nested, "added.txt"], "400").spawn().unwrap();
+    for child in [first, second] {
+        assert!(child.wait_with_output().unwrap().status.success());
+    }
+    let mut together = launches();
+    together.sort();
+    assert_eq!(
+        together,
+        [
+            "dir|a.txt=old a>new a;gone.txt=old gone>-",
+            "dir|added.txt=->new added;sub folder/b & c.txt=old b>new b",
+        ]
+    );
+    let leftovers: Vec<_> = fs::read_dir(&staging)
+        .unwrap()
+        .flatten()
+        .filter(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with("glassbox-difftool-")
+        })
+        .collect();
+    assert!(
+        leftovers.is_empty(),
+        "staging directories remain: {leftovers:?}"
+    );
 }

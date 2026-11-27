@@ -1,8 +1,10 @@
 use std::env;
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::io;
+use std::path::Path;
 use std::process::{Command, ExitStatus};
 
+mod group;
 mod register;
 
 const TOOL_COMMAND: &str = r#"if [ -n "$GLASSBOX_DIFFTOOL_SELF" ]; then "$GLASSBOX_DIFFTOOL_SELF" --git-difftool "$LOCAL" "$REMOTE"; else glassbox-cli --git-difftool "$LOCAL" "$REMOTE"; fi"#;
@@ -25,7 +27,7 @@ fn main() -> std::process::ExitCode {
         };
     }
     match run(args) {
-        Ok(status) => std::process::exit(status.code().unwrap_or(1)),
+        Ok(code) => std::process::exit(code),
         Err(error) => {
             eprintln!("glassbox-cli: {error}");
             std::process::ExitCode::FAILURE
@@ -33,20 +35,45 @@ fn main() -> std::process::ExitCode {
     }
 }
 
-fn run(args: Vec<OsString>) -> io::Result<ExitStatus> {
+fn exit_code(status: ExitStatus) -> i32 {
+    status.code().unwrap_or(1)
+}
+
+fn launch_client(before: &OsStr, after: &OsStr) -> io::Result<i32> {
+    let client = env::var_os("GLASSBOX_DIFFTOOL_CLIENT")
+        .unwrap_or_else(|| OsString::from("glassbox-desktop"));
+    Command::new(&client)
+        .args([OsStr::new("--difftool"), before, after])
+        .status()
+        .map(exit_code)
+        .map_err(|error| {
+            io::Error::new(
+                error.kind(),
+                format!("launch {}: {error}", client.to_string_lossy()),
+            )
+        })
+}
+
+/// One launch of the registered tool. A launch that Git numbered as part of a multi-file run is staged and, for
+/// the last file, opened once for the whole run (GB2-FXJSSM); any other launch opens its own pair.
+fn git_difftool(before: &OsStr, after: &OsStr) -> io::Result<i32> {
+    let Some(group) = group::Group::from_environment() else {
+        return launch_client(before, after);
+    };
+    match group.stage(&env::temp_dir(), Path::new(before), Path::new(after))? {
+        None => Ok(0),
+        Some(staged) => {
+            let opened = launch_client(staged.before.as_os_str(), staged.after.as_os_str());
+            staged.finish();
+            opened
+        }
+    }
+}
+
+fn run(args: Vec<OsString>) -> io::Result<i32> {
     if let [mode, before, after] = args.as_slice() {
         if mode == "--git-difftool" {
-            let client = env::var_os("GLASSBOX_DIFFTOOL_CLIENT")
-                .unwrap_or_else(|| OsString::from("glassbox-desktop"));
-            return Command::new(&client)
-                .args([OsString::from("--difftool"), before.clone(), after.clone()])
-                .status()
-                .map_err(|error| {
-                    io::Error::new(
-                        error.kind(),
-                        format!("launch {}: {error}", client.to_string_lossy()),
-                    )
-                });
+            return git_difftool(before, after);
         }
     }
     if args.first().is_some_and(|arg| arg == "--git-difftool") {
@@ -74,6 +101,7 @@ fn run(args: Vec<OsString>) -> io::Result<ExitStatus> {
         ])
         .args(args)
         .status()
+        .map(exit_code)
 }
 
 /// Git difftool long options that choose a tool other than the one Glassbox selects, or that

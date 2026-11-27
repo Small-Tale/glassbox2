@@ -9,8 +9,13 @@ use std::ffi::OsString;
 use std::io;
 use std::process::Command;
 
-/// The command Git runs for the tool; the same entry `docs/git-review.md` documents.
-pub const REGISTERED_COMMAND: &str = r#"glassbox-cli --git-difftool "$LOCAL" "$REMOTE""#;
+/// The command Git runs for the tool; the same entry `docs/git-review.md` documents. It passes the run's process
+/// id and the file's repository path so one `git difftool` run opens one review (GB2-FXJSSM).
+pub const REGISTERED_COMMAND: &str = r#"GLASSBOX_DIFFTOOL_SESSION="$PPID" GLASSBOX_DIFFTOOL_PATH="$MERGED" glassbox-cli --git-difftool "$LOCAL" "$REMOTE""#;
+
+/// What earlier versions registered. It is still Glassbox's entry, so registering updates it and unregistering
+/// removes it, but it opens one review per file.
+const LEGACY_COMMAND: &str = r#"glassbox-cli --git-difftool "$LOCAL" "$REMOTE""#;
 
 const TOOL: &str = "glassbox";
 const DEFAULT_KEY: &str = "diff.tool";
@@ -100,8 +105,14 @@ pub fn execute(request: &Request) -> io::Result<Vec<String>> {
 }
 
 pub fn register(config: &mut impl Config, scope: Scope) -> io::Result<Vec<String>> {
+    let mut report = Vec::new();
     if let Some(command) = config.get(COMMAND_KEY)? {
-        if command != REGISTERED_COMMAND {
+        if command == LEGACY_COMMAND {
+            report.push(format!(
+                "Updated the Glassbox tool entry in the {} so one `git difftool` run opens one review.",
+                scope.describe()
+            ));
+        } else if command != REGISTERED_COMMAND {
             return Err(invalid(format!(
                 "{COMMAND_KEY} is already set to `{command}` in the {}; leave it, or remove it \
                  with `git config {} --unset {COMMAND_KEY}` and register again",
@@ -111,7 +122,6 @@ pub fn register(config: &mut impl Config, scope: Scope) -> io::Result<Vec<String
         }
     }
     let current = config.get(DEFAULT_KEY)?;
-    let mut report = Vec::new();
     // The tool entry goes in first so the default never names a tool Git cannot run.
     config.set(COMMAND_KEY, REGISTERED_COMMAND)?;
     match current.as_deref() {
@@ -170,7 +180,7 @@ pub fn unregister(config: &mut impl Config, scope: Scope) -> io::Result<Vec<Stri
         Some(_) | None => {}
     }
     match command.as_deref() {
-        Some(REGISTERED_COMMAND) => {
+        Some(REGISTERED_COMMAND | LEGACY_COMMAND) => {
             config.unset(COMMAND_KEY)?;
             config.unset(PREVIOUS_KEY)?;
             if !config.section_has_keys(SECTION)? {

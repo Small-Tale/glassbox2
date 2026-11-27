@@ -42,10 +42,23 @@ in the same repository, are separate reviews. The client runs in the foreground
 and the wrapper reports client failures. It defaults to real directory copies;
 Git's other flags, such as `--symlinks`, can override that.
 
-Plain `git difftool` with the registered default launches the client once per
-file, because Git decides that and the tool entry cannot request directory
-mode. Use `glassbox-cli` or `git difftool --dir-diff` to review a run as one
-unit.
+Plain `git difftool` with the registered default also opens one review per run
+(`GB2-FXJSSM`), although Git starts the tool once per file and deletes each
+file's temporary inputs when the tool returns. Git numbers the files of a run
+(`GIT_DIFF_PATH_COUNTER` of `GIT_DIFF_PATH_TOTAL`), and the registered entry
+passes the run's process id (`$PPID`, the same `git diff` for every file) and the
+file's repository path (`$MERGED`). Every file but the last is copied into a
+private staging folder (`glassbox-difftool-<id>` under the temporary directory)
+and its launch returns at once; the last file opens the client once on the two
+staged folders, which it compares as a directory pair, waits for it, and removes
+the folder. Separate and concurrent runs have different process ids, so they are
+separate reviews. The first file of a run starts its folder empty and removes
+Glassbox staging folders older than a day, so an interrupted run leaves nothing
+that reaches the next one. A run of one file, a launch without the numbering
+(an older registered entry, or `--dir-diff`, which Git does not number) and
+every other case open the client per launch, as before. Limits: a renamed file
+shows as a modification of its new path, and a run stopped before its last file
+never opens the client.
 
 Glassbox is always the selected tool (`HS2-40BYH7`). `glassbox-cli` forwards
 its arguments to `git difftool` in order, after its own fixed options, and
@@ -63,8 +76,11 @@ entry in the desired Git config scope. The wrapper needs no persistent config.
 
 ```ini
 [difftool "glassbox"]
-    cmd = glassbox-cli --git-difftool "$LOCAL" "$REMOTE"
+    cmd = GLASSBOX_DIFFTOOL_SESSION="$PPID" GLASSBOX_DIFFTOOL_PATH="$MERGED" glassbox-cli --git-difftool "$LOCAL" "$REMOTE"
 ```
+
+The shorter entry `glassbox-cli --git-difftool "$LOCAL" "$REMOTE"` still works but
+opens one review per file.
 
 ### Default Git difftool
 
@@ -87,7 +103,9 @@ edits the other scope or the system configuration. `glassbox-cli` must be on
   `difftool.glassbox.previousDefault` and reports that. All other settings,
   including `difftool.prompt` and other tools' entries, are untouched.
 - Registering again changes nothing. It refuses, and writes nothing, when a
-  `difftool.glassbox.cmd` that Glassbox did not write already exists.
+  `difftool.glassbox.cmd` that Glassbox did not write already exists. An entry
+  written by an earlier version (the shorter one above) is Glassbox's own, so
+  registering updates it to the grouping entry and unregistering removes it.
 - Unregistering sets `diff.tool` back to the saved default, or removes it when
   none was saved. If `diff.tool` has since been changed to another tool, it is
   left alone and the command says so. It removes only the entries it can show
