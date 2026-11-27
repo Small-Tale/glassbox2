@@ -1,0 +1,8 @@
+# Advisory policy for the desktop shell's lockfile (HS2-0N4NPR); see docs/dependency-audit.md.
+# A vulnerability fails the gate unless it is listed here with its ticket, why it does not apply, and when to look
+# again. Warnings (unmaintained or unsound crates) are reported and do not fail.
+[advisories]
+ignore = [
+  "RUSTSEC-2026-0195", # HS2-0N4NPR: quick-xml via plist, which only reads the app's own bundle metadata; no plist release uses a patched quick-xml yet; expires 2026-12-27
+  "RUSTSEC-2026-0194", # HS2-0N4NPR: quick-xml via plist, same trusted input and same wait for a plist release; expires 2026-12-27
+]

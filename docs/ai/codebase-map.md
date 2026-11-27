@@ -1,6 +1,7 @@
 # Codebase map
 
 - `crates/glassbox-cli` runs Git difftool and forwards its two paths to the selected Glassbox client. `src/register.rs` registers and unregisters the default Git difftool through `git config`, and `src/group.rs` stages the per-file launches of one plain `git difftool` run so the last one opens a single review (`GB2-FXJSSM`).
+- `scripts/audit-dependencies.sh`, `.github/workflows/audit.yml` and the two `audit.toml` files are the dependency advisory gate (`docs/dependency-audit.md`, `HS2-0N4NPR`).
 - `crates/glassbox-server/src/symbols.rs` also validates cited commits and serves `POST /api/v1/review/commit-location`; `clients/web/src/components/review/review-link.ts` builds and parses the deep link that opens one in a new tab (`HS2-B5K6GM`).
 - `crates/glassbox-server/src/attachments.rs` verifies attachment types and serves the preview and open endpoints (`HS2-3G613V`).
 - `crates/glassbox-feedback` publishes the durable Markdown handoff and its attachments, the public JSON export (`src/export.rs`, documented in `docs/feedback-export.md`), manages editable snapshots and storage leases, and delivers feedback to Hot Sheet.

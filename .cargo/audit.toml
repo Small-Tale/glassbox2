@@ -1,0 +1,5 @@
+# Advisory policy for the workspace lockfile (HS2-0N4NPR); see docs/dependency-audit.md.
+# A vulnerability fails the gate unless it is listed here with its ticket, why it does not apply, and when to look
+# again. Warnings (unmaintained or unsound crates) are reported and do not fail. No exceptions are needed today.
+[advisories]
+ignore = []
