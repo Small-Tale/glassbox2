@@ -44,3 +44,10 @@ below 24 px, dark-theme text meets 4.5:1 throughout, and only the two light badg
 
 - `KF-M22BM6` (Kerf): the compact Badge text color has 4.39:1 contrast on its fill in the light scheme.
 - `GB2-TB3D3R`: track the Kerf fix and re-measure the two cases after the upgrade that carries it.
+
+## Re-measured on Kerf beta.139 (`GB2-TB3D3R`)
+
+The same scan (8 views, same method) was re-run after the upgrade that carries `KF-M22BM6`. No text node is below its
+threshold in either scheme: the lowest light-scheme ratio is now 4.60:1 (was 4.39:1), the dark-scheme minimum is
+unchanged at 5.51:1, and no target is below 24 by 24 CSS pixels. Both former failures (the changed-file status letter
+and the Inspector category pill) pass. No local override was needed.
