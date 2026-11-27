@@ -465,6 +465,7 @@ fn main() {
     binary
 }
 
+#[cfg(unix)]
 #[test]
 fn one_plain_git_difftool_run_opens_one_review_and_separate_runs_stay_separate() {
     // GB2-FXJSSM
@@ -572,5 +573,47 @@ fn one_plain_git_difftool_run_opens_one_review_and_separate_runs_stay_separate()
     assert!(
         leftovers.is_empty(),
         "staging directories remain: {leftovers:?}"
+    );
+}
+
+/// Windows has no reliable run key yet, so a multi-file run still opens one review per file.
+#[cfg(windows)]
+#[test]
+fn on_windows_a_multi_file_run_still_opens_one_review_per_file() {
+    let sandbox = Sandbox::new();
+    for name in ["a.txt", "b.txt"] {
+        fs::write(sandbox.root.join(name), "old\n").unwrap();
+    }
+    sandbox.git(&["add", "."]);
+    sandbox.git(&["commit", "-qm", "initial"]);
+    for name in ["a.txt", "b.txt"] {
+        fs::write(sandbox.root.join(name), "new\n").unwrap();
+    }
+    let client = recording_client(sandbox._scratch.path());
+    let record = sandbox._scratch.path().join("record");
+    let cli_dir = Path::new(env!("CARGO_BIN_EXE_glassbox-cli"))
+        .parent()
+        .unwrap();
+    let path = env::join_paths(
+        std::iter::once(cli_dir.to_path_buf())
+            .chain(env::split_paths(&env::var_os("PATH").unwrap())),
+    )
+    .unwrap();
+    ok(&sandbox.cli(&["--register-git-difftool", "--local"]));
+    let output = sandbox
+        .command("git")
+        .env("PATH", &path)
+        .env("GLASSBOX_DIFFTOOL_CLIENT", &client)
+        .env("DIFFTOOL_TEST_OUTPUT", &record)
+        .env("DIFFTOOL_TEST_WAIT", "0")
+        .args(["difftool", "--no-prompt"])
+        .output()
+        .unwrap();
+    ok(&output);
+    let launches = fs::read_to_string(&record).unwrap();
+    assert_eq!(launches.lines().count(), 2, "{launches}");
+    assert!(
+        launches.lines().all(|line| line == "file|old>new"),
+        "{launches}"
     );
 }

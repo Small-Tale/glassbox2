@@ -42,6 +42,12 @@ impl Staged {
 
 impl Group {
     pub fn from_environment() -> Option<Self> {
+        // `$PPID` in Git for Windows' shell is not a per-run key: two concurrent runs shared one value in CI, so
+        // their files landed in one review. Until a reliable key is found there, Windows opens one review per
+        // file as before.
+        if cfg!(windows) {
+            return None;
+        }
         let var = |name: &str| std::env::var_os(name);
         Self::parse(
             var("GLASSBOX_DIFFTOOL_SESSION").as_deref(),

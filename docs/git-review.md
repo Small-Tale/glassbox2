@@ -57,8 +57,9 @@ Glassbox staging folders older than a day, so an interrupted run leaves nothing
 that reaches the next one. A run of one file, a launch without the numbering
 (an older registered entry, or `--dir-diff`, which Git does not number) and
 every other case open the client per launch, as before. Limits: a renamed file
-shows as a modification of its new path, and a run stopped before its last file
-never opens the client.
+shows as a modification of its new path, a run stopped before its last file
+never opens the client, and on Windows every file still opens its own review
+because the shell's `$PPID` is not a per-run key there.
 
 Glassbox is always the selected tool (`HS2-40BYH7`). `glassbox-cli` forwards
 its arguments to `git difftool` in order, after its own fixed options, and
