@@ -7,12 +7,13 @@
       "mode": "ui",
       "package": "glassbox2",
       "packagePath": ".",
+      "guidanceSource": "../../AGENTS.md",
       "managed": {
         ".claude/skills/kerf-app/SKILL.md": {
-          "sha256": "c707fcd01923bd2ed74a33e894e43ff1a7be45b9021e91902884530f09382857"
+          "sha256": "7db041fda44fb2a281e701511a72eac707a240ce736fbc199cbc73082aa134a5"
         },
         ".claude/skills/kerf-ui/SKILL.md": {
-          "sha256": "ee6e0e1d4028c37c3cc868ec12459e23cfa42c9dcaac791011c656984ae19310"
+          "sha256": "2ab58a830dba596b93ccf608d4350e706d03578c1aec72a5bd7a27ab07eb767c"
         },
         ".claude/skills/kerf-ui-design-mock/SKILL.md": {
           "sha256": "fafe468c79e66b27d8d8ed5ee8b6e22a42a1a0c1e3c7afd2642e233f3e7d2aef"
