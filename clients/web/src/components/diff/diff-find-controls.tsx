@@ -5,6 +5,7 @@ import { wireSearchFields } from '@kerfjs/ui/wire-search-fields';
 import { ChevronDown, ChevronUp } from 'lucide';
 
 import { type FindState, stepMatch } from './diff-find.js';
+import { toolsCollapseBelow } from './toolbar-collapse.js';
 
 /** HS2-30ZEFE: Find within the lines the diff shows, with a count, previous and next. */
 export function DiffFindControls({
@@ -21,7 +22,16 @@ export function DiffFindControls({
   const open = state.open.value;
   return (
     <>
-      <ToolbarControlGroup single content="search" expanded={open} label="Find in Diff" sizing="grow" growBasis="14rem">
+      <ToolbarControlGroup
+        single
+        content="search"
+        expanded={open}
+        label="Find in Diff"
+        sizing="grow"
+        growBasis="14rem"
+        // Collapsed and narrow, Find is a More Tools entry; open, its field stays where it can be typed in (GB2-8T670B).
+        hideBelow={open ? undefined : toolsCollapseBelow}
+      >
         <SearchField
           id={`${id}-field`}
           label="Find in Diff"
@@ -35,7 +45,7 @@ export function DiffFindControls({
           clearAction={`${id}:clear`}
         />
       </ToolbarControlGroup>
-      <ToolbarControlGroup label="Find Matches" content="icon">
+      <ToolbarControlGroup label="Find Matches" content="icon" hideBelow={toolsCollapseBelow}>
         <ToolbarButton
           action={`${id}:previous`}
           disabled={matches === 0}

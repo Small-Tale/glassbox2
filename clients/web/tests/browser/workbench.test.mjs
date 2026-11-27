@@ -300,8 +300,19 @@ test('HS2-V6962Y keeps wrapped code within its diff row after a compact resize',
       assert(bounds.text <= bounds.row, `Wrapped text extends below its row at ${width}px: ${JSON.stringify(bounds)}`);
     }
     await page.setViewportSize({ width: 390, height: 880 });
-    await button('Side by Side').click();
-    await button('Wrap').click();
+    // GB2-8T670B: at this width the layout and wrapping choices are entries of the More Tools menu.
+    const tools = button('More Tools');
+    const choose = async (name) => {
+      await tools.click();
+      await page
+        .locator('[role^="menuitem"]')
+        .filter({ hasText: new RegExp(`^${name}$`, 'u') })
+        .click();
+      await page.keyboard.press('Escape');
+      await page.locator('[role^="menuitem"]').first().waitFor({ state: 'hidden' });
+    };
+    await choose('Side by Side');
+    await choose('Wrap');
     const unwrapped = page.locator('.text-diff__cell[data-after-line="1"] code');
     assert.equal(await unwrapped.evaluate((code) => getComputedStyle(code).whiteSpace), 'pre');
     const diff = page.getByRole('region', { name: 'Text Diff', exact: true });
@@ -714,6 +725,165 @@ test('GB2-1VSZDE the Inspector confirms a settled autosave', { timeout: 60_000 }
       await inspector.getByText('Saves automatically', { exact: true }).waitFor();
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
       await capture(page, `autosave-resting-${width}`);
+    }
+  });
+});
+
+// GB2-8T670B: narrow widths keep one toolbar row, put the secondary tools in More Tools and start inline.
+test('GB2-8T670B narrow widths collapse the secondary tools and default to inline', { timeout: 90_000 }, async () => {
+  await withWorkbench(async (page, url, { repo }) => {
+    const button = (name) => page.getByRole('button', { name, exact: true });
+    const diff = page.locator('.text-diff');
+    const toolbar = page.locator('header[aria-label="Comparison"]');
+    const tools = toolbar.getByRole('button', { name: 'More Tools', exact: true });
+    const entry = (name) => page.locator('[role^="menuitem"]').filter({ hasText: new RegExp(`^${name}$`, 'u') });
+    const layout = () => diff.getAttribute('data-layout');
+    const visibleControls = () =>
+      toolbar.evaluate((element) =>
+        [...element.querySelectorAll('button')]
+          .filter((control) => control.getBoundingClientRect().width > 1)
+          .map((control) => ({
+            name: control.getAttribute('aria-label') ?? control.textContent.trim(),
+            top: Math.round(control.getBoundingClientRect().top),
+            right: Math.round(control.getBoundingClientRect().right),
+          })),
+      );
+    await page.goto(url);
+    await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(repo);
+    await button('Open Comparison').click();
+    await page.getByRole('treeitem', { name: /bundle\.ts/ }).click();
+    await diff.waitFor();
+    // Wide, the whole toolbar is on one row and the menu is not there.
+    await button('Side by Side').waitFor();
+    assert.equal(await tools.isVisible(), false);
+    let controls = await visibleControls();
+    assert.equal(
+      new Set(controls.map(({ top }) => top)).size,
+      1,
+      `one toolbar row at 1440: ${JSON.stringify(controls)}`,
+    );
+    await capture(page, 'narrow-toolbar-wide-1440');
+    await page.setViewportSize({ width: 390, height: 900 });
+
+    // Narrow and undecided: inline, with the secondary tools behind one menu on one row inside the screen.
+    await page.waitForFunction(() => document.querySelector('.text-diff')?.getAttribute('data-layout') === 'inline');
+    await tools.waitFor();
+    for (const name of ['Find in Diff', 'Side by Side', 'Wrap', 'Risk Analysis', 'Code Guidance', 'Symbol Outline']) {
+      assert.equal(
+        await toolbar.getByRole('button', { name, exact: true }).isVisible(),
+        false,
+        `${name} is in the menu`,
+      );
+    }
+    controls = await visibleControls();
+    assert.equal(new Set(controls.map(({ top }) => top)).size, 1, `one toolbar row: ${JSON.stringify(controls)}`);
+    assert(
+      controls.every(({ right }) => right <= 390),
+      `nothing is clipped: ${JSON.stringify(controls)}`,
+    );
+    await capture(page, 'narrow-toolbar-390');
+
+    // Each menu entry works the control it stands for.
+    const entries = page.locator('[role^="menuitem"]');
+    const choose = async (name, checkable = false) => {
+      await tools.click();
+      await entry(name).click();
+      // A checkable entry leaves the menu open, as a menu of toggles does; the others close it.
+      if (checkable) await page.keyboard.press('Escape');
+      await entries.first().waitFor({ state: 'hidden' });
+    };
+    await choose('Wrap', true);
+    assert.equal(await diff.getAttribute('data-wrap'), 'false');
+    await tools.click();
+    assert.equal(await entry('Wrap').getAttribute('aria-checked'), 'false');
+    await capture(page, 'narrow-tools-menu-390');
+    await page.keyboard.press('Escape');
+    await entries.first().waitFor({ state: 'hidden' });
+    // Choosing it again turns wrapping back on; the unwrapped split diff would scroll the page sideways.
+    await choose('Wrap', true);
+    assert.equal(await diff.getAttribute('data-wrap'), 'true');
+    await choose('Side by Side', true);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), 390);
+    assert.equal(await layout(), 'split');
+    await choose('Symbol Outline');
+    await page.getByRole('dialog', { name: 'Symbol Outline' }).waitFor();
+    await page.keyboard.press('Escape');
+    await page.getByRole('dialog', { name: 'Symbol Outline' }).waitFor({ state: 'hidden' });
+    // Find stays reachable: the menu opens its field, which then stays on screen to type in.
+    await tools.click();
+    await entry('Find in Diff').click();
+    const field = page.locator('[data-search-field-editor]').first();
+    await field.waitFor();
+    if (await entries.first().isVisible()) await page.keyboard.press('Escape');
+    await entries.first().waitFor({ state: 'hidden' });
+    await field.fill('export');
+    await page.locator('mark[data-find]').first().waitFor();
+    await capture(page, 'narrow-find-390');
+    await field.fill('');
+
+    // Wide again: every tool is back in the toolbar, the menu is gone, and the person's choice of split stands.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await button('Side by Side').waitFor();
+    assert.equal(await tools.isVisible(), false);
+    for (const name of ['Inline', 'Wrap', 'Risk Analysis', 'Code Guidance', 'Symbol Outline']) {
+      assert(await button(name).isVisible(), name);
+    }
+    await capture(page, 'narrow-toolbar-restored-1440');
+  });
+});
+
+// GB2-8T670B: with no explicit choice the layout follows the width both ways.
+test('GB2-8T670B an undecided layout follows the width and an explicit choice stays', { timeout: 60_000 }, async () => {
+  await withWorkbench(async (page, url, { repo }) => {
+    const button = (name) => page.getByRole('button', { name, exact: true });
+    const diff = page.locator('.text-diff');
+    await page.goto(url);
+    await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(repo);
+    await button('Open Comparison').click();
+    await page.getByRole('treeitem', { name: /bundle\.ts/ }).click();
+    await diff.waitFor();
+    assert.equal(await diff.getAttribute('data-layout'), 'split');
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.waitForFunction(() => document.querySelector('.text-diff')?.getAttribute('data-layout') === 'inline');
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.waitForFunction(() => document.querySelector('.text-diff')?.getAttribute('data-layout') === 'split');
+    await button('Inline').click();
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    assert.equal(await diff.getAttribute('data-layout'), 'inline', 'an explicit choice is not overridden by the width');
+    await button('Side by Side').click();
+    await page.setViewportSize({ width: 390, height: 900 });
+    assert.equal(await diff.getAttribute('data-layout'), 'split', 'an explicit split stays split when narrow');
+  });
+});
+
+// GB2-8T670B: the image comparison's view modes are not clipped at the right edge of a narrow screen.
+test('GB2-8T670B the image view modes fit a narrow toolbar', { timeout: 60_000 }, async () => {
+  await withWorkbench(async (page, url, { repo }) => {
+    const button = (name) => page.getByRole('button', { name, exact: true });
+    await page.goto(url);
+    await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(repo);
+    await button('Open Comparison').click();
+    await page.getByRole('treeitem', { name: /mark\.svg/ }).click();
+    await page.locator('img[data-media-side="after"]').first().waitFor();
+    for (const width of [1440, 940, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await button('Side by Side').waitFor();
+      const edges = await page.locator('header[aria-label="Comparison"]').evaluate((toolbar) =>
+        [...toolbar.querySelectorAll('button')]
+          .filter((control) => control.getBoundingClientRect().width > 1)
+          .map((control) => ({
+            name: control.getAttribute('aria-label') ?? control.textContent.trim(),
+            left: Math.round(control.getBoundingClientRect().left),
+            right: Math.round(control.getBoundingClientRect().right),
+          })),
+      );
+      assert(edges.length >= 8, `the modes are present at ${width}: ${JSON.stringify(edges)}`);
+      assert(
+        edges.every(({ left, right }) => left >= 0 && right <= width),
+        `no mode is clipped at ${width}: ${JSON.stringify(edges)}`,
+      );
+      await capture(page, `image-modes-${width}`);
     }
   });
 });

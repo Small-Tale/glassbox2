@@ -7,6 +7,7 @@ import './style.css';
 import { Catalog, type CatalogBackgroundStyle, CatalogExample } from '@kerfjs/ui/catalog';
 import { Text } from '@kerfjs/ui/text';
 import { wireCatalog } from '@kerfjs/ui/wire-catalog';
+import { wireToolbarVisibility } from '@kerfjs/ui/wire-toolbar-visibility';
 import { effect, mount, signal } from 'kerfjs';
 
 import {
@@ -19,6 +20,7 @@ import {
   secondaryGroups,
 } from './catalog.js';
 import { wireAnalysisControlsDemo } from './demos/analysis/analysis-controls.js';
+import { wireComparisonToolsMenuDemo } from './demos/diff/comparison-tools-menu.js';
 import { wireDiffFindControlsDemo } from './demos/diff/diff-find-controls.js';
 import { wireMediaDiffDemo } from './demos/diff/media-diff.js';
 import { wireTextDiffDemo } from './demos/diff/text-diff.js';
@@ -143,6 +145,8 @@ void wireDiscussionDemo(root);
 void wireSavedReviewDialogDemo(root);
 
 void wireShareMenuDemo(root);
+void wireComparisonToolsMenuDemo(root);
+void wireToolbarVisibility(root);
 
 void wireExportDialogDemo(root);
 

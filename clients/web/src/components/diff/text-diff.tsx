@@ -1,5 +1,6 @@
 import './text-diff.css';
 
+import { deviceClass } from '@kerfjs/ui/device-class';
 import { LucideIcon } from '@kerfjs/ui/lucide-icon';
 import { ToolbarButton, ToolbarControlGroup } from '@kerfjs/ui/toolbar-control-group';
 import { type SafeHtml, signal } from 'kerfjs';
@@ -10,36 +11,45 @@ import { ContextExpander } from './context-expander.js';
 import { type ContextDirection, type DiffBlock, diffBlocks, type Expansion } from './context-expansion.js';
 import { type FindResult, lineRanges, markTokens } from './diff-find.js';
 import { type DiffLine, splitLines, syntaxTokens, type TextHunk } from './text-diff-model.js';
+import { toolsCollapseBelow } from './toolbar-collapse.js';
 
+const device = deviceClass();
+
+/** `null` is automatic: side by side, except inline where one pane shows at a time (GB2-8T670B). */
 export function createTextDiffState() {
   return {
-    layout: signal<'split' | 'inline'>('split'),
+    layout: signal<'split' | 'inline' | null>(null),
     wrap: signal(true),
   };
 }
 
 type TextDiffState = ReturnType<typeof createTextDiffState>;
 
+/** The layout in effect: the person's choice, or inline on a handset or portrait tablet and split otherwise. */
+export function effectiveLayout(state: TextDiffState): 'split' | 'inline' {
+  return state.layout.value ?? (device.value.compact ? 'inline' : 'split');
+}
+
 export function TextDiffToolbar({ id, state }: { id: string; state: TextDiffState }) {
   return (
     <>
-      <ToolbarControlGroup label="Diff Layout" content="icon">
+      <ToolbarControlGroup label="Diff Layout" content="icon" hideBelow={toolsCollapseBelow}>
         <ToolbarButton
           action={`${id}:split`}
-          pressed={state.layout.value === 'split'}
+          pressed={effectiveLayout(state) === 'split'}
           ariaLabel="Side by Side"
           title="Side by Side"
           icon={<LucideIcon icon={Columns2} name="columns-2" />}
         />
         <ToolbarButton
           action={`${id}:inline`}
-          pressed={state.layout.value === 'inline'}
+          pressed={effectiveLayout(state) === 'inline'}
           ariaLabel="Inline"
           title="Inline"
           icon={<LucideIcon icon={Rows2} name="rows-2" />}
         />
       </ToolbarControlGroup>
-      <ToolbarControlGroup label="Line Wrapping" content="icon">
+      <ToolbarControlGroup label="Line Wrapping" content="icon" hideBelow={toolsCollapseBelow}>
         <ToolbarButton
           action={`${id}:wrap`}
           pressed={state.wrap.value}
@@ -186,7 +196,7 @@ export function TextDiff({
       </div>
     );
   }
-  const layout = state.layout.value;
+  const layout = effectiveLayout(state);
   const lastLine = hunks.reduce(
     (largest, hunk) =>
       Math.max(largest, hunk.before_start + hunk.before_count - 1, hunk.after_start + hunk.after_count - 1),

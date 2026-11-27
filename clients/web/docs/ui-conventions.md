@@ -67,6 +67,21 @@ Wrap has its own group and keeps its state when switching layouts or
 resizing (`HS2-RVP90A`). Both layouts annotate their before and after
 line numbers for downstream review threads.
 
+### Narrow widths (`GB2-8T670B`, UX evaluation R2)
+
+Below a comparison toolbar content width of 560 px (`toolsCollapseBelow`) the secondary tools leave the toolbar: the
+layout choice, Wrap, Symbol Outline, Risk Analysis, Code Guidance and the find steps. A **More Tools** menu takes
+their place through Kerf's `hideBelow` and `showBelow` with `wireToolbarVisibility`, so the toolbar is one row beside
+the title, the history buttons and the Inspector toggle. Each menu entry activates the control it mirrors, so state
+and behavior have one owner; checkable entries (layout, Wrap, Risk, Guidance) stay open like a menu of toggles. Find
+is an entry too: it opens its field, which then stays on screen while it is open. Previous and Next Match are only
+in the toolbar at wider sizes (Enter and Shift+Enter step from the field). The image comparison's view modes were
+measured at 1440, 940 and 390 and are not clipped, so they are unchanged.
+
+The diff layout is automatic until the person chooses: side by side, except inline where one pane shows at a time
+(Kerf `deviceClass().compact`, a handset or portrait tablet). Resizing follows the width both ways; choosing Side by
+Side or Inline is kept across widths.
+
 ## Appearance
 
 The center footer has one icon-only Appearance menu with System,

@@ -709,6 +709,84 @@
       }
     },
     {
+      "id": "comparison-tools-menu",
+      "name": "Comparison Tools Menu",
+      "kind": "component",
+      "purpose": "Hold the secondary comparison tools in one menu where the toolbar is too narrow to show them.",
+      "source": "src/components/diff/comparison-tools-menu.tsx",
+      "publicExports": [
+        {
+          "name": "ComparisonToolsMenu"
+        },
+        {
+          "name": "wireComparisonToolsMenu"
+        }
+      ],
+      "sourceLinks": ["src/components/diff/comparison-tools-menu.tsx"],
+      "composition": {
+        "parents": {
+          "mode": "any",
+          "entries": []
+        },
+        "contexts": ["application-ui"],
+        "zones": [],
+        "children": {
+          "mode": "any",
+          "concepts": [],
+          "requiredConcepts": []
+        },
+        "state": [],
+        "wiring": {
+          "required": true,
+          "helpers": ["wireComparisonToolsMenu"],
+          "sources": [
+            {
+              "export": "wireComparisonToolsMenu",
+              "source": "src/components/diff/comparison-tools-menu.tsx",
+              "returnsDisposer": true
+            }
+          ],
+          "obligations": [
+            "Wire the menu so each entry activates the toolbar control it stands for, and wire toolbar visibility so the menu shows only where the toolbar is narrow."
+          ]
+        },
+        "responsive": {
+          "owner": "component",
+          "behaviors": ["show-below-toolbar-width"]
+        },
+        "layout": {
+          "roles": ["content"],
+          "geometry": {
+            "margin": "none",
+            "border": "none",
+            "padding": "none"
+          }
+        }
+      },
+      "boundaries": {
+        "rootClass": "comparison-tools-menu",
+        "publicClasses": ["comparison-tools-menu"],
+        "publicTokens": []
+      },
+      "accessibility": {
+        "obligations": [
+          "Name the icon-only trigger, mark toggles as checked, and keep every entry reachable by keyboard."
+        ]
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/diff/comparison-tools-menu.tsx",
+        "composition": "src/components/diff/comparison-tools-menu.tsx"
+      },
+      "selection": {
+        "useWhen": ["A comparison toolbar needs its secondary tools to collapse at narrow widths."],
+        "avoidWhen": ["Offer a primary action that must stay on screen."],
+        "demoSource": "src/ux-demo/demos/diff/comparison-tools-menu.tsx",
+        "documentation": "docs/ui-conventions.md",
+        "uses": ["toolbar-control-group", "lucide-icon", "popup-menu"]
+      }
+    },
+    {
       "id": "media-diff",
       "name": "Media Comparison",
       "kind": "composition",

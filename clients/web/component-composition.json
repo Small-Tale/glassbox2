@@ -265,6 +265,89 @@
       }
     },
     {
+      "key": "glassbox2:comparison-tools-menu",
+      "package": "glassbox2",
+      "id": "comparison-tools-menu",
+      "name": "Comparison Tools Menu",
+      "kind": "component",
+      "purpose": "Hold the secondary comparison tools in one menu where the toolbar is too narrow to show them.",
+      "publicExports": [
+        {
+          "name": "ComparisonToolsMenu"
+        },
+        {
+          "name": "wireComparisonToolsMenu"
+        }
+      ],
+      "sourceLinks": [
+        "src/components/diff/comparison-tools-menu.tsx"
+      ],
+      "source": "src/components/diff/comparison-tools-menu.tsx",
+      "parents": {
+        "mode": "any",
+        "entries": []
+      },
+      "contexts": [
+        "application-ui"
+      ],
+      "zones": [],
+      "children": {
+        "mode": "any",
+        "concepts": [],
+        "requiredConcepts": []
+      },
+      "state": [],
+      "wiring": {
+        "required": true,
+        "helpers": [
+          "wireComparisonToolsMenu"
+        ],
+        "sources": [
+          {
+            "export": "wireComparisonToolsMenu",
+            "source": "src/components/diff/comparison-tools-menu.tsx",
+            "returnsDisposer": true
+          }
+        ],
+        "obligations": [
+          "Wire the menu so each entry activates the toolbar control it stands for, and wire toolbar visibility so the menu shows only where the toolbar is narrow."
+        ]
+      },
+      "responsive": {
+        "owner": "component",
+        "behaviors": [
+          "show-below-toolbar-width"
+        ]
+      },
+      "layout": {
+        "roles": [
+          "content"
+        ],
+        "geometry": {
+          "margin": "none",
+          "border": "none",
+          "padding": "none"
+        }
+      },
+      "accessibility": {
+        "obligations": [
+          "Name the icon-only trigger, mark toggles as checked, and keep every entry reachable by keyboard."
+        ]
+      },
+      "boundaries": {
+        "rootClass": "comparison-tools-menu",
+        "publicClasses": [
+          "comparison-tools-menu"
+        ],
+        "publicTokens": []
+      },
+      "diagnostics": [],
+      "provenance": {
+        "selection": "src/components/diff/comparison-tools-menu.tsx",
+        "composition": "src/components/diff/comparison-tools-menu.tsx"
+      }
+    },
+    {
       "key": "glassbox2:context-expander",
       "package": "glassbox2",
       "id": "context-expander",

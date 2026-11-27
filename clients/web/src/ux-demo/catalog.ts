@@ -5,6 +5,7 @@ import type { SafeHtml } from 'kerfjs';
 
 import metadata from '../../component-catalog.json';
 import { AnalysisControlsDemo } from './demos/analysis/analysis-controls.js';
+import { ComparisonToolsMenuDemo } from './demos/diff/comparison-tools-menu.js';
 import { ContextExpanderDemo } from './demos/diff/context-expander.js';
 import { DiffFindControlsDemo } from './demos/diff/diff-find-controls.js';
 import { MediaDiffDemo } from './demos/diff/media-diff.js';
@@ -30,6 +31,7 @@ export const componentDemos = {
   'context-expander': ContextExpanderDemo,
   'diff-find-controls': DiffFindControlsDemo,
   'text-diff': TextDiffDemo,
+  'comparison-tools-menu': ComparisonToolsMenuDemo,
   'media-diff': MediaDiffDemo,
   'analysis-controls': AnalysisControlsDemo,
   'review-discussion': DiscussionDemo,

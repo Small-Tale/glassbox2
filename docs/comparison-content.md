@@ -34,7 +34,9 @@ diffs (`HS2-RVP90A`). Both preserve before and after line numbers,
 added and removed lines, hunk ranges, and missing-final-newline markers.
 Common source files receive lightweight syntax cues. Wrap works in either
 layout. Wrapped rows grow to fit all their code as the workbench narrows
-(`HS2-V6962Y`, `HS2-JEM47K`). With Wrap off, long lines can scroll within the comparison.
+(`HS2-V6962Y`, `HS2-JEM47K`). With Wrap off, long lines can scroll within the comparison. The layout starts
+automatic: side by side on a wide window and inline where one pane shows at a time; choosing a layout keeps it.
+On a narrow toolbar the secondary tools move into a More Tools menu (`GB2-8T670B`).
 
 The workbench requests selected content using
 `POST /api/v1/review/file`. The service checks the selected index and

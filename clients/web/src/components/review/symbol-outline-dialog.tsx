@@ -16,6 +16,7 @@ import { TreeList, type TreeListNode } from '@kerfjs/ui/tree-list';
 import { effect } from 'kerfjs';
 import { ListTree } from 'lucide';
 
+import { toolsCollapseBelow } from '../diff/toolbar-collapse.js';
 import type { Definition } from './definition-navigation.js';
 import { type OutlineNode, type OutlineSide, outlineSides, outlineTree, type SymbolOutline } from './symbol-outline.js';
 
@@ -30,7 +31,7 @@ const unsupported =
 export function SymbolOutlineAction({ id, enabled }: { id: string; enabled: boolean }) {
   const title = enabled ? 'Symbol Outline' : unsupported;
   return (
-    <ToolbarControlGroup label="Symbol Outline" content="icon">
+    <ToolbarControlGroup label="Symbol Outline" content="icon" hideBelow={toolsCollapseBelow}>
       <ToolbarButton
         action={`${id}:open`}
         ariaLabel="Symbol Outline"

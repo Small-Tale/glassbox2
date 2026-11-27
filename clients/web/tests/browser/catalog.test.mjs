@@ -212,6 +212,31 @@ test('HS2-FTEQVQ the Review Navigator demo shows marks and counts only reviewed 
   });
 });
 
+// GB2-8T670B: the More Tools demo shows the menu in a narrow toolbar and each entry answers.
+test('GB2-8T670B the More Tools demo opens its menu and records the chosen entry', async () => {
+  await withCatalog(async (page, url) => {
+    await page.goto(`${url}?component=comparison-tools-menu`);
+    const demo = page.locator('[data-demo="comparison-tools-menu"]');
+    const result = demo.locator('[data-demo-tools-result]');
+    await result.getByText('Nothing chosen yet.').waitFor();
+    const tools = demo.getByRole('button', { name: 'More Tools', exact: true });
+    await tools.waitFor();
+    await tools.click();
+    const entry = (name) => page.locator('[role^="menuitem"]').filter({ hasText: new RegExp(`^${name}$`, 'u') });
+    assert.equal(await entry('Inline').getAttribute('aria-checked'), 'true');
+    assert.equal(await entry('Wrap').getAttribute('aria-checked'), 'true');
+    assert.equal(await entry('Symbol Outline').isDisabled(), true, 'an unavailable tool is disabled, not hidden');
+    await entry('Find in Diff').click();
+    await result.getByText('Find in Diff chosen.').waitFor();
+    await tools.click();
+    await entry('Wrap').click();
+    await result.getByText('Wrap chosen.').waitFor();
+    await page.keyboard.press('Escape');
+    await tools.click();
+    assert.equal(await entry('Wrap').getAttribute('aria-checked'), 'false', 'the checked state follows the choice');
+  });
+});
+
 // GB2-X1EATS: the discussion demo follows an AI note's source links with fixture answers.
 test('GB2-X1EATS the Review Discussion demo follows a source link and a cited commit', async () => {
   await withCatalog(async (page, url) => {

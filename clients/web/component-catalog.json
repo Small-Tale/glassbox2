@@ -109,6 +109,35 @@
       "documentation": "docs/ui-conventions.md"
     },
     {
+      "id": "comparison-tools-menu",
+      "name": "Comparison Tools Menu",
+      "kind": "component",
+      "purpose": "Hold the secondary comparison tools in one menu where the toolbar is too narrow to show them.",
+      "useWhen": [
+        "A comparison toolbar needs its secondary tools to collapse at narrow widths."
+      ],
+      "avoidWhen": [
+        "Offer a primary action that must stay on screen."
+      ],
+      "publicClasses": [
+        "comparison-tools-menu"
+      ],
+      "publicTokens": [],
+      "uses": [
+        "toolbar-control-group",
+        "lucide-icon",
+        "popup-menu"
+      ],
+      "source": "src/components/diff/comparison-tools-menu.tsx",
+      "demoSource": "src/ux-demo/demos/diff/comparison-tools-menu.tsx",
+      "geometry": {
+        "margin": "none",
+        "border": "none",
+        "padding": "none"
+      },
+      "documentation": "docs/ui-conventions.md"
+    },
+    {
       "id": "context-expander",
       "name": "Context Expander",
       "kind": "component",

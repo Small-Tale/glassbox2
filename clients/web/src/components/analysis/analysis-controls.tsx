@@ -7,6 +7,7 @@ import { Text } from '@kerfjs/ui/text';
 import { ToolbarButton, ToolbarControlGroup } from '@kerfjs/ui/toolbar-control-group';
 import { ChevronLeft, ChevronRight, Compass, ShieldAlert } from 'lucide';
 
+import { toolsCollapseBelow } from '../diff/toolbar-collapse.js';
 import type { AnalysisState, Mode, Selection } from './analysis-state.js';
 
 const labels = { risk: 'Risk Analysis', guidance: 'Code Guidance' } as const;
@@ -19,7 +20,7 @@ export function AnalysisControls({ id, state }: { id: string; state: AnalysisSta
   return (
     <>
       {actions.map(({ mode, icon, name }) => (
-        <ToolbarControlGroup label={labels[mode]} content="icon">
+        <ToolbarControlGroup label={labels[mode]} content="icon" hideBelow={toolsCollapseBelow}>
           <ToolbarButton
             action={`${id}:${mode}`}
             ariaLabel={labels[mode]}

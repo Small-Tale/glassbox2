@@ -5,11 +5,26 @@ import './style.css';
 import { EmptyState } from '@kerfjs/ui/empty-state';
 import { LucideIcon } from '@kerfjs/ui/lucide-icon';
 import { ToolbarButton, ToolbarControlGroup } from '@kerfjs/ui/toolbar-control-group';
+import { wireToolbarVisibility } from '@kerfjs/ui/wire-toolbar-visibility';
 import { effect, mount, signal } from 'kerfjs';
-import { ChevronLeft, ChevronRight, Code, GitCompareArrows, Workflow } from 'lucide';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Code,
+  Columns2,
+  Compass,
+  GitCompareArrows,
+  ListTree,
+  Rows2,
+  Search,
+  ShieldAlert,
+  Workflow,
+  WrapText,
+} from 'lucide';
 
 import { AnalysisContext, AnalysisControls, wireAnalysisControls } from '../components/analysis/analysis-controls.js';
 import { createAnalysisState } from '../components/analysis/analysis-state.js';
+import { ComparisonToolsMenu, wireComparisonToolsMenu } from '../components/diff/comparison-tools-menu.js';
 import { createContextExpansion, diffBlocks, resetContextOnChange } from '../components/diff/context-expansion.js';
 import {
   createFindState,
@@ -30,6 +45,7 @@ import { modeForImages } from '../components/diff/media-mode.js';
 import { selectedDiff } from '../components/diff/selected-diff.js';
 import {
   createTextDiffState,
+  effectiveLayout,
   TextDiff,
   TextDiffToolbar,
   wireContextExpander,
@@ -161,6 +177,7 @@ const handoff = createHandoffState();
 const shareId = 'glassbox-share';
 const exportId = 'glassbox-export';
 const outlineId = 'glassbox-symbol-outline';
+const toolsId = 'glassbox-comparison-tools';
 const outline = createSymbolOutline();
 const rendererId = 'glassbox-renderers';
 const renderers = createRendererState();
@@ -279,6 +296,54 @@ mount(root, () => {
           <>
             <TextDiffToolbar id={diffToolbarId} state={textDiff} />
             <DiffFindControls id={findId} state={find} readout={findReadout(found)} matches={found.matches.length} />
+            <ComparisonToolsMenu
+              id={toolsId}
+              tools={[
+                { action: `${findId}:open`, label: 'Find in Diff', icon: Search, iconName: 'search' },
+                {
+                  action: `${diffToolbarId}:split`,
+                  label: 'Side by Side',
+                  icon: Columns2,
+                  iconName: 'columns-2',
+                  checked: effectiveLayout(textDiff) === 'split',
+                },
+                {
+                  action: `${diffToolbarId}:inline`,
+                  label: 'Inline',
+                  icon: Rows2,
+                  iconName: 'rows-2',
+                  checked: effectiveLayout(textDiff) === 'inline',
+                },
+                {
+                  action: `${diffToolbarId}:wrap`,
+                  label: 'Wrap',
+                  icon: WrapText,
+                  iconName: 'wrap-text',
+                  checked: textDiff.wrap.value,
+                },
+                {
+                  action: `${outlineId}:open`,
+                  label: 'Symbol Outline',
+                  icon: ListTree,
+                  iconName: 'list-tree',
+                  disabled: !(source.activeSource.value?.kind === 'git' && supportsDefinitions(file.path)),
+                },
+                {
+                  action: `${analysisId}:risk`,
+                  label: 'Risk Analysis',
+                  icon: ShieldAlert,
+                  iconName: 'shield-alert',
+                  checked: analysis.modes.risk.enabled.value,
+                },
+                {
+                  action: `${analysisId}:guidance`,
+                  label: 'Code Guidance',
+                  icon: Compass,
+                  iconName: 'compass',
+                  checked: analysis.modes.guidance.enabled.value,
+                },
+              ]}
+            />
             <SymbolOutlineAction
               id={outlineId}
               enabled={source.activeSource.value?.kind === 'git' && supportsDefinitions(file.path)}
@@ -484,6 +549,12 @@ void wireSymbolOutline(
   historyNavigation.reveal,
 );
 void wireTextDiffToolbar(root, diffToolbarId, textDiff);
+void wireToolbarVisibility(root);
+void wireComparisonToolsMenu(root, toolsId, {
+  [`${findId}:open`]: () => {
+    find.open.value = true;
+  },
+});
 void wireDiffFind(root, findId, find, () => {
   const content = diff.result.value;
   return content?.kind === 'text'
