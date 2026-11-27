@@ -251,7 +251,10 @@ export function DiscussionInspector({
     if (stale.length === 0) {
       return (
         <>
-          <EmptyState title="No Discussion Selected" />
+          <EmptyState
+            title="No Discussion Selected"
+            detail="Select a comment in the diff to read it, or use the comment action beside a line to start one."
+          />
           {wholeImage.length === 0 ? null : (
             <Row wrap controlInsets="trbl">
               {wholeImage.map((side) => (

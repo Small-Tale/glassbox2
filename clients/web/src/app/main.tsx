@@ -204,7 +204,14 @@ mount(root, () => {
   let comparison = (
     <EmptyState
       title={review === null ? 'No Review Open' : 'No File Selected'}
-      detail={review === null || source.fileActionStatus.value === '' ? undefined : source.fileActionStatus.value}
+      // GB2-WYTJSX: an empty comparison says how to start; a notice from a followed link keeps priority.
+      detail={
+        review === null
+          ? 'Open a Git repository or compare two files to start.'
+          : source.fileActionStatus.value === ''
+            ? 'Choose a changed file in the list.'
+            : source.fileActionStatus.value
+      }
       icon={<LucideIcon icon={GitCompareArrows} name="git-compare-arrows" />}
     />
   );

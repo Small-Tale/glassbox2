@@ -651,6 +651,30 @@ test('AI note source links open tracked Git locations and reject stale revisions
   );
 });
 
+// GB2-WYTJSX: the empty comparison and the empty Inspector say how to start.
+test('GB2-WYTJSX empty states say how to start', { timeout: 60_000 }, async () => {
+  await withWorkbench(async (page, url, { repo }) => {
+    const inspectorHint =
+      'Select a comment in the diff to read it, or use the comment action beside a line to start one.';
+    await page.goto(url);
+    await page.getByText('Open a Git repository or compare two files to start.', { exact: true }).waitFor();
+    await page.getByText(inspectorHint, { exact: true }).waitFor();
+    await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(repo);
+    await page.getByRole('button', { name: 'Open Comparison', exact: true }).click();
+    await page.getByText('Choose a changed file in the list.', { exact: true }).waitFor();
+    assert.equal(await page.getByText('Open a Git repository or compare two files to start.').count(), 0);
+    for (const width of [1440, 940, 390, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
+      await capture(page, `empty-states-${width}`);
+    }
+    await page.getByRole('treeitem', { name: /bundle\.ts/ }).click();
+    await page.locator('.text-diff').waitFor();
+    assert.equal(await page.getByText('Choose a changed file in the list.').count(), 0);
+    assert.equal(await page.getByText(inspectorHint, { exact: true }).count(), 1, 'no thread is open yet');
+  });
+});
+
 // HS2-B5K6GM: a cited commit opens in a new tab at the cited line and leaves the original review as it was.
 test(
   'HS2-B5K6GM a cited commit opens in a new review tab and the original review is untouched',
