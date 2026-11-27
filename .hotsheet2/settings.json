@@ -1,0 +1,9 @@
+{
+  "$hotsheetSchema": 1,
+  "development_strategy": {
+    "default": "ci-first",
+    "green_main_goal_minutes": 360,
+    "version": 2
+  },
+  "push_policy": "push-per-ticket"
+}

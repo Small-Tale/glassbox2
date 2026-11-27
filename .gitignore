@@ -2,6 +2,12 @@
 /.hotsheet2/*
 !/.hotsheet2/settings.json
 !/.hotsheet2/groups/
+!/.hotsheet2/orchestration.json
+!/.hotsheet2/orchestration-plan.json
+!/.hotsheet2/orchestration-policy.json
+!/.hotsheet2/orchestration-templates.json
+!/.hotsheet2/validation-profiles.json
+!/.hotsheet2/resource-claims.json
 # <<< Hot Sheet 2 <<<
 
 /node_modules/
@@ -16,3 +22,6 @@
 /clients/web/.kerf-cache/
 /clients/web/src-tauri/target/
 /clients/web/src-tauri/gen/
+
+# Local agent worktrees
+/.worktrees/
