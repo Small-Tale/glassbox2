@@ -25,3 +25,6 @@
 
 # Local agent worktrees
 /.worktrees/
+
+# Demo capture output is regenerated, never committed
+/clients/web/demo-output/
