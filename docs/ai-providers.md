@@ -110,7 +110,9 @@ Risk and guidance observations may include a `related_locations` array of
 repository-relative `path` and one-based `line` objects. Numbered references
 in the note use zero-based array indices. The host validates up to eight
 locations per note and 64 per analysis, hashes the tracked Git-side text,
-and caches the pinned revisions with the result. See [source navigation](symbol-navigation.md).
+and caches the pinned revisions with the result. A location may add a `commit` (7 to 40 hexadecimal characters) to cite
+that line in an earlier commit; the host keeps it only when the commit, file and line resolve, and following it opens
+that commit in a new review (`HS2-B5K6GM`). See [source navigation](symbol-navigation.md).
 
 Analysis passes only bounded text diff inputs to the selected provider.
 Results identify omitted media, oversized changes, and files beyond the

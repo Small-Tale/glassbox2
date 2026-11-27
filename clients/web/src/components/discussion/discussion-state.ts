@@ -2,6 +2,7 @@ import { batch, effect, signal } from 'kerfjs';
 import { debounce } from 'kerfjs/timing';
 
 import type { Definition } from '../review/definition-navigation.js';
+import type { CommitLink, CommitTarget } from '../review/review-link.js';
 import type { ReviewSource, ReviewSourceState } from '../review/review-source.js';
 
 export const categories = [
@@ -28,7 +29,7 @@ export type Attachment = { id: number; filename: string; preview?: 'image' | 'pd
 type Message = { author: string; markdown: string; attachments: Attachment[] };
 export type AttachmentPreview =
   { status: 'loading' } | { status: 'ready'; url: string } | { status: 'failed'; message: string };
-type SourceLocation = { path: string; line: number; revision?: string };
+type SourceLocation = { path: string; line: number; revision?: string; commit?: string };
 export type Thread = {
   id: number;
   revision: number;
@@ -77,14 +78,14 @@ async function relocateThread(selection: Selection & { index: number }, thread: 
   return (await response.json()) as Relocation;
 }
 
-async function followSourceLink(selection: Selection, thread: number, index: number): Promise<Definition> {
+async function followSourceLink(selection: Selection, thread: number, index: number): Promise<Definition | CommitLink> {
   const response = await fetch('/api/v1/review/discussion/source-link', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ selection, thread, index }),
   });
   if (!response.ok) throw new Error(await response.text());
-  return (await response.json()) as Definition;
+  return (await response.json()) as Definition | CommitLink;
 }
 
 /** The host's attachment preview and open endpoints, replaceable so a demo or test needs no host (HS2-3G613V). */
@@ -173,7 +174,11 @@ export function createDiscussionState(
     return threads.value.find(({ id }) => id === threadId.value);
   }
 
-  async function openSourceLink(index: number, reveal: (destination: Definition) => Promise<void>) {
+  async function openSourceLink(
+    index: number,
+    reveal: (destination: Definition) => Promise<void>,
+    openReview?: (target: CommitTarget) => boolean,
+  ) {
     const selection = current;
     const thread = activeThread();
     if (selection?.index === undefined || thread?.origin.kind !== 'ai') return;
@@ -182,7 +187,15 @@ export function createDiscussionState(
     error.value = '';
     try {
       const destination = await followSourceLink(selection, thread.id, index);
-      if (active()) await reveal(destination);
+      if (!active()) return;
+      if (!('kind' in destination)) {
+        await reveal(destination);
+      } else if (openReview === undefined) {
+        error.value = 'A cited commit cannot be opened here.';
+      } else if (!openReview(destination)) {
+        // The browser refused the new tab; the current review is untouched (HS2-B5K6GM).
+        error.value = 'The browser blocked the new review. Allow pop-ups for this page, then try again.';
+      }
     } catch (failure) {
       if (active()) error.value = failure instanceof Error ? failure.message : 'Could not open the source link.';
     }

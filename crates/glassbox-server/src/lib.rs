@@ -217,6 +217,10 @@ fn router(
             }),
         )
         .route(
+            "/api/v1/review/commit-location",
+            post(move |Json(input)| symbols::commit_location(input)),
+        )
+        .route(
             "/api/v1/review/discussion/attachment",
             post(move |Json(input)| attachments::preview(attachment_preview_discussion, input)),
         )

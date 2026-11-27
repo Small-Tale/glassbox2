@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tree_sitter::{Language, Node, Parser};
 
-use crate::review_files::{self, SelectedFile};
+use crate::review_files::{self, GitMode, ReviewSource, SelectedFile};
 
 const MAX_TEXT_BYTES: usize = 256 * 1024;
 const MAX_CANDIDATES: usize = 64;
@@ -84,6 +84,78 @@ pub(crate) fn source_location(
         line: location.line,
         text,
     })
+}
+
+/// A commit a provider may cite: 7 to 40 hex characters, never a revision expression or an option (HS2-B5K6GM).
+pub(crate) fn cited_commit(commit: &str) -> Option<String> {
+    ((7..=40).contains(&commit.len()) && commit.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        .then(|| commit.to_ascii_lowercase())
+}
+
+/// Where a cited line is in `commit`, read from that commit's tree and checked like any source link.
+pub(crate) fn commit_destination(
+    directory: &Path,
+    commit: &str,
+    path: &str,
+    line: usize,
+) -> Result<Destination, (StatusCode, String)> {
+    let commit = cited_commit(commit).ok_or_else(|| {
+        (
+            StatusCode::BAD_REQUEST,
+            "A commit is 7 to 40 hexadecimal characters.".into(),
+        )
+    })?;
+    let comparison = review_files::load(
+        ReviewSource::Git {
+            directory: directory.to_path_buf(),
+            mode: GitMode::Commit { revision: commit },
+        },
+        None,
+    )
+    .map_err(|_| {
+        (
+            StatusCode::NOT_FOUND,
+            "The cited commit is not available in this repository.".into(),
+        )
+    })?;
+    let unresolved = || {
+        (
+            StatusCode::NOT_FOUND,
+            "The cited location does not exist in that commit.".to_owned(),
+        )
+    };
+    let git = comparison.git().ok_or_else(unresolved)?;
+    let location = SourceLocation {
+        path: path.to_owned(),
+        line,
+        revision: None,
+        commit: None,
+    };
+    let mut destination =
+        source_location(git, AnchorSide::After, &location).ok_or_else(unresolved)?;
+    destination.set_diff_revision(&comparison);
+    Ok(destination)
+}
+
+#[derive(Deserialize)]
+pub(crate) struct CommitLocation {
+    directory: PathBuf,
+    commit: String,
+    path: String,
+    line: usize,
+}
+
+/// `POST /api/v1/review/commit-location`: the validated destination a deep link names (HS2-B5K6GM).
+pub(crate) async fn commit_location(input: CommitLocation) -> Response {
+    let result = tokio::task::spawn_blocking(move || {
+        commit_destination(&input.directory, &input.commit, &input.path, input.line)
+    })
+    .await;
+    match result {
+        Ok(Ok(destination)) => Json(destination).into_response(),
+        Ok(Err((status, message))) => (status, message).into_response(),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
 }
 
 pub(crate) fn pin_location(
@@ -669,6 +741,32 @@ fn outline_symbols(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_cited_commit_is_only_ever_a_short_or_full_hexadecimal_hash() {
+        // HS2-B5K6GM: never a ref, a revision expression or an option Git could read.
+        assert_eq!(cited_commit("ABCDEF1").as_deref(), Some("abcdef1"));
+        assert_eq!(
+            cited_commit(&"a".repeat(40)).as_deref(),
+            Some(&*"a".repeat(40))
+        );
+        for refused in [
+            "",
+            "abc123",
+            "HEAD",
+            "main",
+            "--all",
+            "-abcdef1",
+            "abcdef1^",
+            "abcdef1~1",
+            "abcdef1:path",
+            "abcdefg",
+            "abcdef 1",
+            &"a".repeat(41),
+        ] {
+            assert_eq!(cited_commit(refused), None, "{refused:?}");
+        }
+    }
 
     #[test]
     fn matches_definition_names_and_lines_from_the_navigation_baseline() {

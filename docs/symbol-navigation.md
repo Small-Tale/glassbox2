@@ -69,6 +69,31 @@ link. Changed-file locations use the diff when the matching line is visible.
 Other locations open read-only source. Both use the same back and forward
 history as a definition lookup.
 
+## Cited commits (`HS2-B5K6GM`)
+
+A `related_locations` entry can also cite a commit: `{"path": "src/a.ts", "line": 12, "commit": "abcdef1"}` means that
+line of that file in that commit. `commit` is 7 to 40 hexadecimal characters, never a branch, a ref or a revision
+expression, so a provider cannot pass Git an option or a range. The host publishes a note only with citations it could
+resolve: it reads the commit as a Git commit review of the same repository and requires the file and line to exist
+there (the file need not be changed in that commit). A resolved entry keeps the lowercase `commit` and the content
+`revision`; a missing commit, a path outside the repository, a missing file or a line past the end leaves the entry
+unresolved, so its reference stays literal text and no link is offered. Only a Git comparison can cite a commit.
+
+Following a commit citation never navigates the current review. The host re-checks the commit, the location and the
+note's revision (409 once the file has changed since analysis) and answers a `commit` target; the client opens it in a
+**new tab** of the same local host, and the link says "Opens commit `<hash>` in a new review" on hover. The original
+tab keeps its comparison, selection, filter, scroll and open note. If the browser refuses the tab the Inspector says so
+and asks for pop-ups to be allowed. In the desktop window, which never creates another window, the request opens in the
+default browser against the same loopback host (`HS2-E6C9C9` routing), and the review window is untouched.
+
+The new tab's address is the deep-link scheme:
+`/?open=commit&directory=<repository>&commit=<hash>&path=<file>&line=<n>`. On start the client opens that commit as a
+review and asks `POST /api/v1/review/commit-location` for the validated destination, then reveals it with the same
+history as any source link: a changed file shows its diff with the cited line highlighted, and any other file shows a
+read-only excerpt. An unavailable commit shows the usual source error and an unresolved file or line shows "The cited
+location does not exist in that commit." in the empty file view; a malformed link (a ref instead of a hash, a missing or
+non-positive line) is ignored and the page starts normally.
+
 The benchmark fixtures from `HS2-HQCQXH` compare exact name and line
 against hand-labeled TypeScript and Rust declarations. Unit tests reuse
 those fixtures. The host parser matched all 11 TypeScript and 9 Rust

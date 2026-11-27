@@ -311,6 +311,31 @@ fn pin_related_locations(source: &ReviewSource, result: &mut AnalysisResult) {
                 continue;
             }
             remaining -= 1;
+            if let Some(commit) = location.commit.take() {
+                // A cited commit is read from that commit's tree in this repository (HS2-B5K6GM).
+                let pinned = match source {
+                    ReviewSource::Git { directory, .. } => crate::symbols::cited_commit(&commit)
+                        .and_then(|commit| {
+                            crate::symbols::commit_destination(
+                                directory,
+                                &commit,
+                                &location.path,
+                                location.line,
+                            )
+                            .ok()
+                            .map(|destination| (commit, destination.revision().to_owned()))
+                        }),
+                    _ => None,
+                };
+                match pinned {
+                    Some((commit, revision)) => {
+                        location.commit = Some(commit);
+                        location.revision = Some(revision);
+                    }
+                    None => *entry = None,
+                }
+                continue;
+            }
             if !review
                 .as_ref()
                 .and_then(|review| review.git())

@@ -29,8 +29,22 @@ fn navigation(target: &Url, local: &Url) -> Navigation {
     }
 }
 
-fn route_external(target: &Url, local: &Url) -> bool {
+/// A new-window request (HS2-B5K6GM). The review window never creates another window, so a request for the local
+/// client, such as a cited commit's review, opens a new tab in the default browser against the same local host and
+/// leaves this window as it is. Everything else follows the navigation rules.
+fn new_window_navigation(target: &Url, local: &Url) -> Navigation {
     match navigation(target, local) {
+        Navigation::Stay => Navigation::OpenInBrowser,
+        other => other,
+    }
+}
+
+fn route_external(target: &Url, local: &Url) -> bool {
+    route(navigation(target, local), target)
+}
+
+fn route(decision: Navigation, target: &Url) -> bool {
+    match decision {
         Navigation::Stay => true,
         Navigation::OpenInBrowser => {
             if let Err(error) = glassbox_server::browser::open_in_browser(target.as_str()) {
@@ -60,7 +74,7 @@ fn main() -> tauri::Result<()> {
             WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url))
                 .on_navigation(move |target| route_external(target, &local))
                 .on_new_window(move |target, _| {
-                    route_external(&target, &window_local);
+                    route(new_window_navigation(&target, &window_local), &target);
                     NewWindowResponse::Deny
                 })
                 .title("Glassbox")
@@ -150,6 +164,33 @@ mod tests {
                 "{blocked}"
             );
         }
+    }
+
+    #[test]
+    fn a_new_window_for_the_local_client_opens_in_the_browser_and_other_rules_hold() {
+        let local = url("http://127.0.0.1:4100/");
+        let cited = "http://127.0.0.1:4100/?open=commit&commit=abc1234&path=a.ts&line=3";
+        assert_eq!(
+            new_window_navigation(&url(cited), &local),
+            Navigation::OpenInBrowser
+        );
+        assert_eq!(
+            new_window_navigation(&url("https://example.com/"), &local),
+            Navigation::OpenInBrowser
+        );
+        for blocked in [
+            "file:///etc/passwd",
+            "javascript:alert(1)",
+            "tauri://localhost/",
+        ] {
+            assert_eq!(
+                new_window_navigation(&url(blocked), &local),
+                Navigation::Block,
+                "{blocked}"
+            );
+        }
+        // Navigating the review window itself to the local client still stays in place.
+        assert_eq!(navigation(&url(cited), &local), Navigation::Stay);
     }
 
     #[test]

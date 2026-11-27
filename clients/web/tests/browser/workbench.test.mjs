@@ -651,6 +651,122 @@ test('AI note source links open tracked Git locations and reject stale revisions
   );
 });
 
+// HS2-B5K6GM: a cited commit opens in a new tab at the cited line and leaves the original review as it was.
+test(
+  'HS2-B5K6GM a cited commit opens in a new review tab and the original review is untouched',
+  { timeout: 90_000 },
+  async () => {
+    await withWorkbench(
+      async (page, url, { repo }, settings) => {
+        const scratch = dirname(settings);
+        const git = (...args) =>
+          execFileSync('git', ['-c', 'commit.gpgsign=false', '-c', 'core.autocrlf=false', ...args], {
+            cwd: repo,
+            windowsHide: true,
+            encoding: 'utf8',
+          }).trim();
+        await writeFile(join(repo, 'destination.ts'), 'export const destination = 1;\nexport const kept = true;\n');
+        git('add', 'destination.ts');
+        git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'cited history');
+        const commit = git('rev-parse', 'HEAD');
+        await writeFile(join(scratch, 'commits.txt'), `${commit}\ndeadbeefdeadbeef\n`);
+        await writeFile(join(repo, 'bundle.ts'), 'export const COMMIT_FIXTURE = true;\n');
+        await mkdir(settings, { recursive: true });
+        await writeFile(
+          join(settings, 'settings.json'),
+          JSON.stringify({
+            version: 1,
+            appearance: 'system',
+            analysis: { provider: 'desktop', model: 'fixture', guidance_topics: [] },
+          }),
+        );
+        const button = (target, name) => target.getByRole('button', { name, exact: typeof name === 'string' });
+        const heading = (target, name) => target.getByRole('heading', { name, exact: true });
+        await page.goto(url);
+        await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(repo);
+        await button(page, 'Open Comparison').click();
+        await page.getByPlaceholder('Filter Changed Files').fill('bundle');
+        await page.getByRole('treeitem', { name: /bundle\.ts/ }).click();
+        await button(page, 'Risk Analysis').click();
+        await button(page, /AI note.*See/).click();
+
+        // Only a citation the host could resolve is a link, and it says it opens a new review.
+        const original = button(page, 'the original');
+        await original.waitFor();
+        assert.equal(await original.getAttribute('title'), `Opens commit ${commit.slice(0, 10)} in a new review`);
+        for (const unresolved of ['a lost commit', 'a ref', 'a missing file', 'a late line']) {
+          assert.equal(await button(page, unresolved).count(), 0, unresolved);
+        }
+        const before = {
+          url: page.url(),
+          filter: await page.getByPlaceholder('Filter Changed Files').inputValue(),
+        };
+
+        const opened = page.context().waitForEvent('page');
+        await original.click();
+        const tab = await opened;
+        tab.setDefaultTimeout(8000);
+        await tab.waitForLoadState();
+        const params = new URL(tab.url()).searchParams;
+        assert.equal(params.get('open'), 'commit');
+        assert.equal(params.get('commit'), commit);
+        assert.equal(params.get('path'), 'destination.ts');
+        await heading(tab, 'destination.ts').waitFor();
+        await tab.locator('[data-definition-target]').filter({ hasText: 'destination = 1' }).waitFor();
+        // The cited file is changed in its commit, so it settles from the read-only excerpt into its diff.
+        await tab.getByText('After · Read Only').waitFor({ state: 'detached' });
+        await tab.locator('.text-diff__cell[data-after-line="1"]').first().waitFor();
+        for (const width of [1440, 940, 390]) {
+          await tab.setViewportSize({ width, height: 900 });
+          assert.equal(await tab.evaluate(() => document.documentElement.scrollWidth), width);
+          await capture(tab, `cited-commit-${width}`);
+        }
+
+        // Returning to the original tab finds it exactly as it was left.
+        await page.bringToFront();
+        assert.equal(page.url(), before.url);
+        await heading(page, 'bundle.ts').waitFor();
+        assert.equal(await page.getByPlaceholder('Filter Changed Files').inputValue(), before.filter);
+        await original.waitFor();
+        assert.deepEqual(await page.getByRole('alert').allInnerTexts(), []);
+        await tab.close();
+
+        // A link whose commit or location cannot be resolved says so in its own tab, and nothing else changes.
+        const visit = async (query) => {
+          const popup = page.waitForEvent('popup');
+          await page.evaluate((address) => window.open(address, '_blank'), `${url}/?${new URLSearchParams(query)}`);
+          const extra = await popup;
+          extra.setDefaultTimeout(8000);
+          return extra;
+        };
+        const messageIn = async (query, message) => {
+          const extra = await visit(query);
+          await extra
+            .getByText(message, { exact: typeof message === 'string' })
+            .first()
+            .waitFor();
+          await extra.close();
+        };
+        const cited = { open: 'commit', directory: repo, commit, path: 'destination.ts', line: '1' };
+        const lost = await visit({ ...cited, commit: 'deadbeefdeadbeef' });
+        await lost.getByRole('alert').first().waitFor();
+        await lost.close();
+        await messageIn({ ...cited, path: 'absent.ts' }, 'The cited location does not exist in that commit.');
+        await messageIn({ ...cited, line: '99' }, 'The cited location does not exist in that commit.');
+        const ordinary = await visit({ ...cited, commit: 'HEAD' });
+        await ordinary.getByRole('textbox', { name: 'Repository Path', exact: true }).waitFor();
+        await ordinary.close();
+        await heading(page, 'bundle.ts').waitFor();
+        assert.equal(page.url(), before.url);
+      },
+      {
+        provider: true,
+        environment: ({ scratch }) => ({ GLASSBOX_FIXTURE_COMMIT_FILE: join(scratch, 'commits.txt') }),
+      },
+    );
+  },
+);
+
 test('AI settings select an approved model and keep analysis opt-in', { timeout: 60_000 }, async () => {
   await withWorkbench(
     async (page, url, { repo }, settings) => {

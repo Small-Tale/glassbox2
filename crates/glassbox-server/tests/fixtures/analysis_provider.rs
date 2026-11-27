@@ -23,6 +23,31 @@ fn main() {
         || (input.contains("INVALID_ONCE") && !input.contains("Return a minimal object"))
     {
         "not JSON"
+    } else if input.contains("Assess this diff") && input.contains("COMMIT_FIXTURE") {
+        // Cites locations in the commits listed, one per line, in the file named by the environment
+        // (HS2-B5K6GM): the first is real, the second is not in the repository.
+        let file = std::env::var_os("GLASSBOX_FIXTURE_COMMIT_FILE").expect("commit file");
+        let commits = std::fs::read_to_string(file).unwrap();
+        let mut lines = commits.lines();
+        let (real, unknown) = (lines.next().unwrap_or(""), lines.next().unwrap_or(""));
+        let location = |path: &str, line: u32, commit: &str| {
+            format!(r#"{{\"path\":\"{path}\",\"line\":{line},\"commit\":\"{commit}\"}}"#)
+        };
+        let locations = [
+            location("destination.ts", 1, real),
+            location("destination.ts", 1, unknown),
+            location("destination.ts", 1, "HEAD"),
+            location("absent.ts", 1, real),
+            location("destination.ts", 99, real),
+        ]
+        .join(",");
+        let text = r#"See [the original](0), [a lost commit](1), [a ref](2), [a missing file](3), and [a late line](4)."#;
+        Box::leak(
+            format!(
+                r#"{{\"scores\":{{\"security\":0.1,\"correctness\":0.6,\"error_handling\":0.2,\"maintainability\":0.1,\"architecture\":0.1,\"performance\":0.1}},\"rationale\":\"Check the history.\",\"observations\":[{{\"side\":\"after\",\"line\":1,\"text\":\"{text}\",\"related_locations\":[{locations}]}}]}}"#
+            )
+            .into_boxed_str(),
+        )
     } else if input.contains("Assess this diff") && input.contains("LINK_FIXTURE") {
         r#"{\"scores\":{\"security\":0.1,\"correctness\":0.6,\"error_handling\":0.2,\"maintainability\":0.1,\"architecture\":0.1,\"performance\":0.1},\"rationale\":\"Check the changed behavior.\",\"observations\":[{\"side\":\"after\",\"line\":1,\"text\":\"See [changed destination](0), [invalid](1), [tracked source](2), and [private file](3).\",\"related_locations\":[{\"path\":\"destination.ts\",\"line\":1},{\"path\":\"../invalid\",\"line\":1},{\"path\":\"linked.ts\",\"line\":1},{\"path\":\".git/config\",\"line\":1}]}]}"#
     } else if input.contains("Assess this diff") {

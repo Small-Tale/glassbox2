@@ -53,12 +53,14 @@ import { createHandoffState } from '../components/handoff/handoff-state.js';
 import { ShareMenu, ShareStatus, wireShareMenu } from '../components/handoff/share-menu.js';
 import {
   createDefinitionLookup,
+  type Definition,
   includesDefinition,
   supportsDefinitions,
   wireDefinitionNavigation,
 } from '../components/review/definition-navigation.js';
 import type { FileOrder } from '../components/review/file-order.js';
 import { createReviewHistory, wireReviewHistory } from '../components/review/review-history.js';
+import { type CommitTarget, parseReviewLink, reviewLinkUrl } from '../components/review/review-link.js';
 import { ReviewNavigator, wireReviewNavigator } from '../components/review/review-navigator.js';
 import { createReviewProgress, watchReviewProgress } from '../components/review/review-progress.js';
 import { createReviewSourceState } from '../components/review/review-source.js';
@@ -202,6 +204,7 @@ mount(root, () => {
   let comparison = (
     <EmptyState
       title={review === null ? 'No Review Open' : 'No File Selected'}
+      detail={review === null || source.fileActionStatus.value === '' ? undefined : source.fileActionStatus.value}
       icon={<LucideIcon icon={GitCompareArrows} name="git-compare-arrows" />}
     />
   );
@@ -577,6 +580,40 @@ void wireDiscussion(
       mediaDiff.keyboardRegion.value = null;
     },
   },
+  // HS2-B5K6GM: a cited commit opens in a new tab, so this review keeps its state; false when the browser refuses.
+  (target) => {
+    // `noopener` would make window.open answer null even when the tab opened, hiding a refused tab from us.
+    const tab = window.open(reviewLinkUrl(window.location.origin, target), '_blank');
+    if (tab === null) return false;
+    tab.opener = null;
+    return true;
+  },
 );
+
+// HS2-B5K6GM: a page opened for a cited commit starts on that commit's review at the cited line.
+async function openLinkedReview(target: CommitTarget) {
+  await source.open({ kind: 'git', directory: target.directory, mode: { kind: 'commit', revision: target.commit } });
+  if (source.review.value === null) return;
+  try {
+    const response = await fetch('/api/v1/review/commit-location', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(target),
+    });
+    if (!response.ok) {
+      // The commit's review is open with no file chosen, so its empty state says why the line is not shown.
+      source.fileActionStatus.value = await response.text();
+      return;
+    }
+    const destination = (await response.json()) as Definition;
+    // A changed file opens with its diff; any other cited file still needs a file selected to show its excerpt.
+    if (source.selected.value === undefined && source.review.value.files.length > 0) source.selected.value = 0;
+    await historyNavigation.reveal(destination);
+  } catch {
+    source.fileActionStatus.value = 'Could not open the cited location.';
+  }
+}
+const reviewLink = parseReviewLink(window.location.search);
 void appearance.load();
-void source.openDifftool();
+if (reviewLink === null) void source.openDifftool();
+else void openLinkedReview(reviewLink);

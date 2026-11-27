@@ -38,6 +38,10 @@ pub struct SourceLocation {
     pub line: usize,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub revision: Option<String>,
+    /// A commit whose tree holds the cited line, 7 to 40 hex characters when a provider supplies it and the
+    /// canonical lowercase hash once the host has pinned it (HS2-B5K6GM).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub commit: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

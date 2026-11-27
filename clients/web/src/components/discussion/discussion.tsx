@@ -17,6 +17,7 @@ import { wireFilePickers } from '@kerfjs/ui/wire-file-pickers';
 import { ExternalLink, MessageSquarePlus } from 'lucide';
 
 import type { Definition } from '../review/definition-navigation.js';
+import type { CommitTarget } from '../review/review-link.js';
 import {
   type Anchor,
   type Attachment,
@@ -28,6 +29,10 @@ import {
   type Thread,
 } from './discussion-state.js';
 import { RelocationOffer } from './relocation-offer.js';
+
+function citedCommitTitle(commit: string | undefined) {
+  return commit === undefined ? undefined : `Opens commit ${commit.slice(0, 10)} in a new review`;
+}
 
 const moveSides = [
   { value: 'before', label: 'Before' },
@@ -267,6 +272,7 @@ export function DiscussionInspector({
     );
   }
   const isStale = thread !== undefined && thread.anchor.revision !== currentRevision(thread.anchor);
+  const locations = thread?.origin.kind === 'ai' ? (thread.origin.related_locations ?? []) : [];
   return (
     <section class="discussion-inspector" aria-label="Discussion">
       <Row wrap vAlign="middle">
@@ -295,7 +301,7 @@ export function DiscussionInspector({
       ) : (
         <Text wrap="anywhere">
           {thread?.origin.kind === 'ai'
-            ? sourceLinkParts(thread.opening.markdown, thread.origin.related_locations ?? []).map((part) =>
+            ? sourceLinkParts(thread.opening.markdown, locations).map((part) =>
                 typeof part === 'string' ? (
                   part
                 ) : (
@@ -303,6 +309,7 @@ export function DiscussionInspector({
                     action={`discussion-source-link:${part.index}`}
                     emphasis="link"
                     tone="brand"
+                    title={citedCommitTitle(locations[part.index]?.commit)}
                     disabled={isStale}
                   >
                     {part.label}
@@ -431,6 +438,8 @@ export function wireDiscussion(
     edit: (seed: { side: Side; bounds: { left: number; top: number; width: number; height: number } }) => void;
     cancel: () => void;
   },
+  /** Opens a cited commit's review in a new tab; answers false when the browser refused (HS2-B5K6GM). */
+  openReview?: (target: CommitTarget) => boolean,
 ) {
   const controller = new AbortController();
   const { signal } = controller;
@@ -563,7 +572,8 @@ export function wireDiscussion(
       if (kind === 'discussion-artifact') void state.previewArtifact(Number(first));
       if (kind === 'discussion-attachment-toggle') state.toggleAttachment(Number(first));
       if (kind === 'discussion-attachment-open') void state.openAttachment(Number(first));
-      if (kind === 'discussion-source-link' && reveal !== undefined) void state.openSourceLink(Number(first), reveal);
+      if (kind === 'discussion-source-link' && reveal !== undefined)
+        void state.openSourceLink(Number(first), reveal, openReview);
       if (kind === 'discussion-submit') void state.submitComment();
       if (kind === 'discussion-reply')
         void state.apply({ kind: 'reply', author: state.author.value, markdown: state.reply.value }).then((saved) => {
