@@ -176,10 +176,10 @@ pages).
   shrink (`HS2-JEM47K`); no Kerf component owns that grid. The image viewer's blend, slice and region rules are
   domain structure Kerf does not provide. Public `--kui-*` tokens in application CSS follow the
   `foundation.css` contract.
-- **Justified lint suppression:** `kerfjs/ui-wiring` is disabled in `saved-review-dialog.tsx`,
-  `storage-dialog.tsx`, `analysis-settings-dialog.tsx` and `export-dialog.tsx` because the catalog
-  marks `wirePinnablePopover` and `wireOverlaySheets` required for the whole `surface-scaffold` entry, although a
-  plain modal has no pinned popover or bottom sheet to wire. This is a gap to report to Kerf, not a pattern.
+- **Justified lint suppression:** `kerfjs/ui-wiring` is disabled in `symbol-outline-dialog.tsx` only, because its
+  `TreeList` keyboard wiring is delegated from the page root and already invoked by `wireReviewNavigator`
+  (`GB2-YVE2W8`). The earlier suppressions for plain modal dialogs (`GB2-NV3Y0E`) were removed when Kerf beta.139
+  stopped requiring `wirePinnablePopover` and `wireOverlaySheets` for a plain `DialogSurface`.
 - **Open audit findings** (files not yet aligned): `discussion` uses raw tags and
   72 lines of CSS; `analysis-controls`, `review-navigator`, `source-context`, `text-diff` and `media-diff` use raw
   text tags in places; the Share Feedback and Appearance menu entries have no icons, which the conventions require.

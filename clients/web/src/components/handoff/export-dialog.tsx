@@ -21,10 +21,6 @@ import { FolderOpen, ListChecks } from 'lucide';
 import type { ReviewSource } from '../review/review-source.js';
 import type { ExportMode, ExportState } from './export-state.js';
 
-// GB2-806ABB: the Kerf catalog marks `wirePinnablePopover` and `wireOverlaySheets` as required for
-// the whole `surface-scaffold` entry, but this is a plain modal dialog (see GB2-NV3Y0E).
-/* eslint-disable kerfjs/ui-wiring */
-
 const choices = [
   { value: 'new', label: 'New Ticket' },
   { value: 'existing', label: 'Add to Existing Ticket' },

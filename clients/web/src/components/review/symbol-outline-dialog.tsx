@@ -20,7 +20,8 @@ import { toolsCollapseBelow } from '../diff/toolbar-collapse.js';
 import type { Definition } from './definition-navigation.js';
 import { type OutlineNode, type OutlineSide, outlineSides, outlineTree, type SymbolOutline } from './symbol-outline.js';
 
-// HS2-E3YMJ5: a plain modal dialog, like the other review dialogs (see GB2-NV3Y0E).
+// GB2-YVE2W8: `wireTreeList` delegates from the page root and `wireReviewNavigator` already invokes it once;
+// a second call here would double-handle keys, and the rule cannot see that.
 /* eslint-disable kerfjs/ui-wiring */
 
 const device = deviceClass();

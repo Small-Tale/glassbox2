@@ -16,9 +16,6 @@ import { PlugZap } from 'lucide';
 import { copyText } from './copy-text.js';
 import type { Format, Readiness, RendererState, Requirement, RequirementState } from './renderer-state.js';
 
-// HS2-Q9TXER: a plain modal dialog, like the other settings dialogs (see GB2-NV3Y0E).
-/* eslint-disable kerfjs/ui-wiring */
-
 const device = deviceClass();
 
 export function RendererAction({ id }: { id: string }) {

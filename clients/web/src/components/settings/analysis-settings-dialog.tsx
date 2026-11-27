@@ -21,10 +21,6 @@ import { BrainCircuit, RefreshCw } from 'lucide';
 import { type AnalysisSettingsState, guidanceTopics } from './analysis-settings-state.js';
 import { copyText } from './copy-text.js';
 
-// GB2-806ABB: the Kerf catalog marks `wirePinnablePopover` and `wireOverlaySheets` as required for
-// the whole `surface-scaffold` entry, but this is a plain modal dialog (see GB2-NV3Y0E).
-/* eslint-disable kerfjs/ui-wiring */
-
 const device = deviceClass();
 
 export function AnalysisSettingsAction({ id }: { id: string }) {

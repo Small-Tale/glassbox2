@@ -19,11 +19,6 @@ import { createSavedReviewState, type SavedReview } from './saved-review-state.j
 
 export { createSavedReviewState };
 
-// GB2-FRH9JJ: the Kerf catalog marks `wirePinnablePopover` and `wireOverlaySheets` as required for
-// the whole `surface-scaffold` entry, but these are plain modal dialogs with no pinned popover or
-// bottom sheet to wire. The gap is recorded in docs/ui-conventions.md for the Kerf maintainers.
-/* eslint-disable kerfjs/ui-wiring */
-
 const device = deviceClass();
 
 type SavedReviewState = ReturnType<typeof createSavedReviewState>;

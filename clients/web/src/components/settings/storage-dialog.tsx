@@ -17,10 +17,6 @@ import { HardDrive, Trash2 } from 'lucide';
 import { copyText } from './copy-text.js';
 import { formatBytes, type StorageState } from './storage-state.js';
 
-// GB2-806ABB: the Kerf catalog marks `wirePinnablePopover` and `wireOverlaySheets` as required for
-// the whole `surface-scaffold` entry, but this is a plain modal dialog (see GB2-NV3Y0E).
-/* eslint-disable kerfjs/ui-wiring */
-
 const device = deviceClass();
 
 export function StorageAction({ id }: { id: string }) {
