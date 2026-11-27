@@ -78,6 +78,9 @@ async function relocateThread(selection: Selection & { index: number }, thread: 
   return (await response.json()) as Relocation;
 }
 
+/** Resolves a source link of an AI note; replaceable so a demo or test needs no host (GB2-X1EATS). */
+export type SourceLinkApi = (selection: Selection, thread: number, index: number) => Promise<Definition | CommitLink>;
+
 async function followSourceLink(selection: Selection, thread: number, index: number): Promise<Definition | CommitLink> {
   const response = await fetch('/api/v1/review/discussion/source-link', {
     method: 'POST',
@@ -136,6 +139,7 @@ export function createDiscussionState(
   load = request,
   locate = relocateThread,
   attachments: AttachmentApi = attachmentApi,
+  follow: SourceLinkApi = followSourceLink,
 ) {
   const threads = signal<Thread[]>([]);
   const threadId = signal<number | null>(null);
@@ -186,7 +190,7 @@ export function createDiscussionState(
     const active = () => sequence === sourceLinkSequence && selection === current && thread === activeThread();
     error.value = '';
     try {
-      const destination = await followSourceLink(selection, thread.id, index);
+      const destination = await follow(selection, thread.id, index);
       if (!active()) return;
       if (!('kind' in destination)) {
         await reveal(destination);

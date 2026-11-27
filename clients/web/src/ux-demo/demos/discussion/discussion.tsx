@@ -1,10 +1,13 @@
 import { CatalogExample, CatalogExampleStack } from '@kerfjs/ui/catalog';
+import { Text } from '@kerfjs/ui/text';
+import { signal } from 'kerfjs';
 
 import { DiscussionInspector, LineDiscussion, wireDiscussion } from '../../../components/discussion/discussion.js';
 import {
   type Anchor,
   type AttachmentApi,
   createDiscussionState,
+  type SourceLinkApi,
   type Thread,
 } from '../../../components/discussion/discussion-state.js';
 import { createReviewSourceState, type ReviewFiles } from '../../../components/review/review-source.js';
@@ -38,6 +41,24 @@ const attachmentApi: AttachmentApi = {
     ),
   open: () => Promise.resolve(200),
 };
+// GB2-X1EATS: fixture answers for the host's source-link endpoint, so the demo follows links without a host. The
+// first link is a location in the open review; the second cites an earlier commit and opens a new review.
+const followLink: SourceLinkApi = (_selection, _thread, index) =>
+  Promise.resolve(
+    index === 1
+      ? { kind: 'commit', directory: '/demo/fieldnotes', commit: 'abcdef1234', path: 'src/bundle.ts', line: 8 }
+      : {
+          path: 'src/bundle-paths.ts',
+          side: 'after',
+          revision: 'demo',
+          diff_revision: null,
+          index: null,
+          line: 12,
+          text: 'export const unique = true;',
+        },
+  );
+/** What the last followed link did, as a person would see it (the application opens a tab or reveals a line). */
+const linkResult = signal('No link followed yet.');
 const source = createReviewSourceState(files, () => Promise.resolve(files));
 const initial: Thread[] = [
   {
@@ -60,8 +81,20 @@ const initial: Thread[] = [
     id: 3,
     revision: 1,
     anchor,
-    origin: { kind: 'ai', tags: ['Concurrency'], risk: 'medium' },
-    opening: { author: 'AI note', markdown: 'Simultaneous saves can resolve to the same filename.', attachments: [] },
+    origin: {
+      kind: 'ai',
+      tags: ['Concurrency'],
+      risk: 'medium',
+      related_locations: [
+        { path: 'src/bundle-paths.ts', line: 12, revision: 'demo' },
+        { path: 'src/bundle.ts', line: 8, revision: 'demo', commit: 'abcdef1234' },
+      ],
+    },
+    opening: {
+      author: 'AI note',
+      markdown: 'Simultaneous saves can resolve to the same filename. See [the helper](0) and [the earlier fix](1).',
+      attachments: [],
+    },
     replies: [
       { id: 4, message: { author: 'Reviewer', markdown: 'A unique path would avoid the collision.', attachments: [] } },
     ],
@@ -81,6 +114,7 @@ const state = createDiscussionState(
   },
   undefined,
   attachmentApi,
+  followLink,
 );
 state.threads.value = initial;
 void state.showThread(1);
@@ -93,6 +127,11 @@ export function DiscussionDemo() {
       </CatalogExample>
       <CatalogExample label="Contextual Inspector" viewport={{ width: 'sidebar' }}>
         <DiscussionInspector state={state} path={anchor.path} revision={anchor.revision} />
+      </CatalogExample>
+      <CatalogExample label="Source Link Result">
+        <Text role="status" rootAttributes={{ 'data-demo-link-result': '' }}>
+          {linkResult.value}
+        </Text>
       </CatalogExample>
     </CatalogExampleStack>
   );
@@ -110,5 +149,14 @@ export function wireDiscussionDemo(root: HTMLElement) {
     state,
     (side, line) => ({ ...anchor, side, target: { kind: 'line', start: line, end: line } }),
     () => undefined,
+    (destination) => {
+      linkResult.value = `Revealed ${destination.path} line ${destination.line} in this review.`;
+      return Promise.resolve();
+    },
+    undefined,
+    (target) => {
+      linkResult.value = `Opened commit ${target.commit.slice(0, 7)} at ${target.path} line ${target.line} in a new review.`;
+      return true;
+    },
   );
 }

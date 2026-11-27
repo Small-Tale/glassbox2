@@ -212,6 +212,25 @@ test('HS2-FTEQVQ the Review Navigator demo shows marks and counts only reviewed 
   });
 });
 
+// GB2-X1EATS: the discussion demo follows an AI note's source links with fixture answers.
+test('GB2-X1EATS the Review Discussion demo follows a source link and a cited commit', async () => {
+  await withCatalog(async (page, url) => {
+    await page.goto(`${url}?component=review-discussion`);
+    const demo = page.locator('[data-demo="review-discussion"]');
+    const result = demo.locator('[data-demo-link-result]');
+    assert.equal(await result.innerText(), 'No link followed yet.');
+    await demo.locator('[data-action="discussion-show:3"]').click();
+    const inspector = demo.locator('.discussion-inspector');
+    const commit = inspector.getByRole('button', { name: 'the earlier fix', exact: true });
+    assert.equal(await commit.getAttribute('title'), 'Opens commit abcdef1234 in a new review');
+    assert.equal(await inspector.getByRole('button', { name: 'the helper', exact: true }).getAttribute('title'), null);
+    await inspector.getByRole('button', { name: 'the helper', exact: true }).click();
+    await result.getByText('Revealed src/bundle-paths.ts line 12 in this review.').waitFor();
+    await commit.click();
+    await result.getByText('Opened commit abcdef1 at src/bundle.ts line 8 in a new review.').waitFor();
+  });
+});
+
 // HS2-TGAGQ4: the discussion demo moves its thread for real.
 test('HS2-TGAGQ4 the Review Discussion demo moves a thread to another line and side', async () => {
   await withCatalog(async (page, url) => {
