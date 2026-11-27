@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { setTimeout } from 'node:timers/promises';
 
-import { createDiscussionState, sourceLinkParts } from '../src/components/discussion/discussion-state.ts';
+import {
+  createDiscussionState,
+  savedNoticeMilliseconds,
+  sourceLinkParts,
+} from '../src/components/discussion/discussion-state.ts';
 import { createReviewSourceState } from '../src/components/review/review-source.ts';
 
 test('AI source links preserve indices and render unusable references literally', () => {
@@ -453,6 +457,64 @@ test('HS2-9MZ32M only a region thread can be redrawn', async () => {
     assert.equal(state.startRegionEdit(), null, 'a line thread has no region');
     assert.equal(state.regionEdit.value, null);
     assert.equal(state.regionSeed(), null);
+  } finally {
+    state.stop();
+  }
+});
+
+// GB2-1VSZDE: a settled save shows "Saved" for a moment, and nothing else does.
+test('GB2-1VSZDE a settled autosave shows Saved briefly, then returns to normal', async () => {
+  const operations = [];
+  const { state } = await openedState(operations);
+  try {
+    assert.equal(state.saved.value, false, 'nothing is saved yet');
+    state.edit('first');
+    await setTimeout(450);
+    assert.equal(operations.length, 1);
+    assert.equal(state.saved.value, true);
+    await setTimeout(savedNoticeMilliseconds + 150);
+    assert.equal(state.saved.value, false, 'the notice goes away on its own');
+
+    // A new edit takes the notice back at once, and the next settled save shows it again.
+    state.edit('second');
+    await setTimeout(450);
+    assert.equal(state.saved.value, true);
+    state.edit('third');
+    assert.equal(state.saved.value, false, 'an unsaved edit is not "Saved"');
+    await setTimeout(450);
+    assert.equal(operations.length, 3);
+    assert.equal(state.saved.value, true);
+
+    // Closing or switching the thread clears it.
+    await state.showThread(2);
+    assert.equal(state.saved.value, false);
+  } finally {
+    state.stop();
+  }
+});
+
+test('GB2-1VSZDE a failed save never shows Saved and an explicit save does', async () => {
+  const source = createReviewSourceState(comparison, () => Promise.resolve(comparison));
+  const first = thread(1, 'First draft');
+  let fail = true;
+  const state = createDiscussionState(source, (selection, operation) => {
+    if (operation === undefined) return Promise.resolve([first]);
+    if (fail) return Promise.reject(new Error('Disk full.'));
+    return Promise.resolve([{ ...first, revision: 2 }]);
+  });
+  try {
+    await source.open({ kind: 'paths', before: '/before', after: '/after' });
+    source.selected.value = 0;
+    await setTimeout(0);
+    await state.showThread(1);
+    state.edit('lost');
+    assert.equal(await state.saveEdit(), false);
+    assert.equal(state.saved.value, false);
+    assert.equal(state.error.value, 'Disk full.');
+    fail = false;
+    state.edit('kept');
+    assert.equal(await state.saveEdit(), true);
+    assert.equal(state.saved.value, true);
   } finally {
     state.stop();
   }

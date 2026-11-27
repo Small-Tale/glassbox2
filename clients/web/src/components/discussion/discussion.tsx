@@ -343,7 +343,7 @@ export function DiscussionInspector({
           {editable ? (
             <Row wrap hAlign="full" vAlign="middle" controlInsets="trbl">
               <Text variant="span" role="status">
-                {state.pending.value ? 'Saving…' : 'Saves automatically'}
+                {state.pending.value ? 'Saving…' : state.saved.value ? 'Saved' : 'Saves automatically'}
               </Text>
               <Button action="discussion-remove" tone="danger" emphasis="plain" disabled={state.pending.value}>
                 Remove

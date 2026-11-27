@@ -677,6 +677,47 @@ test('GB2-WYTJSX empty states say how to start', { timeout: 60_000 }, async () =
   });
 });
 
+// GB2-1VSZDE: a settled autosave shows Saved for a moment without moving anything.
+test('GB2-1VSZDE the Inspector confirms a settled autosave', { timeout: 60_000 }, async () => {
+  await withWorkbench(async (page, url, { repo }) => {
+    const button = (name) => page.getByRole('button', { name, exact: true });
+    const inspector = page.getByRole('region', { name: 'Discussion' });
+    await page.goto(url);
+    await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(repo);
+    await button('Open Comparison').click();
+    await page.getByRole('treeitem', { name: /bundle\.ts/ }).click();
+    await button('Add Comment to After Line 1').focus();
+    await page.keyboard.press('Enter');
+    await inspector.getByRole('textbox', { name: 'Comment', exact: true }).fill('First note.');
+    await inspector.getByRole('button', { name: 'Add Comment', exact: true }).click();
+    const status = inspector.getByRole('status').filter({ hasText: /Saves automatically|Saving…|Saved/u });
+    await inspector.getByText('Saves automatically', { exact: true }).waitFor();
+    const remove = button('Remove');
+    const before = await remove.boundingBox();
+
+    const saved = page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/discussion') && response.request().postDataJSON().operation?.kind === 'apply',
+    );
+    await inspector.getByRole('textbox', { name: 'Comment', exact: true }).fill('Edited note.');
+    assert.equal(await inspector.getByText('Saved', { exact: true }).count(), 0, 'an unsaved edit is not Saved');
+    assert((await saved).ok());
+    await inspector.getByText('Saved', { exact: true }).waitFor();
+    assert.equal(await status.count(), 1, 'one status line, announced as a status');
+    const during = await remove.boundingBox();
+    assert.deepEqual(during, before, 'the Remove button does not move when the text changes');
+    await capture(page, 'autosave-saved-1440');
+    // It returns to the resting text by itself.
+    await inspector.getByText('Saves automatically', { exact: true }).waitFor();
+    for (const width of [940, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await inspector.getByText('Saves automatically', { exact: true }).waitFor();
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
+      await capture(page, `autosave-resting-${width}`);
+    }
+  });
+});
+
 // HS2-B5K6GM: a cited commit opens in a new tab at the cited line and leaves the original review as it was.
 test(
   'HS2-B5K6GM a cited commit opens in a new review tab and the original review is untouched',

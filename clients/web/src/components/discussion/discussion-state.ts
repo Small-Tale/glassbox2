@@ -5,6 +5,9 @@ import type { Definition } from '../review/definition-navigation.js';
 import type { CommitLink, CommitTarget } from '../review/review-link.js';
 import type { ReviewSource, ReviewSourceState } from '../review/review-source.js';
 
+/** How long "Saved" stays after a save settles (GB2-1VSZDE). */
+export const savedNoticeMilliseconds = 2000;
+
 export const categories = [
   { value: 'bug', label: 'Bug' },
   { value: 'fix', label: 'Fix Needed' },
@@ -160,6 +163,9 @@ export function createDiscussionState(
   let relocateSequence = 0;
   const artifact = signal<{ id: number; label: string; preview?: ArtifactPreview; message?: string } | null>(null);
   let artifactRequest: AbortController | undefined;
+  /** True for a moment after a save settles, so the person sees it happened (GB2-1VSZDE). */
+  const saved = signal(false);
+  let savedTimer: ReturnType<typeof setTimeout> | undefined;
   /** HS2-3G613V: verified previews as blob URLs, keyed by attachment id, for the active thread only. */
   const attachmentPreviews = signal<Record<number, AttachmentPreview>>({});
   /** The attachment shown large (an enlarged image or an open PDF), if any. */
@@ -205,7 +211,21 @@ export function createDiscussionState(
     }
   }
 
+  function clearSaved() {
+    clearTimeout(savedTimer);
+    saved.value = false;
+  }
+
+  function showSaved() {
+    clearTimeout(savedTimer);
+    saved.value = true;
+    savedTimer = setTimeout(() => {
+      saved.value = false;
+    }, savedNoticeMilliseconds);
+  }
+
   function resetEditor() {
+    clearSaved();
     closeArtifact();
     autosave.cancel();
     threadId.value = null;
@@ -339,6 +359,7 @@ export function createDiscussionState(
   }
 
   function stop() {
+    clearSaved();
     stopLoading();
     stopPreviews();
     clearAttachmentPreviews();
@@ -390,6 +411,7 @@ export function createDiscussionState(
       const items = await done;
       if (selection !== current) return false;
       threads.value = items;
+      showSaved();
       return true;
     } catch (failure) {
       if (selection === current)
@@ -607,6 +629,7 @@ export function createDiscussionState(
   }
 
   function edit(value: string) {
+    clearSaved();
     text.value = value;
     if (activeThread() === undefined) autosave.cancel();
     else autosave();
@@ -643,6 +666,7 @@ export function createDiscussionState(
     attachmentPreviews,
     expandedAttachment,
     attachmentStatus,
+    saved,
     toggleAttachment,
     openAttachment,
     stop,
