@@ -88,7 +88,18 @@ recommendation gets a rendered mock (through the Kerf design-mock workflow) befo
 | R7  | Add a one-line description to each order mode (Path: A to Z; Risk: highest risk first, runs an analysis; Narrative: in reading order, runs an analysis), as tooltips or helper text.                                                                                              | Conceptual model             | Medium | Low    |
 | R8  | Show "Saved" briefly after an autosave settles, next to "Saves automatically".                                                                                                                                                                                                    | Feedback, reassurance        | Low    | Low    |
 
-## Decisions needed
+## Decisions
 
-Approval is asked per recommendation on `HS2-F9Y9T5`; nothing is implemented until a recommendation is approved.
-Approved ones become one ticket each under `HS2-249DRE`, matched to a rendered mock.
+The maintainer answered on `HS2-F9Y9T5` on 2026-11-27. Each approved change is its own ticket, matched to a rendered
+mock and an after capture before it ships.
+
+| #   | Decision                    | Ticket       |
+| --- | --------------------------- | ------------ |
+| R1  | Declined                    | none         |
+| R2  | Approved                    | `GB2-8T670B` |
+| R3  | Approved                    | `GB2-8JB784` |
+| R4  | Approved                    | `GB2-WYTJSX` |
+| R5  | Approved                    | `GB2-SWK512` |
+| R6  | Approved (measurement only) | `GB2-6NVCBB` |
+| R7  | Approved                    | `GB2-173Q1Q` |
+| R8  | Approved                    | `GB2-1VSZDE` |
