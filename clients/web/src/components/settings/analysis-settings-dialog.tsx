@@ -4,6 +4,7 @@ import { Button } from '@kerfjs/ui/button';
 import { CheckboxGroup } from '@kerfjs/ui/checkbox-group';
 import { px } from '@kerfjs/ui/css-values';
 import { deviceClass } from '@kerfjs/ui/device-class';
+import { Disclosure } from '@kerfjs/ui/disclosure';
 import { EmptyState } from '@kerfjs/ui/empty-state';
 import { List } from '@kerfjs/ui/list';
 import { ListHeader } from '@kerfjs/ui/list-header';
@@ -18,6 +19,7 @@ import { ToolbarButton, ToolbarControlGroup } from '@kerfjs/ui/toolbar-control-g
 import { BrainCircuit, RefreshCw } from 'lucide';
 
 import { type AnalysisSettingsState, guidanceTopics } from './analysis-settings-state.js';
+import { copyText } from './copy-text.js';
 
 // GB2-806ABB: the Kerf catalog marks `wirePinnablePopover` and `wireOverlaySheets` as required for
 // the whole `surface-scaffold` entry, but this is a plain modal dialog (see GB2-NV3Y0E).
@@ -106,12 +108,27 @@ export function AnalysisSettingsDialog({
               <>
                 <ListHeader label="Provider Data Destination" />
                 <Text controlMargins="rl">
-                  Glassbox sends text diffs to this executable only when you start an analysis. The provider controls
+                  Glassbox sends text diffs to this provider only when you start an analysis. The provider controls
                   where the data is processed.
                 </Text>
-                <Text font="monospace" wrap="anywhere" controlMargins="rl">
-                  {approved.executable}
-                </Text>
+                <Disclosure title="Where this provider runs" size="compact" appearance="plain">
+                  <Text size="compact" font="monospace" wrap="anywhere" controlMargins="rl">
+                    {approved.executable}
+                  </Text>
+                  <Button
+                    action={`${id}:copy`}
+                    emphasis="plain"
+                    size="compact"
+                    rootAttributes={{ 'data-copy-value': approved.executable }}
+                  >
+                    Copy Path
+                  </Button>
+                  {state.copied.value === '' ? null : (
+                    <Text role="status" tone="quiet" size="compact" controlMargins="rl">
+                      {state.copied.value}
+                    </Text>
+                  )}
+                </Disclosure>
                 <ListInsetControl>
                   <Select
                     name="analysis-model"
@@ -171,6 +188,10 @@ export function wireAnalysisSettingsDialog(root: HTMLElement, id: string, state:
       }
       if (action === `${id}:cancel`) closeDialog(modal);
       if (action === `${id}:models`) void state.loadModels();
+      if (action === `${id}:copy`) {
+        const value = event.target.closest<HTMLElement>('[data-copy-value]')?.dataset.copyValue;
+        if (value !== undefined) void copyText(value).then((message) => (state.copied.value = message));
+      }
       if (action === `${id}:save`) {
         void state.save().then((saved) => {
           if (saved) closeDialog(modal);

@@ -1,6 +1,7 @@
 import { Button } from '@kerfjs/ui/button';
 import { px } from '@kerfjs/ui/css-values';
 import { deviceClass } from '@kerfjs/ui/device-class';
+import { Disclosure } from '@kerfjs/ui/disclosure';
 import { EmptyState } from '@kerfjs/ui/empty-state';
 import { List } from '@kerfjs/ui/list';
 import { ListHeader } from '@kerfjs/ui/list-header';
@@ -13,6 +14,7 @@ import { Text } from '@kerfjs/ui/text';
 import { ToolbarButton, ToolbarControlGroup } from '@kerfjs/ui/toolbar-control-group';
 import { HardDrive, Trash2 } from 'lucide';
 
+import { copyText } from './copy-text.js';
 import { formatBytes, type StorageState } from './storage-state.js';
 
 // GB2-806ABB: the Kerf catalog marks `wirePinnablePopover` and `wireOverlaySheets` as required for
@@ -156,7 +158,6 @@ export function StorageDialog({
                       action={`${id}:project`}
                       icon={<LucideIcon icon={Trash2} name="trash-2" />}
                       label={projectName(project)}
-                      description={project}
                       status={`${formatBytes(bytes)} · ${count(bundles)}`}
                       accessibleLabel={`Clear ${projectName(project)}`}
                       disabled={loading}
@@ -165,6 +166,34 @@ export function StorageDialog({
                     />
                   ),
                 )}
+                <Disclosure title="Project locations" size="compact" appearance="plain">
+                  {usage.projects.map(({ project }) =>
+                    project === null ? null : (
+                      <>
+                        <Text weight="strong" size="compact" wrap="anywhere" controlMargins="rl">
+                          {projectName(project)}
+                        </Text>
+                        <Text size="compact" font="monospace" wrap="anywhere" controlMargins="rl">
+                          {project}
+                        </Text>
+                        <Button
+                          action={`${id}:copy`}
+                          emphasis="plain"
+                          size="compact"
+                          ariaLabel={`Copy Path of ${projectName(project)}`}
+                          rootAttributes={{ 'data-copy-value': project }}
+                        >
+                          Copy Path
+                        </Button>
+                      </>
+                    ),
+                  )}
+                  {state.copied.value === '' ? null : (
+                    <Text role="status" tone="quiet" size="compact" controlMargins="rl">
+                      {state.copied.value}
+                    </Text>
+                  )}
+                </Disclosure>
               </>
             ) : null}
           </>
@@ -231,6 +260,10 @@ export function wireStorageDialog(root: HTMLElement, id: string, state: StorageS
       if (action === `${id}:project`) {
         const project = event.target.closest<HTMLElement>('[data-storage-project]')?.dataset.storageProject;
         if (project !== undefined) state.confirm({ kind: 'project', project });
+      }
+      if (action === `${id}:copy`) {
+        const value = event.target.closest<HTMLElement>('[data-copy-value]')?.dataset.copyValue;
+        if (value !== undefined) void copyText(value).then((message) => (state.copied.value = message));
       }
       if (action === `${id}:cancel`) state.confirm(null);
       if (action === `${id}:delete`) void state.clear();

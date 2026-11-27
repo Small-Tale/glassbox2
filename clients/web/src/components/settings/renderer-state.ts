@@ -26,11 +26,14 @@ export function createRendererState(read = load) {
   const readiness = signal<Readiness | null>(null);
   const loading = signal(false);
   const error = signal('');
+  /** The result of the last Copy Path (GB2-SWK512). */
+  const copied = signal('');
 
   async function refresh() {
     if (loading.value) return;
     loading.value = true;
     error.value = '';
+    copied.value = '';
     try {
       readiness.value = await read();
     } catch (failure) {
@@ -40,7 +43,7 @@ export function createRendererState(read = load) {
     }
   }
 
-  return { readiness, loading, error, refresh };
+  return { readiness, loading, error, copied, refresh };
 }
 
 export type RendererState = ReturnType<typeof createRendererState>;

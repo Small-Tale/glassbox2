@@ -55,6 +55,7 @@
       "publicTokens": [],
       "uses": [
         "button",
+        "disclosure",
         "checkbox-group",
         "empty-state",
         "list",
@@ -293,6 +294,7 @@
       "publicTokens": [],
       "uses": [
         "button",
+        "disclosure",
         "empty-state",
         "list",
         "list-header",
@@ -537,6 +539,7 @@
       "publicTokens": [],
       "uses": [
         "button",
+        "disclosure",
         "empty-state",
         "list",
         "list-header",

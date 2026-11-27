@@ -849,6 +849,10 @@ test('AI settings select an approved model and keep analysis opt-in', { timeout:
       assert.equal(await option('Unapproved Fixture').count(), 0);
       await option('Desktop Fixture').click();
       await page.getByText('Provider Data Destination', { exact: true }).waitFor();
+      // GB2-SWK512: the executable path is one press away, with Copy Path, not the first thing read.
+      await page.getByText('Where this provider runs', { exact: true }).click();
+      await page.getByRole('button', { name: 'Copy Path', exact: true }).waitFor();
+      await page.getByText('Where this provider runs', { exact: true }).click();
       assert(!requests.includes('/api/v1/settings/analysis/models'));
       await button('Load Models').click();
       await combo('Model').click();
@@ -1348,6 +1352,11 @@ test(
       await dialog.getByText('Saved Feedback', { exact: true }).waitFor();
       await dialog.getByText('By Project', { exact: true }).waitFor();
       assert.equal(await dialog.getByText(/^\d+(\.\d+)? \w+ · 1 bundle$/).count(), 2);
+      // GB2-SWK512: rows name the project; the full location is under Project locations with Copy Path.
+      await dialog.getByText('Project locations', { exact: true }).click();
+      await dialog.getByRole('button', { name: 'Copy Path of Fieldnotes', exact: true }).waitFor();
+      assert.match(await dialog.locator('text=/Fieldnotes$/').last().innerText(), /Fieldnotes$/u);
+      await dialog.getByText('Project locations', { exact: true }).click();
       for (const width of [1440, 940, 390, 1440]) {
         await page.setViewportSize({ width, height: 900 });
         await dialog.getByText('Bundles stay on disk until you clear them.').waitFor();
@@ -2244,7 +2253,21 @@ test(
     await withWorkbench(async (page, url) => {
       const dialog = await open(page, url);
       await dialog.getByText('No Renderer Configured', { exact: true }).waitFor();
-      await dialog.getByText(/Set GLASSBOX_CONTENT_RENDERER to the absolute path/u).waitFor();
+      // GB2-SWK512: the plain sentence leads; the variable name is one press away.
+      await dialog
+        .getByText('Diagram files open as source until a trusted renderer is set up.', { exact: true })
+        .waitFor();
+      assert.equal(
+        await dialog.getByText(/GLASSBOX_CONTENT_RENDERER/u).isVisible(),
+        false,
+        'the variable starts hidden',
+      );
+      await dialog.getByText('How to set this up', { exact: true }).first().click();
+      await dialog
+        .getByText('Set GLASSBOX_CONTENT_RENDERER to the absolute path of the tool, then restart Glassbox.', {
+          exact: true,
+        })
+        .waitFor();
       for (const id of ['graphviz', 'mermaid', 'plantuml']) {
         await format(dialog, id).getByText('Needs a Renderer', { exact: true }).waitFor();
       }
@@ -2279,15 +2302,29 @@ test(
         await dialog.getByText('Local Diagram Adapter', { exact: true }).waitFor();
         await format(dialog, 'graphviz').getByText('Ready', { exact: true }).waitFor();
         await format(dialog, 'mermaid').getByText('Needs Setup', { exact: true }).waitFor();
+        await format(dialog, 'mermaid').getByText('Mermaid CLI executable: not set up.', { exact: true }).waitFor();
+        await format(dialog, 'mermaid').getByText('How to set this up', { exact: true }).click();
         await format(dialog, 'mermaid')
-          .getByText(/set GLASSBOX_MERMAID_EXECUTABLE to its absolute path \(is not set\)/u)
+          .getByText('Set GLASSBOX_MERMAID_EXECUTABLE to the absolute path of the tool.', { exact: true })
           .waitFor();
         await format(dialog, 'mermaid')
           .getByText(/Install it from https:\/\/github\.com\/mermaid-js\/mermaid-cli/u)
           .waitFor();
-        await format(dialog, 'plantuml')
-          .getByText(/PlantUML jar: set GLASSBOX_PLANTUML_JAR.*does not point to a file/u)
-          .waitFor();
+        await format(dialog, 'plantuml').getByText('PlantUML jar: file not found.', { exact: true }).waitFor();
+        await format(dialog, 'plantuml').getByText('How to set this up', { exact: true }).click();
+        const current = await format(dialog, 'plantuml')
+          .getByText(/^Currently /u)
+          .innerText();
+        assert.match(current, /plantuml\.jar$/u);
+        // Copy Path puts the path on the clipboard and says so.
+        const readable = process.env.GLASSBOX_BROWSER !== 'webkit';
+        if (readable) await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: url });
+        await format(dialog, 'plantuml').getByRole('button', { name: 'Copy Path', exact: true }).click();
+        // WebKit refuses to grant clipboard access in automation, so it reports the failure in plain words.
+        await dialog.getByText(readable ? 'Path copied.' : /^(Path copied|Could not copy the path)\.$/u).waitFor();
+        if (readable) {
+          assert.equal(await page.evaluate(() => navigator.clipboard.readText()), current.replace(/^Currently /u, ''));
+        }
         await capture(page, 'renderers-setup-1440');
         for (const width of [940, 390, 1440]) {
           await page.setViewportSize({ width, height: 900 });
@@ -2300,7 +2337,7 @@ test(
         await dialog.getByRole('button', { name: 'Check Again', exact: true }).click();
         await format(dialog, 'plantuml').getByText('Ready', { exact: true }).waitFor();
         await format(dialog, 'mermaid').getByText('Needs Setup', { exact: true }).waitFor();
-        await dialog.getByText(/A change to a variable needs a restart/u).waitFor();
+        await dialog.getByText(/A changed setting needs a restart/u).waitFor();
       },
       {
         environment: ({ scratch }) => {

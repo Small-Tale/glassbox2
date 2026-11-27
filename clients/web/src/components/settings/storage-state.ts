@@ -41,11 +41,14 @@ export function createStorageState(read = load, cleanup = remove) {
   const deleting = signal(false);
   const error = signal('');
   const report = signal<Report | null>(null);
+  /** The result of the last Copy Path (GB2-SWK512). */
+  const copied = signal('');
 
   async function refresh() {
     if (loading.value) return;
     loading.value = true;
     error.value = '';
+    copied.value = '';
     try {
       usage.value = await read();
     } catch (failure) {
@@ -76,7 +79,7 @@ export function createStorageState(read = load, cleanup = remove) {
     }
   }
 
-  return { usage, scope, loading, deleting, error, report, refresh, confirm, clear };
+  return { usage, scope, loading, deleting, error, report, copied, refresh, confirm, clear };
 }
 
 export type StorageState = ReturnType<typeof createStorageState>;

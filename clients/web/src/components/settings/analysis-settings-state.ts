@@ -50,6 +50,8 @@ export function createAnalysisSettingsState(read = load, list = fetchModels, wri
   const models = signal<string[] | null>(null);
   const pending = signal<'settings' | 'models' | 'save' | null>(null);
   const error = signal('');
+  /** The result of the last Copy Path (GB2-SWK512). */
+  const copied = signal('');
   let sequence = 0;
 
   async function refresh() {
@@ -57,6 +59,7 @@ export function createAnalysisSettingsState(read = load, list = fetchModels, wri
     view.value = null;
     models.value = null;
     error.value = '';
+    copied.value = '';
     pending.value = 'settings';
     try {
       const result = await read();
@@ -126,7 +129,20 @@ export function createAnalysisSettingsState(read = load, list = fetchModels, wri
       pending.value = null;
     }
   }
-  return { view, draft, models, pending, error, refresh, chooseProvider, loadModels, chooseModel, chooseTopic, save };
+  return {
+    view,
+    draft,
+    models,
+    pending,
+    error,
+    copied,
+    refresh,
+    chooseProvider,
+    loadModels,
+    chooseModel,
+    chooseTopic,
+    save,
+  };
 }
 
 export type AnalysisSettingsState = ReturnType<typeof createAnalysisSettingsState>;

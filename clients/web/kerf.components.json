@@ -1125,6 +1125,7 @@
         "documentation": "docs/ui-conventions.md",
         "uses": [
           "button",
+          "disclosure",
           "checkbox-group",
           "empty-state",
           "list",
@@ -1216,6 +1217,7 @@
         "documentation": "docs/ui-conventions.md",
         "uses": [
           "button",
+          "disclosure",
           "empty-state",
           "list",
           "list-header",
@@ -1305,6 +1307,7 @@
         "documentation": "docs/ui-conventions.md",
         "uses": [
           "button",
+          "disclosure",
           "empty-state",
           "list",
           "list-header",

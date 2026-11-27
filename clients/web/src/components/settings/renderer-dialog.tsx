@@ -1,6 +1,7 @@
 import { Button } from '@kerfjs/ui/button';
 import { px } from '@kerfjs/ui/css-values';
 import { deviceClass } from '@kerfjs/ui/device-class';
+import { Disclosure } from '@kerfjs/ui/disclosure';
 import { EmptyState } from '@kerfjs/ui/empty-state';
 import { List } from '@kerfjs/ui/list';
 import { ListHeader } from '@kerfjs/ui/list-header';
@@ -12,6 +13,7 @@ import { Text } from '@kerfjs/ui/text';
 import { ToolbarButton, ToolbarControlGroup } from '@kerfjs/ui/toolbar-control-group';
 import { PlugZap } from 'lucide';
 
+import { copyText } from './copy-text.js';
 import type { Format, Readiness, RendererState, Requirement, RequirementState } from './renderer-state.js';
 
 // HS2-Q9TXER: a plain modal dialog, like the other settings dialogs (see GB2-NV3Y0E).
@@ -39,34 +41,68 @@ const states: Record<Format['state'], string> = {
   unchecked: 'Not Checked',
 };
 
-const problems: Record<Exclude<RequirementState, 'ok'>, string> = {
-  unset: 'is not set',
-  relative: 'must be an absolute path',
-  missing: 'does not point to a file',
+/** The plain sentence for a requirement; the variable and path are in its disclosure (GB2-SWK512). */
+const plainProblems: Record<Exclude<RequirementState, 'ok'>, string> = {
+  unset: 'not set up',
+  relative: 'needs an absolute path',
+  missing: 'file not found',
 };
 
-function need({ label, variable, state, path }: Requirement) {
-  if (state === 'ok') return `${label}: found`;
-  return `${label}: set ${variable} to its absolute path (${path === undefined ? problems[state] : `${path} ${problems[state]}`}).`;
+function need({ label, state }: Requirement) {
+  return state === 'ok' ? `${label}: found` : `${label}: ${plainProblems[state]}.`;
 }
 
-function Renderer({ renderer }: { renderer: Readiness['renderer'] }) {
+/** Copies the path beside it; the dialog handler reads the value from the button. */
+function copyPath(id: string, path: string) {
+  return (
+    <Button action={`${id}:copy`} emphasis="plain" size="compact" rootAttributes={{ 'data-copy-value': path }}>
+      Copy Path
+    </Button>
+  );
+}
+
+/** What to set and where it points now, kept one press away from the plain sentence. */
+function setup(id: string, variable: string, path: string | undefined, restart: boolean) {
+  return (
+    <Disclosure title="How to set this up" size="compact" appearance="plain">
+      <Text size="compact" wrap="anywhere" controlMargins="rl">
+        {`Set ${variable} to the absolute path of the tool${restart ? ', then restart Glassbox' : ''}.`}
+      </Text>
+      {path === undefined ? null : (
+        <>
+          <Text size="compact" font="monospace" wrap="anywhere" controlMargins="rl">
+            {`Currently ${path}`}
+          </Text>
+          {copyPath(id, path)}
+        </>
+      )}
+    </Disclosure>
+  );
+}
+
+function Renderer({ id, renderer }: { id: string; renderer: Readiness['renderer'] }) {
   switch (renderer.state) {
     case 'not_configured':
       return (
-        <StateBanner
-          tone="info"
-          title="No Renderer Configured"
-          detail={`Set ${renderer.variable} to the absolute path of a trusted renderer executable, then restart Glassbox. Diagram files open as source until then.`}
-        />
+        <>
+          <StateBanner
+            tone="info"
+            title="No Renderer Configured"
+            detail="Diagram files open as source until a trusted renderer is set up."
+          />
+          {setup(id, renderer.variable, undefined, true)}
+        </>
       );
     case 'missing':
       return (
-        <StateBanner
-          tone="warning"
-          title="Renderer Not Found"
-          detail={`${renderer.path ?? 'The configured path'} is not an absolute path to a file. Fix ${renderer.variable} and restart Glassbox.`}
-        />
+        <>
+          <StateBanner
+            tone="warning"
+            title="Renderer Not Found"
+            detail="The configured renderer is not an absolute path to a file. Diagram files open as source."
+          />
+          {setup(id, renderer.variable, renderer.path, true)}
+        </>
       );
     case 'local':
       return (
@@ -74,9 +110,17 @@ function Renderer({ renderer }: { renderer: Readiness['renderer'] }) {
           <Text weight="strong" flush>
             Local Diagram Adapter
           </Text>
-          <Text tone="quiet" size="compact" wrap="anywhere" flush>
-            {renderer.path}
+          <Text tone="quiet" size="compact" flush>
+            Built in; no setup needed.
           </Text>
+          {renderer.path === undefined ? null : (
+            <Disclosure title="Location" size="compact" appearance="plain">
+              <Text size="compact" font="monospace" wrap="anywhere" controlMargins="rl">
+                {renderer.path}
+              </Text>
+              {copyPath(id, renderer.path)}
+            </Disclosure>
+          )}
         </ListInsetText>
       );
     case 'custom':
@@ -85,12 +129,17 @@ function Renderer({ renderer }: { renderer: Readiness['renderer'] }) {
           <Text weight="strong" flush>
             Custom Renderer
           </Text>
-          <Text tone="quiet" size="compact" wrap="anywhere" flush>
-            {renderer.path}
-          </Text>
           <Text tone="quiet" size="compact" flush>
             Glassbox cannot tell which formats it supports; each render reports its own failure.
           </Text>
+          {renderer.path === undefined ? null : (
+            <Disclosure title="Location" size="compact" appearance="plain">
+              <Text size="compact" font="monospace" wrap="anywhere" controlMargins="rl">
+                {renderer.path}
+              </Text>
+              {copyPath(id, renderer.path)}
+            </Disclosure>
+          )}
         </ListInsetText>
       );
   }
@@ -141,16 +190,19 @@ export function RendererDialog({
         ) : (
           <>
             <ListHeader label="Renderer" />
-            <Renderer renderer={readiness.renderer} />
+            <Renderer id={id} renderer={readiness.renderer} />
             <ListHeader label="Diagram Formats" />
             {readiness.formats.map((format) => (
               <ListInsetText rootAttributes={{ 'data-renderer-format': format.id }}>
                 <Text weight="strong" flush>{`${format.name} · ${format.extensions.join(', ')}`}</Text>
                 <Text flush>{states[format.state]}</Text>
                 {format.requirements.map((requirement) => (
-                  <Text tone="quiet" size="compact" wrap="anywhere" flush>
-                    {need(requirement)}
-                  </Text>
+                  <>
+                    <Text tone="quiet" size="compact" wrap="anywhere" flush>
+                      {need(requirement)}
+                    </Text>
+                    {requirement.state === 'ok' ? null : setup(id, requirement.variable, requirement.path, false)}
+                  </>
                 ))}
                 {format.state === 'needs_setup' ? (
                   <Text tone="quiet" size="compact" wrap="anywhere" flush>{`Install it from ${format.install}`}</Text>
@@ -158,9 +210,14 @@ export function RendererDialog({
               </ListInsetText>
             ))}
             <Text tone="quiet" controlMargins="rl">
-              Check Again re-reads these paths, so a tool installed since Glassbox started is noticed. A change to a
-              variable needs a restart. Glassbox never installs or runs a tool from this dialog.
+              Check Again notices a tool installed since Glassbox started. Glassbox never installs or runs a tool from
+              this dialog. A changed setting needs a restart.
             </Text>
+            {state.copied.value === '' ? null : (
+              <Text role="status" tone="quiet" controlMargins="rl">
+                {state.copied.value}
+              </Text>
+            )}
           </>
         )}
       </List>
@@ -187,6 +244,10 @@ export function wireRendererDialog(root: HTMLElement, id: string, state: Rendere
         if (modal !== null) closeDialog(modal);
       }
       if (action === `${id}:refresh`) void state.refresh();
+      if (action === `${id}:copy`) {
+        const value = event.target.closest<HTMLElement>('[data-copy-value]')?.dataset.copyValue;
+        if (value !== undefined) void copyText(value).then((message) => (state.copied.value = message));
+      }
     },
     { signal: controller.signal },
   );
