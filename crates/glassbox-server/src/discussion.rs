@@ -489,15 +489,16 @@ pub(crate) struct ThreadSelection {
 }
 
 impl Discussion {
-    pub(crate) fn diagram_attachment(
+    /// The filename and bytes of one attachment of one thread of the selected file.
+    pub(crate) fn attachment(
         &self,
         selection: &DiscussionSelection,
         id: FeedbackId,
         attachment: FeedbackId,
-    ) -> Result<Option<(crate::diagrams::DiagramFormat, Vec<u8>)>, ApiError> {
+    ) -> Result<Option<(String, Vec<u8>)>, ApiError> {
         let key = serde_json::to_string(&selection.source).map_err(bad_request)?;
         let reviews = self.0.lock().map_err(storage_error)?;
-        let result = reviews
+        Ok(reviews
             .get(&key)
             .and_then(|review| {
                 review
@@ -512,13 +513,22 @@ impl Discussion {
                     .flat_map(|message| &message.attachments)
                     .find(|item| item.id == attachment)
             })
-            .and_then(|item| {
+            .map(|item| (item.filename.clone(), item.bytes.clone())))
+    }
+
+    pub(crate) fn diagram_attachment(
+        &self,
+        selection: &DiscussionSelection,
+        id: FeedbackId,
+        attachment: FeedbackId,
+    ) -> Result<Option<(crate::diagrams::DiagramFormat, Vec<u8>)>, ApiError> {
+        Ok(self
+            .attachment(selection, id, attachment)?
+            .and_then(|(filename, bytes)| {
                 let format =
-                    crate::diagrams::DiagramFormat::for_path(std::path::Path::new(&item.filename))?;
-                (item.bytes.len() <= crate::diagrams::MAX_SOURCE_BYTES)
-                    .then(|| (format, item.bytes.clone()))
-            });
-        Ok(result)
+                    crate::diagrams::DiagramFormat::for_path(std::path::Path::new(&filename))?;
+                (bytes.len() <= crate::diagrams::MAX_SOURCE_BYTES).then_some((format, bytes))
+            }))
     }
 
     pub(crate) fn preview(&self, source: &ReviewSource) -> Result<Preview, ApiError> {
@@ -1005,6 +1015,11 @@ struct MessageView {
 struct AttachmentView {
     id: FeedbackId,
     filename: String,
+    /// `image` or `pdf` when the attachment is verified and can be previewed, else absent (HS2-3G613V).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    preview: Option<&'static str>,
+    /// Whether the explicit open action is offered: only a verified attachment can be opened.
+    openable: bool,
 }
 
 fn message_view(message: &FeedbackMessage) -> MessageView {
@@ -1014,9 +1029,14 @@ fn message_view(message: &FeedbackMessage) -> MessageView {
         attachments: message
             .attachments
             .iter()
-            .map(|item| AttachmentView {
-                id: item.id,
-                filename: item.filename.clone(),
+            .map(|item| {
+                let kind = crate::attachments::verified(&item.filename, &item.bytes);
+                AttachmentView {
+                    id: item.id,
+                    filename: item.filename.clone(),
+                    preview: kind.map(crate::attachments::Kind::preview),
+                    openable: kind.is_some(),
+                }
             })
             .collect(),
     }

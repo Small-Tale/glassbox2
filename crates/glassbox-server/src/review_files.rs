@@ -592,7 +592,7 @@ pub(crate) async fn file_action(
     .await
 }
 
-fn launch_desktop(path: &Path, reveal: bool) -> io::Result<()> {
+pub(crate) fn launch_desktop(path: &Path, reveal: bool) -> io::Result<()> {
     use std::process::Stdio;
 
     let mut child = desktop_command(path, reveal)

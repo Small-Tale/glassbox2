@@ -30,3 +30,19 @@
   display: grid;
   gap: 0.5rem;
 }
+
+.discussion-inspector__thumbnail {
+  display: block;
+  max-inline-size: 100%;
+  max-block-size: 8rem;
+  object-fit: contain;
+}
+
+.discussion-inspector__thumbnail[data-expanded='true'] {
+  max-block-size: 24rem;
+}
+
+.discussion-inspector__document {
+  inline-size: 100%;
+  block-size: 24rem;
+}

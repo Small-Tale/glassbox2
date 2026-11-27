@@ -1,4 +1,4 @@
-import { effect, signal } from 'kerfjs';
+import { batch, effect, signal } from 'kerfjs';
 import { debounce } from 'kerfjs/timing';
 
 import type { Definition } from '../review/definition-navigation.js';
@@ -23,7 +23,11 @@ export type Anchor = {
   revision: string;
   target: { kind: 'line'; start: number; end: number } | ImageRegion;
 };
-type Message = { author: string; markdown: string; attachments: { id: number; filename: string }[] };
+/** HS2-3G613V: `preview` and `openable` are present only for an attachment the host verified. */
+export type Attachment = { id: number; filename: string; preview?: 'image' | 'pdf'; openable?: boolean };
+type Message = { author: string; markdown: string; attachments: Attachment[] };
+export type AttachmentPreview =
+  { status: 'loading' } | { status: 'ready'; url: string } | { status: 'failed'; message: string };
 type SourceLocation = { path: string; line: number; revision?: string };
 export type Thread = {
   id: number;
@@ -83,6 +87,34 @@ async function followSourceLink(selection: Selection, thread: number, index: num
   return (await response.json()) as Definition;
 }
 
+/** The host's attachment preview and open endpoints, replaceable so a demo or test needs no host (HS2-3G613V). */
+export type AttachmentApi = {
+  preview: (selection: Selection, thread: number, attachment: number, abort: AbortSignal) => Promise<Blob>;
+  /** Resolves to the host's status code. */
+  open: (selection: Selection, thread: number, attachment: number) => Promise<number>;
+};
+
+const attachmentApi: AttachmentApi = {
+  async preview(selection, thread, attachment, abort) {
+    const response = await fetch('/api/v1/review/discussion/attachment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ selection, thread, attachment }),
+      signal: abort,
+    });
+    if (!response.ok) throw new Error('This attachment could not be previewed.');
+    return await response.blob();
+  },
+  async open(selection, thread, attachment) {
+    const response = await fetch('/api/v1/review/discussion/attachment/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ selection, thread, attachment }),
+    });
+    return response.ok ? 200 : response.status;
+  },
+};
+
 export function isDiagramAttachment(filename: string): boolean {
   return /\.(?:dot|gv|mmd|mermaid|puml|plantuml)$/iu.test(filename);
 }
@@ -98,7 +130,12 @@ async function request(selection: Selection, operation?: Operation, abort?: Abor
   return ((await response.json()) as { threads: Thread[] }).threads;
 }
 
-export function createDiscussionState(source: ReviewSourceState, load = request, locate = relocateThread) {
+export function createDiscussionState(
+  source: ReviewSourceState,
+  load = request,
+  locate = relocateThread,
+  attachments: AttachmentApi = attachmentApi,
+) {
   const threads = signal<Thread[]>([]);
   const threadId = signal<number | null>(null);
   const adding = signal<Anchor | null>(null);
@@ -118,6 +155,13 @@ export function createDiscussionState(source: ReviewSourceState, load = request,
   let relocateSequence = 0;
   const artifact = signal<{ id: number; label: string; preview?: ArtifactPreview; message?: string } | null>(null);
   let artifactRequest: AbortController | undefined;
+  /** HS2-3G613V: verified previews as blob URLs, keyed by attachment id, for the active thread only. */
+  const attachmentPreviews = signal<Record<number, AttachmentPreview>>({});
+  /** The attachment shown large (an enlarged image or an open PDF), if any. */
+  const expandedAttachment = signal<number | null>(null);
+  const attachmentStatus = signal('');
+  let previewControllers = new Map<number, AbortController>();
+  let previewThread: number | undefined;
   let current: Selection | null = null;
   let refreshSequence = 0;
   let sourceLinkSequence = 0;
@@ -158,7 +202,7 @@ export function createDiscussionState(source: ReviewSourceState, load = request,
     error.value = '';
   }
 
-  const stop = effect(() => {
+  const stopLoading = effect(() => {
     const active = source.activeSource.value;
     const index = source.selected.value;
     const file = index === undefined ? undefined : source.review.value?.files[index];
@@ -199,6 +243,88 @@ export function createDiscussionState(source: ReviewSourceState, load = request,
   function closeArtifact() {
     artifactRequest?.abort();
     artifact.value = null;
+  }
+
+  function clearAttachmentPreviews() {
+    for (const controller of previewControllers.values()) controller.abort();
+    previewControllers = new Map();
+    for (const entry of Object.values(attachmentPreviews.peek())) {
+      if (entry.status === 'ready') URL.revokeObjectURL(entry.url);
+    }
+    attachmentPreviews.value = {};
+    expandedAttachment.value = null;
+    attachmentStatus.value = '';
+    previewThread = undefined;
+  }
+
+  function setPreview(id: number, preview: AttachmentPreview) {
+    attachmentPreviews.value = { ...attachmentPreviews.peek(), [id]: preview };
+  }
+
+  async function loadAttachmentPreview(id: number) {
+    const selection = current;
+    const thread = activeThread();
+    if (selection === null || thread === undefined || previewControllers.has(id)) return;
+    const controller = new AbortController();
+    previewControllers.set(id, controller);
+    setPreview(id, { status: 'loading' });
+    try {
+      const blob = await attachments.preview(selection, thread.id, id, controller.signal);
+      if (controller.signal.aborted) return;
+      setPreview(id, { status: 'ready', url: URL.createObjectURL(blob) });
+    } catch {
+      if (!controller.signal.aborted)
+        setPreview(id, { status: 'failed', message: 'This attachment could not be previewed.' });
+    }
+  }
+
+  // Image attachments of the open thread load as thumbnails; a thread change drops the previous thread's blobs.
+  const stopPreviews = effect(() => {
+    const thread = activeThread();
+    if (thread?.id !== previewThread) clearAttachmentPreviews();
+    if (thread === undefined) return;
+    previewThread = thread.id;
+    for (const { attachments } of [thread.opening, ...thread.replies.map(({ message }) => message)]) {
+      for (const item of attachments) {
+        if (item.preview === 'image') void loadAttachmentPreview(item.id);
+      }
+    }
+  });
+
+  /** Enlarge an image or open a PDF preview; choosing it again collapses it. A PDF loads when first opened. */
+  function toggleAttachment(id: number) {
+    if (expandedAttachment.value === id) {
+      expandedAttachment.value = null;
+      return;
+    }
+    expandedAttachment.value = id;
+    void loadAttachmentPreview(id);
+  }
+
+  /** Ask the host to open a verified attachment with the default program (HS2-3G613V). */
+  async function openAttachment(id: number) {
+    const selection = current;
+    const thread = activeThread();
+    if (selection === null || thread === undefined) return;
+    attachmentStatus.value = '';
+    try {
+      const status = await attachments.open(selection, thread.id, id);
+      if (selection !== current || thread.id !== activeThread()?.id) return;
+      attachmentStatus.value =
+        status === 200
+          ? 'Opened in the default application.'
+          : status === 415
+            ? 'This attachment cannot be opened.'
+            : 'Could not open the attachment.';
+    } catch {
+      if (selection === current) attachmentStatus.value = 'Could not open the attachment.';
+    }
+  }
+
+  function stop() {
+    stopLoading();
+    stopPreviews();
+    clearAttachmentPreviews();
   }
 
   async function previewArtifact(id: number) {
@@ -311,9 +437,12 @@ export function createDiscussionState(source: ReviewSourceState, load = request,
     if (!(await saveEdit())) return;
     const thread = threads.value.find((item) => item.id === id);
     if (thread === undefined) return;
-    resetEditor();
-    threadId.value = id;
-    text.value = thread.opening.markdown;
+    // One batch, so showing the open thread again does not look like closing it and drop its previews.
+    batch(() => {
+      resetEditor();
+      threadId.value = id;
+      text.value = thread.opening.markdown;
+    });
   }
 
   async function showAdd(anchor: Anchor) {
@@ -494,6 +623,11 @@ export function createDiscussionState(source: ReviewSourceState, load = request,
     error,
     artifact,
     previewArtifact,
+    attachmentPreviews,
+    expandedAttachment,
+    attachmentStatus,
+    toggleAttachment,
+    openAttachment,
     stop,
     activeThread,
     refreshCurrent,

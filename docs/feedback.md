@@ -57,6 +57,34 @@ anchor. Existing threads on earlier revisions remain available in the
 Inspector with a stale indicator. New AI analysis results are tracked in
 `HS2-05B1PZ`.
 
+### Attachment previews and Open Externally (`HS2-3G613V`)
+
+The Inspector lists each attachment under its message. The host decides what is safe to show: an attachment is
+**verified** only when its filename extension and its leading bytes agree on one of PNG, JPEG, GIF, WebP or PDF and it
+is at most 25 MB. Nothing else is previewed or opened, including SVG, HTML, text, archives and executables, and a
+renamed file (a PNG named `.jpg`) is not verified. The thread view reports `preview` (`image` or `pdf`) and `openable`
+for each attachment so the client never guesses.
+
+| Attachment | What the Inspector shows | Actions |
+| --- | --- | --- |
+| Verified image | A thumbnail loaded from the host | Enlarge Preview, Shrink Preview, Open Externally |
+| Verified PDF | Nothing until Preview PDF is chosen, then an embedded document, or a clear message where the window cannot show PDFs | Preview PDF, Shrink Preview, Open Externally |
+| Not verified | The filename and "Preview unavailable for this file type." | None |
+| Diagram source | The existing diagram preview | Preview and Close |
+| Preview the host no longer has | "This attachment could not be previewed." | None |
+
+Previews come from `POST /api/v1/review/discussion/attachment`, which returns the verified bytes with the detected
+media type, `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox` and `Cache-Control: no-store`. An
+unverified or oversized attachment answers 415 and a missing one 404. The client turns the response into a blob URL for
+the open thread only and releases it when the thread closes or changes.
+
+Open Externally is always an explicit action. `POST /api/v1/review/discussion/attachment/open` writes the verified
+bytes to a private temporary copy (directory mode 0700, file mode 0600 on Unix) under a generated name such as
+`attachment-12.png`, so the person's filename never reaches the launcher, and starts the platform's default program
+the way the file actions do. The copy stays in the temporary directory until the system clears it.
+`GLASSBOX_ATTACHMENT_OPENER` replaces the platform opener with a program that receives the path, which the host and
+browser tests use to record a launch. Drag and paste are not part of this scope.
+
 ### Suggest New Line (`HS2-RV5BD8`)
 
 A stale line comment offers Suggest New Line. The host looks for the line the comment was

@@ -14,11 +14,12 @@ import { Text } from '@kerfjs/ui/text';
 import { TextField } from '@kerfjs/ui/text-field';
 import { wireContentItems } from '@kerfjs/ui/wire-content-items';
 import { wireFilePickers } from '@kerfjs/ui/wire-file-pickers';
-import { MessageSquarePlus } from 'lucide';
+import { ExternalLink, MessageSquarePlus } from 'lucide';
 
 import type { Definition } from '../review/definition-navigation.js';
 import {
   type Anchor,
+  type Attachment,
   categories,
   type DiscussionState,
   isDiagramAttachment,
@@ -137,8 +138,80 @@ export function DiscussionInspector({
 }) {
   const thread = state.activeThread();
   const artifact = state.artifact.value;
-  function attachment({ id, filename }: { id: number; filename: string }) {
-    if (!isDiagramAttachment(filename)) return <Text>{filename}</Text>;
+  function attachment({ id, filename, preview, openable }: Attachment) {
+    if (!isDiagramAttachment(filename)) {
+      // HS2-3G613V: only an attachment the host verified is previewed or offered to the operating system.
+      const loaded = state.attachmentPreviews.value[id];
+      const expanded = state.expandedAttachment.value === id;
+      const pdfSupported =
+        typeof navigator === 'undefined' || (navigator as { pdfViewerEnabled?: boolean }).pdfViewerEnabled !== false;
+      const stateLine = (message: string, tone?: 'quiet' | 'danger') => (
+        <Text role="status" tone={tone}>
+          {message}
+        </Text>
+      );
+      return (
+        <div class="discussion-inspector__attachment" data-key={`discussion-attachment-${id}`}>
+          <Text wrap="anywhere">{filename}</Text>
+          {preview === 'image' ? (
+            loaded === undefined || loaded.status === 'loading' ? (
+              stateLine('Loading preview…', 'quiet')
+            ) : loaded.status === 'failed' ? (
+              stateLine(loaded.message, 'danger')
+            ) : (
+              <img
+                class="discussion-inspector__thumbnail"
+                data-expanded={String(expanded)}
+                src={loaded.url}
+                alt={filename}
+              />
+            )
+          ) : null}
+          {preview === 'pdf' && expanded ? (
+            loaded === undefined || loaded.status === 'loading' ? (
+              stateLine('Loading preview…', 'quiet')
+            ) : loaded.status === 'failed' ? (
+              stateLine(loaded.message, 'danger')
+            ) : pdfSupported ? (
+              <object
+                class="discussion-inspector__document"
+                data={loaded.url}
+                type="application/pdf"
+                aria-label={filename}
+              />
+            ) : (
+              stateLine('This window cannot show PDF previews. Use Open Externally.', 'quiet')
+            )
+          ) : null}
+          {preview === undefined ? <Text tone="quiet">Preview unavailable for this file type.</Text> : null}
+          {preview === undefined && openable !== true ? null : (
+            <Row wrap controlInsets="trbl">
+              {preview === undefined ? null : (
+                <Button
+                  action={`discussion-attachment-toggle:${id}`}
+                  emphasis="plain"
+                  tone="brand"
+                  ariaLabel={`${expanded ? 'Shrink' : preview === 'pdf' ? 'Preview' : 'Enlarge'} ${filename}`}
+                >
+                  {expanded ? 'Shrink Preview' : preview === 'pdf' ? 'Preview PDF' : 'Enlarge Preview'}
+                </Button>
+              )}
+              {openable === true ? (
+                <Button
+                  action={`discussion-attachment-open:${id}`}
+                  emphasis="plain"
+                  tone="brand"
+                  ariaLabel={`Open ${filename} Externally`}
+                  icon={<LucideIcon icon={ExternalLink} name="external-link" />}
+                >
+                  Open Externally
+                </Button>
+              ) : null}
+            </Row>
+          )}
+        </div>
+      );
+    }
     return (
       <div class="discussion-inspector__attachment">
         <Button action={`discussion-artifact:${id}`} emphasis="plain" tone="brand">
@@ -255,6 +328,7 @@ export function DiscussionInspector({
       ) : (
         <>
           {thread?.opening.attachments.map(attachment)}
+          {state.attachmentStatus.value === '' ? null : <Text role="status">{state.attachmentStatus.value}</Text>}
           <FilePickerTrigger label="Attach to Thread" pickerId="discussion-attachment" disabled={state.pending.value} />
           {editable ? (
             <Row wrap hAlign="full" vAlign="middle" controlInsets="trbl">
@@ -487,6 +561,8 @@ export function wireDiscussion(
       if (kind === 'discussion-move-cancel') state.cancelMove();
       if (kind === 'discussion-move-submit') void state.submitMove(anchorFor);
       if (kind === 'discussion-artifact') void state.previewArtifact(Number(first));
+      if (kind === 'discussion-attachment-toggle') state.toggleAttachment(Number(first));
+      if (kind === 'discussion-attachment-open') void state.openAttachment(Number(first));
       if (kind === 'discussion-source-link' && reveal !== undefined) void state.openSourceLink(Number(first), reveal);
       if (kind === 'discussion-submit') void state.submitComment();
       if (kind === 'discussion-reply')

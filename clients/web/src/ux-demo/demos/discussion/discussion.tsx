@@ -1,7 +1,12 @@
 import { CatalogExample, CatalogExampleStack } from '@kerfjs/ui/catalog';
 
 import { DiscussionInspector, LineDiscussion, wireDiscussion } from '../../../components/discussion/discussion.js';
-import { type Anchor, createDiscussionState, type Thread } from '../../../components/discussion/discussion-state.js';
+import {
+  type Anchor,
+  type AttachmentApi,
+  createDiscussionState,
+  type Thread,
+} from '../../../components/discussion/discussion-state.js';
 import { createReviewSourceState, type ReviewFiles } from '../../../components/review/review-source.js';
 
 const anchor: Anchor = {
@@ -16,6 +21,23 @@ const files: ReviewFiles = {
   comparison: 'Working tree',
   files: [{ path: anchor.path, previous_path: null, status: 'modified' }],
 };
+// HS2-3G613V: fixture bytes stand in for the host's verified preview and open endpoints.
+const samplePng = Uint8Array.from(
+  atob(
+    'iVBORw0KGgoAAAANSUhEUgAAAGAAAAA4CAIAAACNJ2r1AAAAfklEQVR42u3ZQQ0AIAwDwElECZqQwxsHOJmJkSzkkgro7tnFmKsk+9ySdOsTgAABAgQIECBAgAABAgQIUDugXw+r6gMIECBAgAABAgQIECBAgAD1AzJ32IMAAQIECBAgQIAAAQIECJDfvD0IECBAgAABAgQIECBAgAABetonAb5KaNnzVwUHAAAAAElFTkSuQmCC',
+  ),
+  (character) => character.charCodeAt(0),
+);
+const samplePdf = new TextEncoder().encode('%PDF-1.7\n1 0 obj\n<<>>\nendobj\n');
+const attachmentApi: AttachmentApi = {
+  preview: (_selection, _thread, attachment) =>
+    Promise.resolve(
+      attachment === 11
+        ? new Blob([samplePdf], { type: 'application/pdf' })
+        : new Blob([samplePng], { type: 'image/png' }),
+    ),
+  open: () => Promise.resolve(200),
+};
 const source = createReviewSourceState(files, () => Promise.resolve(files));
 const initial: Thread[] = [
   {
@@ -23,7 +45,15 @@ const initial: Thread[] = [
     revision: 1,
     anchor,
     origin: { kind: 'reviewer', category: 'style' },
-    opening: { author: 'Reviewer', markdown: 'Use a name that explains what is being written.', attachments: [] },
+    opening: {
+      author: 'Reviewer',
+      markdown: 'Use a name that explains what is being written.',
+      attachments: [
+        { id: 10, filename: 'rename-sketch.png', preview: 'image', openable: true },
+        { id: 11, filename: 'naming-notes.pdf', preview: 'pdf', openable: true },
+        { id: 12, filename: 'build-output.zip', openable: false },
+      ],
+    },
     replies: [{ id: 2, message: { author: 'You', markdown: 'I’ll use temporaryBundlePath.', attachments: [] } }],
   },
   {
@@ -39,14 +69,19 @@ const initial: Thread[] = [
 ];
 // Moving a thread rewrites its anchor in memory, the way the host would after validating the destination.
 let saved = initial;
-const state = createDiscussionState(source, (_selection, operation) => {
-  if (operation?.kind === 'move') {
-    saved = saved.map((item) =>
-      item.id === operation.id ? { ...item, revision: item.revision + 1, anchor: operation.anchor as Anchor } : item,
-    );
-  }
-  return Promise.resolve(saved);
-});
+const state = createDiscussionState(
+  source,
+  (_selection, operation) => {
+    if (operation?.kind === 'move') {
+      saved = saved.map((item) =>
+        item.id === operation.id ? { ...item, revision: item.revision + 1, anchor: operation.anchor as Anchor } : item,
+      );
+    }
+    return Promise.resolve(saved);
+  },
+  undefined,
+  attachmentApi,
+);
 state.threads.value = initial;
 void state.showThread(1);
 

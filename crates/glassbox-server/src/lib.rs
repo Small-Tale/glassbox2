@@ -21,6 +21,7 @@ use tokio::sync::oneshot;
 use tower_http::services::ServeDir;
 
 mod analysis;
+mod attachments;
 pub mod browser;
 mod diagrams;
 mod discussion;
@@ -131,6 +132,8 @@ fn router(
     let relocate_discussion = discussion.clone();
     let relocate_launch = difftool.clone();
     let artifact_discussion = discussion.clone();
+    let attachment_preview_discussion = discussion.clone();
+    let attachment_open_discussion = discussion.clone();
     let handoff = discussion.clone();
     let saved_discussion = discussion.clone();
     let saved_launch = difftool.clone();
@@ -212,6 +215,14 @@ fn router(
             post(move |Json(input)| {
                 diagrams::artifact(artifact_renderer, artifact_discussion, input)
             }),
+        )
+        .route(
+            "/api/v1/review/discussion/attachment",
+            post(move |Json(input)| attachments::preview(attachment_preview_discussion, input)),
+        )
+        .route(
+            "/api/v1/review/discussion/attachment/open",
+            post(move |Json(input)| attachments::open(attachment_open_discussion, input)),
         )
         .route(
             "/api/v1/review/saved",

@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
+import { setTimeout as delay } from 'node:timers/promises';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
@@ -1024,6 +1025,116 @@ test(
       await page.getByRole('heading', { name: 'Review', exact: true }).waitFor();
       assert(await button('Previous File Visit').isDisabled());
     });
+  },
+);
+
+// HS2-3G613V: attachments preview only when the host verifies them, and open externally only on request.
+test(
+  'HS2-3G613V attachments preview safely, refuse unsupported files and open externally on request',
+  { timeout: 90_000 },
+  async () => {
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAGAAAAA4CAIAAACNJ2r1AAAAfklEQVR42u3ZQQ0AIAwDwElECZqQwxsHOJmJkSzkkgro7tnFmKsk+9ySdOsTgAABAgQIECBAgAABAgQIUDugXw+r6gMIECBAgAABAgQIECBAgAD1AzJ32IMAAQIECBAgQIAAAQIECJDfvD0IECBAgAABAgQIECBAgAABetonAb5KaNnzVwUHAAAAAElFTkSuQmCC',
+      'base64',
+    );
+    const pdf = Buffer.from('%PDF-1.7\n1 0 obj\n<<>>\nendobj\n');
+    let log = '';
+    await withWorkbench(
+      async (page, url, { repo }) => {
+        const button = (name) => page.getByRole('button', { name, exact: true });
+        const inspector = page.getByRole('region', { name: 'Discussion' });
+        await page.goto(url);
+        await page.getByRole('textbox', { name: 'Repository Path', exact: true }).fill(repo);
+        await button('Open Comparison').click();
+        await page.getByRole('treeitem', { name: /bundle\.ts/ }).click();
+        await button('Add Comment to After Line 1').focus();
+        await page.keyboard.press('Enter');
+        await inspector.getByRole('textbox', { name: 'Comment', exact: true }).fill('Attachments.');
+        await inspector.getByRole('button', { name: 'Add Comment', exact: true }).click();
+        await button('Attach to Thread').waitFor();
+        const files = page.locator('input[type="file"]');
+        const attach = async (name, mimeType, buffer) => {
+          const saved = page.waitForResponse(
+            (response) =>
+              response.url().endsWith('/discussion') && response.request().postDataJSON().operation?.kind === 'attach',
+          );
+          await files.setInputFiles({ name, mimeType, buffer });
+          assert((await saved).ok());
+        };
+        await attach('shot.png', 'image/png', png);
+        await attach('notes.pdf', 'application/pdf', pdf);
+        await attach('renamed.jpg', 'image/jpeg', png);
+        await attach('notes.txt', 'text/plain', Buffer.from('plain'));
+
+        // A verified image shows a real thumbnail decoded from the host's bytes.
+        const thumbnail = inspector.getByRole('img', { name: 'shot.png', exact: true });
+        await thumbnail.waitFor();
+        await page.waitForFunction(() => document.querySelector('img[alt="shot.png"]')?.naturalWidth > 0);
+        assert.match(await thumbnail.getAttribute('src'), /^blob:/u);
+        assert.equal(await thumbnail.getAttribute('data-expanded'), 'false');
+        await button('Enlarge shot.png').click();
+        assert.equal(await thumbnail.getAttribute('data-expanded'), 'true');
+        await button('Shrink shot.png').click();
+        assert.equal(await thumbnail.getAttribute('data-expanded'), 'false');
+
+        // A PDF shows only when asked, as an embedded document or, where the engine cannot, a clear fallback.
+        assert.equal(await inspector.locator('object[type="application/pdf"]').count(), 0);
+        await button('Preview notes.pdf').click();
+        await page.waitForFunction(
+          () =>
+            document.querySelector('object[type="application/pdf"]') !== null ||
+            document.body.textContent.includes('cannot show PDF previews'),
+        );
+        await button('Shrink notes.pdf').click();
+
+        // A renamed image and a text file are not verified: no preview, no open action.
+        assert.equal(await inspector.getByText('Preview unavailable for this file type.').count(), 2);
+        for (const name of ['renamed.jpg', 'notes.txt']) {
+          assert.equal(await button(`Open ${name} Externally`).count(), 0, name);
+        }
+        assert.equal(await inspector.getByRole('img', { name: 'renamed.jpg' }).count(), 0);
+
+        // Opening is explicit and hands the platform a private copy under a generated name.
+        assert.equal(
+          await page.locator('[role="status"]', { hasText: 'Opened in the default application.' }).count(),
+          0,
+        );
+        await button('Open shot.png Externally').click();
+        await page.locator('[role="status"]', { hasText: 'Opened in the default application.' }).waitFor();
+        // The opener stand-in records the launch; wait on the log rather than a fixed delay.
+        let lines = [];
+        for (let attempt = 0; attempt < 200 && lines.length === 0; attempt += 1) {
+          lines = existsSync(log) ? (await readFile(log, 'utf8')).split('\n').filter(Boolean) : [];
+          if (lines.length === 0) await delay(25);
+        }
+        assert.equal(lines.length, 1, 'only the verified image was handed to the opener');
+        const [launched, size] = lines[0].split('\t');
+        assert.match(basename(launched), /^attachment-\d+\.png$/u);
+        assert.equal(Number(size), png.length);
+        for (const width of [1440, 940, 390]) {
+          await page.setViewportSize({ width, height: 900 });
+          await capture(page, `attachments-${width}`);
+        }
+        await page.setViewportSize({ width: 1440, height: 900 });
+
+        // A preview the host no longer has reports it instead of leaving a spinner.
+        await page.route('**/api/v1/review/discussion/attachment', (route) => route.fulfill({ status: 404, body: '' }));
+        await attach('late.png', 'image/png', png);
+        await inspector.getByText('This attachment could not be previewed.').waitFor();
+        await page.unroute('**/api/v1/review/discussion/attachment');
+      },
+      {
+        environment: ({ scratch }) => {
+          const opener = join(scratch, `attachment-opener${process.platform === 'win32' ? '.exe' : ''}`);
+          if (!existsSync(opener)) {
+            const fixture = join(root, 'crates', 'glassbox-server', 'tests', 'fixtures', 'attachment_opener.rs');
+            execFileSync('rustc', [fixture, '-o', opener], { windowsHide: true });
+          }
+          log = join(scratch, 'opened.log');
+          return { GLASSBOX_ATTACHMENT_OPENER: opener, GLASSBOX_OPENER_LOG: log };
+        },
+      },
+    );
   },
 );
 
