@@ -114,6 +114,14 @@ async function repository(name, changes) {
 export async function startHost(analysisFixture) {
   const changed = await repository('Fieldnotes', true);
   const clean = await repository('Quiet', false);
+  const beforeFolder = join(fixtureRoot, 'Before');
+  const afterFolder = join(fixtureRoot, 'After');
+  await mkdir(beforeFolder, { recursive: true });
+  await mkdir(afterFolder, { recursive: true });
+  const before = join(beforeFolder, 'release-notes.txt');
+  const after = join(afterFolder, 'release-notes.txt');
+  await writeFile(before, 'Fieldnotes release\nStatus: draft\nAudience: review team\n');
+  await writeFile(after, 'Fieldnotes release\nStatus: approved\nAudience: all reviewers\n');
   const scratch = await mkdtemp(join(tmpdir(), 'glassbox-demo-host-'));
   const settings = join(scratch, 'settings');
   if (analysisFixture) {
@@ -161,7 +169,7 @@ export async function startHost(analysisFixture) {
   return {
     url: `http://${address}`,
     // `missing` is never created, so opening it fails with the host's real error.
-    paths: { changed, clean, missing: join(fixtureRoot, 'Missing') },
+    paths: { changed, clean, before, after, missing: join(fixtureRoot, 'Missing') },
     async stop() {
       reader.close();
       host.kill();

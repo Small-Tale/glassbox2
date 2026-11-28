@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 import test from 'node:test';
 
-import { differingArtifacts, suiteScenes, validateScene } from '../demo-capture/scene.mjs';
+import { differingArtifacts, showcaseArtifact, suiteScenes, validateScene } from '../demo-capture/scene.mjs';
 import { scenes } from '../demo-capture/scenes.mjs';
 
 const valid = () => structuredClone(scenes[0]);
@@ -40,6 +40,18 @@ test('HS2-5HS40W a scene must name its suites, window, frames and steps', () => 
   rejects((scene) => (scene.frames[0].hold = -1), /hold/u);
   rejects((scene) => scene.frames.push({ ...scene.frames[0] }), /exactly one frame|unique/u);
   rejects((scene) => (scene.kind = 'animation'), /at least two frames/u);
+});
+
+test('HS2-WRKR5E the README links one generated asset for each public scene', async () => {
+  const assets = new URL('../../../docs/demo-assets/', import.meta.url);
+  const readme = await readFile(new URL('../../../README.md', import.meta.url), 'utf8');
+  const names = suiteScenes(scenes, 'public').map(showcaseArtifact);
+  assert.equal(names.filter((name) => name.endsWith('.svg')).length, 1, 'one hero animation');
+  assert.deepEqual((await readdir(assets)).sort(), names.toSorted());
+  for (const name of names) {
+    assert(readme.includes(`](docs/demo-assets/${name})`), `README links ${name}`);
+    assert((await readFile(new URL(name, assets))).length > 0, `${name} is non-empty`);
+  }
 });
 
 test('HS2-5HS40W loading, empty and error frames are explicit opt-ins', () => {

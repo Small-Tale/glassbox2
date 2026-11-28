@@ -8,7 +8,7 @@ import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
 import { runRepeatedScene } from './capture.mjs';
-import { differingArtifacts, suiteNames, suiteScenes } from './scene.mjs';
+import { differingArtifacts, showcaseArtifact, suiteNames, suiteScenes } from './scene.mjs';
 import { scenes } from './scenes.mjs';
 
 const { values } = parseArgs({
@@ -17,11 +17,13 @@ const { values } = parseArgs({
     scene: { type: 'string' },
     runs: { type: 'string', default: '3' },
     out: { type: 'string' },
+    showcase: { type: 'boolean', default: false },
   },
 });
 
 const runs = Number(values.runs);
 if (!Number.isInteger(runs) || runs < 1) throw new Error('--runs must be a positive integer');
+if (values.showcase && values.suite !== 'public') throw new Error('--showcase requires --suite public');
 let selected = suiteScenes(scenes, values.suite);
 if (values.scene) selected = selected.filter((scene) => scene.id === values.scene);
 if (selected.length === 0) {
@@ -39,7 +41,8 @@ for (const scene of selected) {
     console.error(`${scene.id}: not deterministic across ${runs} runs: ${differing.join(', ')}`);
     continue;
   }
-  for (const [name, bytes] of Object.entries(results[0])) await writeFile(join(out, name), bytes);
-  console.log(`${scene.id}: ${runs} identical runs, ${Object.keys(results[0]).length} artifacts in ${out}`);
+  const names = values.showcase ? [showcaseArtifact(scene)] : Object.keys(results[0]);
+  for (const name of names) await writeFile(join(out, name), results[0][name]);
+  console.log(`${scene.id}: ${runs} identical runs, ${names.length} artifacts in ${out}`);
 }
 process.exitCode = failed ? 1 : 0;

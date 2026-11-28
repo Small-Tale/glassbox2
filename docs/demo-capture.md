@@ -20,10 +20,27 @@ npm --prefix clients/web run demo:capture -- --suite comparison --runs 3
 | `--suite` | `public` (default) or `comparison`.                                              |
 | `--scene` | Run one scene by id.                                                             |
 | `--runs`  | How many fresh runs to compare (default 3). Any byte difference fails the run.   |
-| `--out`   | Output folder, default `clients/web/demo-output/<suite>`. It is never committed. |
+| `--out`   | Output folder. The default `clients/web/demo-output/<suite>` is ignored by Git. |
+| `--showcase` | Public suite only. Write one PNG per still and one animated SVG for the hero. |
 
 Each run starts its own host and its own Chromium. The command exits non-zero and names the differing artifacts when
 runs disagree, and otherwise writes the artifacts of the last run.
+
+## Regenerate the README showcase
+
+Run the following commands from the repository root. The showcase images in
+`docs/demo-assets` are tracked. Use the same macOS Chromium environment for a
+byte comparison with the checked-in images.
+
+```sh
+cargo build --locked -p glassbox-server
+npm --prefix clients/web run build
+npm --prefix clients/web run demo:capture -- --suite public --runs 3 --showcase --out ../../docs/demo-assets
+```
+
+The README embeds the Git review tour and stills for direct comparisons, images,
+symbol navigation, inline comments, AI analysis and feedback sharing
+(`HS2-WRKR5E`).
 
 ## Requirements
 
@@ -36,7 +53,8 @@ runs disagree, and otherwise writes the artifacts of the last run.
   `Date`, `Math.random` and `crypto.randomUUID` are replaced before any page script runs, and animations, transitions and
   the caret are switched off.
 - **Named sync points, no sleeps.** A frame advances only when the app shows a named ready state: `source-entry`,
-  `review`, `diff`, `comment-saved`, `media`, `analysis-risk`, `analysis-narrative` or `analysis-note`.
+  `review`, `diff`, `comment-saved`, `media`, `outline`, `share-menu`, `analysis-risk`, `analysis-narrative` or
+  `analysis-note`.
   The analysis states wait for the ordered navigator or the cited note in the discussion inspector.
 - **Opt-in states.** A frame with `state: 'loading' | 'empty' | 'error'` captures that state on purpose: loading holds the
   files request behind a promise, empty opens the clean repository, and error opens a repository that does not exist so
@@ -54,6 +72,7 @@ runs disagree, and otherwise writes the artifacts of the last run.
 - `review-comment`, a still: a text diff with one comment.
 - `review-analysis`, a still: risk-ordered files and an AI note citing the previous summary.
 - `review-tour`, an animation: the changed files, the diff, a commented line, then the dark scheme.
+- `direct-comparison`, `image-comparison`, `review-outline` and `review-handoff` capture those focused flows.
 
 The browser tests compare three Chromium runs of each scene. The same tests run on every
 platform the web browser job covers. Determinism is within one machine: different operating systems rasterize text

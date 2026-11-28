@@ -55,14 +55,84 @@ export const scenes = [
     viewport: window1440,
     scheme: 'light',
     frames: [
-      { name: 'files', ready: 'review', steps: [{ action: 'open-comparison' }] },
-      { name: 'diff', ready: 'diff', steps: [{ action: 'select-file', name: 'review.ts' }] },
+      { name: 'files', ready: 'review', hold: 2000, steps: [{ action: 'open-comparison' }] },
+      { name: 'diff', ready: 'diff', hold: 3000, steps: [{ action: 'select-file', name: 'review.ts' }] },
       {
         name: 'comment',
         ready: 'comment-saved',
+        hold: 3900,
         steps: [{ action: 'comment', line: 3, text: 'Resolved notes should stay visible until the author confirms.' }],
       },
-      { name: 'dark', ready: 'comment-saved', steps: [{ action: 'appearance', scheme: 'dark' }] },
+      { name: 'dark', ready: 'comment-saved', hold: 2700, steps: [{ action: 'appearance', scheme: 'dark' }] },
+    ],
+  },
+  {
+    id: 'direct-comparison',
+    title: 'Compare two files without a Git repository',
+    suites: ['public', 'comparison'],
+    kind: 'still',
+    viewport: window1440,
+    scheme: 'light',
+    frames: [
+      {
+        name: 'direct-diff',
+        ready: 'diff',
+        steps: [{ action: 'open-direct-comparison' }, { action: 'select-file', name: 'release-notes.txt' }],
+      },
+    ],
+  },
+  {
+    id: 'image-comparison',
+    title: 'Compare the before and after of an SVG',
+    suites: ['public', 'comparison'],
+    kind: 'still',
+    viewport: window1440,
+    scheme: 'light',
+    frames: [
+      {
+        name: 'images',
+        ready: 'media',
+        steps: [{ action: 'open-comparison' }, { action: 'select-file', name: 'mark.svg' }],
+      },
+    ],
+  },
+  {
+    id: 'review-outline',
+    title: 'Find a declaration in the selected file',
+    suites: ['public', 'comparison'],
+    kind: 'still',
+    viewport: window1440,
+    scheme: 'light',
+    frames: [
+      {
+        name: 'symbols',
+        ready: 'outline',
+        steps: [
+          { action: 'open-comparison' },
+          { action: 'select-file', name: 'review.ts' },
+          { action: 'open-outline' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'review-handoff',
+    title: 'Copy a review instruction or send feedback to Hot Sheet 2',
+    suites: ['public', 'comparison'],
+    kind: 'still',
+    viewport: window1440,
+    scheme: 'light',
+    frames: [
+      {
+        name: 'share',
+        ready: 'share-menu',
+        steps: [
+          { action: 'open-comparison' },
+          { action: 'select-file', name: 'review.ts' },
+          { action: 'comment', line: 3, text: 'Show the resolved notes in the summary until the author confirms.' },
+          { action: 'open-share-menu' },
+        ],
+      },
     ],
   },
 ].map(validateScene);

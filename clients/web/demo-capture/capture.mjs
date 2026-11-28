@@ -63,6 +63,14 @@ const readyStates = {
       const image = document.querySelector('img[data-media-side="after"]');
       return image instanceof HTMLImageElement && image.naturalWidth > 0;
     }),
+  outline: (page) =>
+    page
+      .getByRole('dialog', { name: 'Symbol Outline' })
+      .getByRole('tree', { name: 'Symbols' })
+      .getByRole('treeitem')
+      .first()
+      .waitFor(),
+  'share-menu': (page) => page.getByRole('menuitem', { name: 'Copy AI Instruction', exact: true }).waitFor(),
   'analysis-risk': (page) => page.getByText('Highest Risk First', { exact: true }).waitFor(),
   'analysis-narrative': (page) => page.getByText('Review in This Order', { exact: true }).waitFor(),
   async 'analysis-note'(page) {
@@ -112,6 +120,14 @@ const stepRunners = {
     await openComparison(page, context.paths.changed);
     await readyStates.review(page);
   },
+  async 'open-direct-comparison'(page, _step, context) {
+    await page.getByRole('combobox', { name: 'Compare' }).click();
+    await page.getByRole('option', { name: 'Files or Folders', exact: true }).click();
+    await page.getByRole('textbox', { name: 'Before Path', exact: true }).fill(context.paths.before);
+    await page.getByRole('textbox', { name: 'After Path', exact: true }).fill(context.paths.after);
+    await page.getByRole('button', { name: 'Open Comparison', exact: true }).click();
+    await readyStates.review(page);
+  },
   async 'select-file'(page, step) {
     await page
       .getByRole('treeitem', { name: new RegExp(step.name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'u') })
@@ -123,6 +139,12 @@ const stepRunners = {
   },
   async 'open-ai-note'(page) {
     await page.getByRole('button', { name: /AI note.*resolved notes/u }).click();
+  },
+  async 'open-outline'(page) {
+    await page.getByRole('button', { name: 'Symbol Outline', exact: true }).click();
+  },
+  async 'open-share-menu'(page) {
+    await page.getByRole('button', { name: 'Share Feedback', exact: true }).click();
   },
   async 'widen-file-rail'(page) {
     const handle = page.getByRole('separator', { name: /Changed Files/u });

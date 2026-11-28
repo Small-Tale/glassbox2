@@ -16,17 +16,22 @@ export const readyStates = [
   'diff',
   'comment-saved',
   'media',
+  'outline',
+  'share-menu',
   'analysis-risk',
   'analysis-narrative',
   'analysis-note',
 ];
 export const actions = [
   'open-comparison',
+  'open-direct-comparison',
   'select-file',
   'comment',
   'appearance',
   'order-files',
   'open-ai-note',
+  'open-outline',
+  'open-share-menu',
   'widen-file-rail',
 ];
 const analysisOrders = ['risk', 'narrative'];
@@ -111,6 +116,11 @@ export function validateScene(scene) {
 export function suiteScenes(scenes, suite) {
   if (!suiteNames.includes(suite)) throw new Error(`unknown suite ${suite}; use ${suiteNames.join(' or ')}`);
   return scenes.filter((scene) => scene.suites.includes(suite));
+}
+
+/** The README carries one rendered asset per public scene. */
+export function showcaseArtifact(scene) {
+  return `${scene.id}.${scene.kind === 'animation' ? 'svg' : 'png'}`;
 }
 
 /**

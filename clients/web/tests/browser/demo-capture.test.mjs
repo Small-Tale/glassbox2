@@ -6,8 +6,12 @@ import { differingArtifacts, validateScene } from '../../demo-capture/scene.mjs'
 import { scenes } from '../../demo-capture/scenes.mjs';
 
 const expected = {
+  'direct-comparison': ['direct-comparison.png', 'direct-comparison.svg'],
+  'image-comparison': ['image-comparison.png', 'image-comparison.svg'],
   'review-analysis': ['review-analysis.png', 'review-analysis.svg'],
   'review-comment': ['review-comment.png', 'review-comment.svg'],
+  'review-handoff': ['review-handoff.png', 'review-handoff.svg'],
+  'review-outline': ['review-outline.png', 'review-outline.svg'],
   'review-tour': [
     'review-tour-comment.png',
     'review-tour-dark.png',
@@ -26,7 +30,7 @@ for (const scene of scenes) {
     const svg = runs[0][`${scene.id}.svg`].toString('utf8');
     assert.match(svg, /<svg\b/u);
     // The captured text stays readable through the SVG's accessible labels.
-    assert.match(svg, /aria-label="Fieldnotes/u);
+    assert(svg.includes(scene.id === 'direct-comparison' ? 'aria-label="release-notes.txt' : 'aria-label="Fieldnotes'));
     if (scene.id === 'review-analysis') {
       assert(svg.includes('aria-label="Highest Risk First"'), 'shows the risk order');
       assert(svg.includes('aria-label="the previous summary"'), 'shows the cited note');

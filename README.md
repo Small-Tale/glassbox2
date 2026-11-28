@@ -1,5 +1,50 @@
 # Glassbox v2
 
+Review Git changes or compare files and folders directly. Discuss individual changes,
+follow cited source, and share the review as a feedback bundle.
+
+![Glassbox review tour showing the changed-file list, a split text diff, an inline comment, and dark appearance](docs/demo-assets/review-tour.svg)
+
+## Review features
+
+### Compare two files
+
+Open a pair of files without a Git repository.
+
+![Direct comparison of draft and approved release notes](docs/demo-assets/direct-comparison.png)
+
+### Compare images
+
+Inspect the original and revised images side by side.
+
+![Before and after views of a changed SVG](docs/demo-assets/image-comparison.png)
+
+### Navigate a change
+
+Use the symbol outline to jump to a declaration on either side of the diff.
+
+![Symbol Outline dialog over a TypeScript diff](docs/demo-assets/review-outline.png)
+
+### Discuss a line
+
+Anchor comments to the line under review and continue the discussion in the inspector.
+
+![Inline reviewer comment on the After side of a text change](docs/demo-assets/review-comment.png)
+
+### Review with AI
+
+Order files by risk and follow a note’s cited commit to see the earlier source.
+
+![Risk-ordered changed files, an inline AI note, and its cited commit link](docs/demo-assets/review-analysis.png)
+
+### Share feedback
+
+Copy an instruction for an AI tool, send the review to Hot Sheet 2, or return to saved reviews.
+
+![Share Feedback menu with the available delivery and saved-review actions](docs/demo-assets/review-handoff.png)
+
+## Development
+
 The shared Rust core lives in `crates/`. The browser client and its Tauri
 wrapper live in `clients/web/`.
 
