@@ -2,7 +2,7 @@
 //
 // Every input a capture can see is fixed: the repositories are rebuilt at the same path with the same file contents
 // and the same author and commit times, and the host runs with its own empty settings and feedback folders and with
-// every optional tool and AI provider switched off, so nothing reads the network or the maintainer's machine.
+// optional tools switched off. Analysis scenes opt in to a local test executable.
 
 import { execFileSync, spawn } from 'node:child_process';
 import { once } from 'node:events';
@@ -20,6 +20,24 @@ export const fixtureTime = '2026-01-15T10:00:00Z';
 // The repository path is typed into the form, so it is visible in captures. On macOS and Linux it is a short fixed
 // path rather than the per-user temporary folder; Windows has no such location and uses its temporary folder.
 const fixtureRoot = process.platform === 'win32' ? join(tmpdir(), 'glassbox-demo') : '/tmp/glassbox-demo';
+
+export async function buildAnalysisFixture() {
+  const directory = await mkdtemp(join(tmpdir(), 'glassbox-demo-provider-'));
+  const executable = join(directory, `analysis-fixture${process.platform === 'win32' ? '.exe' : ''}`);
+  const source = join(root, 'crates', 'glassbox-server', 'tests', 'fixtures', 'analysis_provider.rs');
+  const stop = () => rm(directory, { recursive: true, force: true });
+  try {
+    execFileSync('rustc', ['--edition=2024', source, '-o', executable], { windowsHide: true });
+    await writeFile(
+      join(directory, 'demo.json'),
+      JSON.stringify({ version: 1, id: 'demo', name: 'Demo Analysis Fixture', executable }),
+    );
+    return { directory, stop };
+  } catch (error) {
+    await stop();
+    throw error;
+  }
+}
 
 function mark(color) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="#e7eaef"/><circle cx="160" cy="90" r="62" fill="${color}"/></svg>\n`;
@@ -51,7 +69,7 @@ export function count(notes: Note[]): number {
 `;
 
 function git(repo, ...args) {
-  execFileSync(
+  return execFileSync(
     'git',
     [
       '-c',
@@ -66,6 +84,7 @@ function git(repo, ...args) {
     ],
     {
       cwd: repo,
+      encoding: 'utf8',
       windowsHide: true,
       env: { ...process.env, GIT_AUTHOR_DATE: fixtureTime, GIT_COMMITTER_DATE: fixtureTime },
     },
@@ -92,15 +111,27 @@ async function repository(name, changes) {
  * Starts the host and returns its address with the fixture paths. `stop` shuts the host down and removes the run's
  * private folders; the fixture repositories stay at their fixed paths so their text is the same in every capture.
  */
-export async function startHost() {
+export async function startHost(analysisFixture) {
   const changed = await repository('Fieldnotes', true);
   const clean = await repository('Quiet', false);
   const scratch = await mkdtemp(join(tmpdir(), 'glassbox-demo-host-'));
+  const settings = join(scratch, 'settings');
+  if (analysisFixture) {
+    await mkdir(settings);
+    await writeFile(
+      join(settings, 'settings.json'),
+      JSON.stringify({
+        version: 1,
+        appearance: 'system',
+        analysis: { provider: 'demo', model: 'fixture', guidance_topics: [] },
+      }),
+    );
+  }
   const host = spawn(executable, ['--assets', assets], {
     cwd: root,
     env: {
       ...process.env,
-      GLASSBOX_SETTINGS_DIRECTORY: join(scratch, 'settings'),
+      GLASSBOX_SETTINGS_DIRECTORY: settings,
       GLASSBOX_FEEDBACK_DIRECTORY: join(scratch, 'feedback'),
       GLASSBOX_ANALYSIS_CACHE_DIRECTORY: join(scratch, 'analysis'),
       GLASSBOX_CONTENT_RENDERER: '',
@@ -108,9 +139,10 @@ export async function startHost() {
       GLASSBOX_MERMAID_EXECUTABLE: '',
       GLASSBOX_JAVA_EXECUTABLE: '',
       GLASSBOX_PLANTUML_JAR: '',
-      GLASSBOX_AI_PROVIDER_DIRECTORY: '',
+      GLASSBOX_AI_PROVIDER_DIRECTORY: analysisFixture?.directory ?? '',
       GLASSBOX_AI_PROVIDER: '',
-      GLASSBOX_AI_TRUSTED_PROVIDERS: '',
+      GLASSBOX_AI_TRUSTED_PROVIDERS: analysisFixture ? 'demo' : '',
+      GLASSBOX_FIXTURE_DEMO_COMMIT: analysisFixture ? git(changed, 'rev-parse', 'HEAD').trim() : '',
     },
     stdio: ['ignore', 'pipe', 'inherit'],
     windowsHide: true,

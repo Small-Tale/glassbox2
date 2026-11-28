@@ -19,7 +19,16 @@ fn main() {
         writeln!(counter, "generated").unwrap();
     }
     std::thread::sleep(Duration::from_millis(400));
-    let result = if input.contains("INVALID_FIXTURE")
+    let demo_commit = std::env::var("GLASSBOX_FIXTURE_DEMO_COMMIT").unwrap_or_default();
+    let result = if !demo_commit.is_empty() && input.contains("Assess this diff") {
+        let text = "Check whether resolved notes should disappear from the summary. See [the previous summary](0).";
+        Box::leak(
+            format!(
+                r#"{{\"scores\":{{\"security\":0.1,\"correctness\":0.6,\"error_handling\":0.2,\"maintainability\":0.1,\"architecture\":0.1,\"performance\":0.1}},\"rationale\":\"Filtering changes the summary contract.\",\"observations\":[{{\"side\":\"after\",\"line\":4,\"text\":\"{text}\",\"related_locations\":[{{\"path\":\"review.ts\",\"line\":4,\"commit\":\"{demo_commit}\"}}]}}]}}"#
+            )
+            .into_boxed_str(),
+        )
+    } else if input.contains("INVALID_FIXTURE")
         || (input.contains("INVALID_ONCE") && !input.contains("Return a minimal object"))
     {
         "not JSON"

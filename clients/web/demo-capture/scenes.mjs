@@ -25,6 +25,29 @@ export const scenes = [
     ],
   },
   {
+    id: 'review-analysis',
+    title: 'Risk-ordered files with a cited AI note',
+    suites: ['public', 'comparison'],
+    kind: 'still',
+    viewport: window1440,
+    scheme: 'light',
+    analysis: 'fixture',
+    frames: [
+      {
+        name: 'risk-note',
+        ready: 'analysis-note',
+        steps: [
+          { action: 'open-comparison' },
+          { action: 'widen-file-rail' },
+          { action: 'order-files', order: 'narrative' },
+          { action: 'order-files', order: 'risk' },
+          { action: 'select-file', name: 'review.ts' },
+          { action: 'open-ai-note' },
+        ],
+      },
+    ],
+  },
+  {
     id: 'review-tour',
     title: 'From a comparison to a commented line, then dark',
     suites: ['public', 'comparison'],

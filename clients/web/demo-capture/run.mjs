@@ -7,7 +7,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
-import { runScene } from './capture.mjs';
+import { runRepeatedScene } from './capture.mjs';
 import { differingArtifacts, suiteNames, suiteScenes } from './scene.mjs';
 import { scenes } from './scenes.mjs';
 
@@ -32,8 +32,7 @@ await mkdir(out, { recursive: true });
 
 let failed = false;
 for (const scene of selected) {
-  const results = [];
-  for (let run = 0; run < runs; run += 1) results.push(await runScene(scene));
+  const results = await runRepeatedScene(scene, runs);
   const differing = differingArtifacts(results);
   if (differing.length > 0) {
     failed = true;

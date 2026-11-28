@@ -10,8 +10,26 @@ export const schemes = ['light', 'dark'];
 /** Opt-in frame states. Every other frame is a settled review, so a capture never shows a spinner by accident. */
 export const optInStates = ['loading', 'empty', 'error'];
 /** The named states a frame may wait for. The runner owns what each one means in the real workbench. */
-export const readyStates = ['source-entry', 'review', 'diff', 'comment-saved', 'media'];
-export const actions = ['open-comparison', 'select-file', 'comment', 'appearance'];
+export const readyStates = [
+  'source-entry',
+  'review',
+  'diff',
+  'comment-saved',
+  'media',
+  'analysis-risk',
+  'analysis-narrative',
+  'analysis-note',
+];
+export const actions = [
+  'open-comparison',
+  'select-file',
+  'comment',
+  'appearance',
+  'order-files',
+  'open-ai-note',
+  'widen-file-rail',
+];
+const analysisOrders = ['risk', 'narrative'];
 
 const identifier = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 
@@ -37,9 +55,12 @@ function validateStep(path, step) {
   if (step.action === 'appearance' && !schemes.includes(step.scheme)) {
     fail(path, `appearance needs a scheme of ${schemes.join(', ')}`);
   }
+  if (step.action === 'order-files' && !analysisOrders.includes(step.order)) {
+    fail(path, 'order-files needs a risk or narrative order');
+  }
 }
 
-function validateFrame(path, frame) {
+function validateFrame(path, frame, analysis) {
   if (typeof frame !== 'object' || frame === null) fail(path, 'must be an object');
   if (typeof frame.name !== 'string' || !identifier.test(frame.name)) fail(`${path}.name`, 'must be a kebab-case name');
   if (frame.state !== undefined && !optInStates.includes(frame.state)) {
@@ -52,6 +73,13 @@ function validateFrame(path, frame) {
   frame.steps.forEach((step, index) => {
     validateStep(`${path}.steps[${index}]`, step);
   });
+  if (
+    analysis === undefined &&
+    ((typeof frame.ready === 'string' && frame.ready.startsWith('analysis-')) ||
+      frame.steps.some((step) => step.action === 'order-files' || step.action === 'open-ai-note'))
+  ) {
+    fail(path, 'analysis frames need the fixture provider');
+  }
   if (frame.hold !== undefined) positive(`${path}.hold`, frame.hold);
 }
 
@@ -67,9 +95,10 @@ export function validateScene(scene) {
   positive('.viewport.width', scene.viewport?.width);
   positive('.viewport.height', scene.viewport?.height);
   if (!schemes.includes(scene.scheme)) fail('.scheme', `must be one of ${schemes.join(', ')}`);
+  if (scene.analysis !== undefined && scene.analysis !== 'fixture') fail('.analysis', 'must be fixture');
   if (!Array.isArray(scene.frames) || scene.frames.length === 0) fail('.frames', 'needs at least one frame');
   scene.frames.forEach((frame, index) => {
-    validateFrame(`.frames[${index}]`, frame);
+    validateFrame(`.frames[${index}]`, frame, scene.analysis);
   });
   const names = scene.frames.map((frame) => frame.name);
   if (new Set(names).size !== names.length) fail('.frames', 'frame names must be unique');

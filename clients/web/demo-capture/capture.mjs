@@ -14,7 +14,7 @@ import {
   getEmbeddedFontFaceCss,
 } from 'domotion-svg';
 
-import { fixtureTime, startHost } from './host.mjs';
+import { buildAnalysisFixture, fixtureTime, startHost } from './host.mjs';
 
 const frozenTime = Date.parse(fixtureTime);
 
@@ -63,6 +63,14 @@ const readyStates = {
       const image = document.querySelector('img[data-media-side="after"]');
       return image instanceof HTMLImageElement && image.naturalWidth > 0;
     }),
+  'analysis-risk': (page) => page.getByText('Highest Risk First', { exact: true }).waitFor(),
+  'analysis-narrative': (page) => page.getByText('Review in This Order', { exact: true }).waitFor(),
+  async 'analysis-note'(page) {
+    const inspector = page.getByRole('region', { name: 'Discussion' });
+    await inspector.getByRole('button', { name: 'the previous summary', exact: true }).waitFor();
+    await readyStates.diff(page);
+    await inspector.getByText('This comment refers to an earlier version of the file.').waitFor({ state: 'hidden' });
+  },
 };
 
 const optInStates = {
@@ -109,6 +117,18 @@ const stepRunners = {
       .getByRole('treeitem', { name: new RegExp(step.name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'u') })
       .click();
   },
+  async 'order-files'(page, step) {
+    await page.getByRole('button', { name: step.order === 'risk' ? 'Risk' : 'Narrative', exact: true }).click();
+    await readyStates[`analysis-${step.order}`](page);
+  },
+  async 'open-ai-note'(page) {
+    await page.getByRole('button', { name: /AI note.*resolved notes/u }).click();
+  },
+  async 'widen-file-rail'(page) {
+    const handle = page.getByRole('separator', { name: /Changed Files/u });
+    await handle.press('End');
+    await handle.blur();
+  },
   async comment(page, step) {
     await page.getByRole('button', { name: `Add Comment to After Line ${step.line}`, exact: true }).focus();
     await page.keyboard.press('Enter');
@@ -144,8 +164,8 @@ async function frameTree(page, viewport) {
  * Runs `scene` on a fresh host and browser and returns its artifacts: `<id>.png` and `<id>.svg` for a still, and
  * `<id>.svg` (animated) plus one `<id>-<frame>.png` per frame for an animation.
  */
-export async function runScene(scene) {
-  const host = await startHost();
+async function captureScene(scene, analysisFixture) {
+  const host = await startHost(analysisFixture);
   let browser;
   try {
     browser = await chromium.launch();
@@ -200,4 +220,20 @@ export async function runScene(scene) {
     await browser?.close();
     await host.stop();
   }
+}
+
+export async function runRepeatedScene(scene, count) {
+  const analysisFixture = scene.analysis === 'fixture' ? await buildAnalysisFixture() : undefined;
+  try {
+    const runs = [];
+    for (let run = 0; run < count; run += 1) runs.push(await captureScene(scene, analysisFixture));
+    return runs;
+  } finally {
+    await analysisFixture?.stop();
+  }
+}
+
+export async function runScene(scene) {
+  const [artifacts] = await runRepeatedScene(scene, 1);
+  return artifacts;
 }

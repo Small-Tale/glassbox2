@@ -53,6 +53,16 @@ test('HS2-5HS40W loading, empty and error frames are explicit opt-ins', () => {
   assert.throws(() => validateScene(scene), /frames\[0\]\.ready/u);
 });
 
+test('GB2-K6ZB5B analysis scenes require the fixture provider and a supported order', () => {
+  const scene = structuredClone(scenes.find(({ id }) => id === 'review-analysis'));
+  assert.doesNotThrow(() => validateScene(scene));
+  assert.throws(() => validateScene({ ...scene, analysis: 'actual' }), /\.analysis/u);
+  assert.throws(() => validateScene({ ...scene, analysis: undefined }), /need the fixture provider/u);
+  const order = scene.frames[0].steps.find(({ action }) => action === 'order-files');
+  order.order = 'random';
+  assert.throws(() => validateScene(scene), /needs a risk or narrative order/u);
+});
+
 test('HS2-5HS40W repeated runs differ when any artifact byte differs or an artifact is missing', () => {
   const same = { 'a.png': Buffer.from('x'), 'a.svg': Buffer.from('y') };
   assert.deepEqual(differingArtifacts([same]), []);

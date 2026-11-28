@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { runScene } from '../../demo-capture/capture.mjs';
+import { runRepeatedScene, runScene } from '../../demo-capture/capture.mjs';
 import { differingArtifacts, validateScene } from '../../demo-capture/scene.mjs';
 import { scenes } from '../../demo-capture/scenes.mjs';
 
 const expected = {
+  'review-analysis': ['review-analysis.png', 'review-analysis.svg'],
   'review-comment': ['review-comment.png', 'review-comment.svg'],
   'review-tour': [
     'review-tour-comment.png',
@@ -18,7 +19,7 @@ const expected = {
 
 for (const scene of scenes) {
   test(`HS2-5HS40W ${scene.id} produces identical bytes on every run`, { timeout: 300_000 }, async () => {
-    const runs = [await runScene(scene), await runScene(scene), await runScene(scene)];
+    const runs = await runRepeatedScene(scene, 3);
     assert.deepEqual(Object.keys(runs[0]).sort(), expected[scene.id]);
     assert.deepEqual(differingArtifacts(runs), []);
     for (const bytes of Object.values(runs[0])) assert(bytes.length > 0);
@@ -26,6 +27,10 @@ for (const scene of scenes) {
     assert.match(svg, /<svg\b/u);
     // The captured text stays readable through the SVG's accessible labels.
     assert.match(svg, /aria-label="Fieldnotes/u);
+    if (scene.id === 'review-analysis') {
+      assert(svg.includes('aria-label="Highest Risk First"'), 'shows the risk order');
+      assert(svg.includes('aria-label="the previous summary"'), 'shows the cited note');
+    }
   });
 }
 
