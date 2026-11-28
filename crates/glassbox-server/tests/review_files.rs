@@ -30,6 +30,43 @@ async fn post(host: &LocalHost, endpoint: &str, input: Value) -> (String, Value)
 }
 
 #[tokio::test]
+async fn a_missing_repository_path_can_be_corrected() -> io::Result<()> {
+    let scratch = tempfile::tempdir()?;
+    let directory = scratch.path().join("review folder");
+    let source = json!({
+        "kind": "git",
+        "directory": directory,
+        "mode": {"kind": "working_tree"},
+    });
+    let host = LocalHost::start(None).await?;
+
+    let (status, message) = post(&host, "files", source.clone()).await;
+    assert_eq!(status, "HTTP/1.1 400 Bad Request");
+    assert_eq!(
+        message,
+        "Repository folder not found. Check the path and try again."
+    );
+
+    fs::create_dir(&directory)?;
+    let (status, message) = post(&host, "files", source.clone()).await;
+    assert_eq!(status, "HTTP/1.1 400 Bad Request");
+    assert!(message.as_str().unwrap().contains("not a git repository"));
+
+    assert!(
+        Command::new("git")
+            .current_dir(&directory)
+            .args(["init", "-q"])
+            .status()?
+            .success()
+    );
+    fs::write(directory.join("new.txt"), "new file\n")?;
+    let (status, review) = post(&host, "files", source).await;
+    assert_eq!(status, "HTTP/1.1 200 OK");
+    assert_eq!(review["files"][0]["path"], "new.txt");
+    host.stop().await
+}
+
+#[tokio::test]
 async fn serves_only_the_selected_media_revision() -> io::Result<()> {
     let scratch = tempfile::tempdir()?;
     let before = scratch.path().join("before.svg");

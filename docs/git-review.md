@@ -6,6 +6,9 @@ untracked files. An unborn repository uses the empty tree. Staged and unstaged
 review compare the index against HEAD and the worktree against the index,
 respectively. A path-limited working-tree review uses repo-relative Git pathspecs.
 
+If the repository folder is missing, the workbench keeps the entered path and
+asks the reviewer to check it and try again (`GB2-W65NZN`).
+
 A commit review compares a commit to its first parent, or to the empty tree
 for a root commit. A range compares the two resolved commits. A branch review
 compares the merge base of the selected branch and HEAD against HEAD. Revision

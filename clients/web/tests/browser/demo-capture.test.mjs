@@ -52,6 +52,10 @@ test(
     assert.equal(new Set(frames.map((frame) => frame.toString('base64'))).size, 3, 'each state looks different');
     // The empty review is the quiet repository, which the SVG labels by name.
     assert.match(artifacts['opt-in-states.svg'].toString('utf8'), /aria-label="Quiet/u);
+    const labels = [...artifacts['opt-in-states.svg'].toString('utf8').matchAll(/aria-label="([^"]+)"/gu)]
+      .map((match) => match[1])
+      .join(' ');
+    assert(labels.includes('Repository folder not found. Check the path and try again.'), 'shows the recovery message');
     // A settled scene never captures a held request: its first frame is already a populated review.
     const settled = await runScene({ ...scenes[0], id: 'settled-check' });
     assert.notDeepEqual(settled['settled-check.png'], frames[0]);
