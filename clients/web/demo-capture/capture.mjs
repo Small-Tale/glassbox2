@@ -218,6 +218,7 @@ async function captureScene(scene, analysisFixture) {
   const host = await startHost(analysisFixture);
   let browser;
   try {
+    const compact = scene.viewport.width < 730;
     browser = await chromium.launch();
     const context = await browser.newContext({
       viewport: scene.viewport,
@@ -233,6 +234,10 @@ async function captureScene(scene, analysisFixture) {
     await page.addInitScript(freezeNondeterminism, frozenTime);
     await page.goto(host.url);
     await page.addStyleTag({ content: quiet });
+    if (compact) {
+      const showFiles = page.getByRole('button', { name: 'Show Files', exact: true }).first();
+      await showFiles.click();
+    }
     await readyStates['source-entry'](page);
 
     const artifacts = {};

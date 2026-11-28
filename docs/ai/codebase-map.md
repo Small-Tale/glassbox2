@@ -20,6 +20,7 @@
 - `crates/glassbox-server/src/discussion.rs` also validates thread moves and answers `POST /api/v1/review/discussion/relocate`; `ReviewAnchor.quote` in `glassbox-model` records the anchored line's text.
 - `clients/web/src/ux-demo` hosts the catalog at `/ux-demo/`. `kerf.components.json` generates the selection and composition catalogs.
 - `clients/web/demo-capture` is the deterministic demo capture harness (`scene.mjs` format, `scenes.mjs`, `host.mjs`, `capture.mjs`, `run.mjs`); see [demo capture](../demo-capture.md). `npm run demo:capture` runs it.
+- `clients/web/demo-capture/archive.mjs` records versioned comparison artifacts and verifies their digests. `compare.mjs` reports version differences and `coverage.mjs` lists component and flow gaps (`HS2-5TFS63`).
 - `clients/web/src/design-mock` contains the approved design fixture for local development.
 - Rust gates are `cargo fmt --all --check`, `cargo clippy --locked --workspace --all-targets -- -D warnings` and `cargo test --locked --workspace --quiet`.
 - Web gates are `npm --prefix clients/web run check`, including formatting, ESLint, typecheck, metadata, Kerf Doctor, structure tests and build. The GitHub workflow runs both gate sets on macOS and Linux. See the [macOS and Linux verification record](../release-verification.md) for feature coverage and installed-package checks.

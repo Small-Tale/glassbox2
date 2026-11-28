@@ -42,6 +42,35 @@ The README embeds the Git review tour and stills for direct comparisons, images,
 symbol navigation, inline comments, AI analysis and feedback sharing
 (`HS2-WRKR5E`).
 
+## Compare archived v2 captures
+
+Build the host and web client before recording. Use the same machine and
+Chromium environment to record both versions (`HS2-5TFS63`).
+
+```sh
+npm --prefix clients/web run demo:capture -- --suite comparison --version v2-first
+npm --prefix clients/web run demo:capture -- --suite comparison --version v2-next
+npm --prefix clients/web run demo:compare -- --baseline v2-first --current v2-next
+npm --prefix clients/web run demo:coverage -- --check
+```
+
+Version archives are stored under `clients/web/demo-output/versions`. The
+manifest records the source commit, dirty status, platform, architecture, scene
+selection, and PNG and SVG digests. Capture refuses to replace an existing
+version and publishes an archive only after all selected scenes agree across
+the requested runs. Use `--scene` to record an explicitly limited sample.
+Comparison checks the digest of every stored artifact and exits nonzero when
+images changed, were added, or were removed. Accepting intentional changes
+means selecting the approved version as the next baseline.
+
+The comparison suite includes the public scenes and the real Workbench’s
+empty, loading, and error states across wide, medium, and narrow viewports in
+both color schemes. `demo:coverage` lists the Glassbox catalog entries and
+user flows, their captured frames, and missing profiles. Its `--check` mode
+fails while gaps remain. The full matrix and first complete version baseline
+are still tracked by `HS2-5TFS63`. Chromium PNG raster differences can also
+prevent an archive from being recorded (`GB2-Q71QW4`).
+
 ## Requirements
 
 - **Seeded fixtures.** Two fixture repositories (a changed `Fieldnotes` and a clean `Quiet`) are rebuilt at fixed paths

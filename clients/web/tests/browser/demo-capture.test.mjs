@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 
 import { runRepeatedScene, runScene } from '../../demo-capture/capture.mjs';
+import { comparisonScenes } from '../../demo-capture/comparison-scenes.mjs';
 import { differingArtifacts, validateScene } from '../../demo-capture/scene.mjs';
 import { scenes } from '../../demo-capture/scenes.mjs';
 
@@ -22,6 +23,10 @@ const expected = {
     'review-tour.svg',
   ],
 };
+
+function accessibleText(svg) {
+  return [...svg.matchAll(/aria-label="([^"]+)"/gu)].map((match) => match[1]).join(' ');
+}
 
 async function retainDivergentCaptures(runs, differing) {
   const captureDirectory = process.env.GLASSBOX_BROWSER_CAPTURES;
@@ -77,12 +82,25 @@ test(
     assert.equal(new Set(frames.map((frame) => frame.toString('base64'))).size, 3, 'each state looks different');
     // The empty review is the quiet repository, which the SVG labels by name.
     assert.match(artifacts['opt-in-states.svg'].toString('utf8'), /aria-label="Quiet/u);
-    const labels = [...artifacts['opt-in-states.svg'].toString('utf8').matchAll(/aria-label="([^"]+)"/gu)]
-      .map((match) => match[1])
-      .join(' ');
+    const labels = accessibleText(artifacts['opt-in-states.svg'].toString('utf8'));
     assert(labels.includes('Repository folder not found. Check the path and try again.'), 'shows the recovery message');
     // A settled scene never captures a held request: its first frame is already a populated review.
     const settled = await runScene({ ...scenes[0], id: 'settled-check' });
     assert.notDeepEqual(settled['settled-check.png'], frames[0]);
   },
 );
+
+test('HS2-5TFS63 comparison captures real states at desktop and compact widths', { timeout: 180_000 }, async () => {
+  const cases = {
+    'workbench-error-narrow-dark': 'Repository folder not found.',
+    'workbench-empty-medium-light': 'No Changed Files',
+    'workbench-loading-wide-dark': 'Git Repository',
+  };
+  for (const [id, content] of Object.entries(cases)) {
+    const scene = comparisonScenes.find((entry) => entry.id === id);
+    assert(scene, id);
+    const artifacts = await runScene(scene);
+    const svg = artifacts[id + '.svg'].toString('utf8');
+    assert(accessibleText(svg).toLowerCase().includes(content.toLowerCase()), id + ' shows the expected state');
+  }
+});
