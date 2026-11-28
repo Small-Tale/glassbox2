@@ -182,6 +182,34 @@ async function frameTree(page, viewport) {
   return tree;
 }
 
+function watchHostRequests(page) {
+  const pending = new Set();
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname.startsWith('/api/v1/')) pending.add(request);
+  });
+  const finished = (request) => pending.delete(request);
+  page.on('requestfinished', finished);
+  page.on('requestfailed', finished);
+  return async () => {
+    while (pending.size > 0) {
+      await Promise.all(
+        [...pending].map(async (request) => {
+          const response = await request.response();
+          await response?.finished();
+          pending.delete(request);
+        }),
+      );
+    }
+  };
+}
+
+async function afterPaint(page) {
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
+}
+
 /**
  * Runs `scene` on a fresh host and browser and returns its artifacts: `<id>.png` and `<id>.svg` for a still, and
  * `<id>.svg` (animated) plus one `<id>-<frame>.png` per frame for an animation.
@@ -200,6 +228,7 @@ async function captureScene(scene, analysisFixture) {
       reducedMotion: 'reduce',
     });
     const page = await context.newPage();
+    const waitForHost = watchHostRequests(page);
     page.setDefaultTimeout(15_000);
     await page.addInitScript(freezeNondeterminism, frozenTime);
     await page.goto(host.url);
@@ -214,6 +243,13 @@ async function captureScene(scene, analysisFixture) {
       for (const step of frame.steps) await stepRunners[step.action](page, step, state);
       if (frame.state) await optInStates[frame.state](page, state);
       else await readyStates[frame.ready](page);
+      // The last click may now sit over a different control after the workbench rerenders.
+      await page.mouse.move(0, 0);
+      await afterPaint(page);
+      if (frame.state !== 'loading') {
+        await waitForHost();
+        await afterPaint(page);
+      }
       const png = await page.screenshot({ animations: 'disabled', caret: 'hide' });
       artifacts[scene.kind === 'still' ? `${scene.id}.png` : `${scene.id}-${frame.name}.png`] = png;
       trees.push({ tree: await frameTree(page, scene.viewport), hold: frame.hold ?? 1600 });

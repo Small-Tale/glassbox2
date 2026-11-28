@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import test from 'node:test';
 
 import { runRepeatedScene, runScene } from '../../demo-capture/capture.mjs';
@@ -21,11 +23,25 @@ const expected = {
   ],
 };
 
+async function retainDivergentCaptures(runs, differing) {
+  const captureDirectory = process.env.GLASSBOX_BROWSER_CAPTURES;
+  if (captureDirectory === undefined || differing.length === 0) return;
+  const directory = join(captureDirectory, 'demo-repeat-failures');
+  await mkdir(directory, { recursive: true });
+  for (const [index, artifacts] of runs.entries()) {
+    for (const name of differing) {
+      if (artifacts[name] !== undefined) await writeFile(join(directory, `run-${index + 1}-${name}`), artifacts[name]);
+    }
+  }
+}
+
 for (const scene of scenes) {
   test(`HS2-5HS40W ${scene.id} produces identical bytes on every run`, { timeout: 300_000 }, async () => {
     const runs = await runRepeatedScene(scene, 3);
     assert.deepEqual(Object.keys(runs[0]).sort(), expected[scene.id]);
-    assert.deepEqual(differingArtifacts(runs), []);
+    const differing = differingArtifacts(runs);
+    await retainDivergentCaptures(runs, differing);
+    assert.deepEqual(differing, []);
     for (const bytes of Object.values(runs[0])) assert(bytes.length > 0);
     const svg = runs[0][`${scene.id}.svg`].toString('utf8');
     assert.match(svg, /<svg\b/u);

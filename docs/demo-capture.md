@@ -56,6 +56,8 @@ symbol navigation, inline comments, AI analysis and feedback sharing
   `review`, `diff`, `comment-saved`, `media`, `outline`, `share-menu`, `analysis-risk`, `analysis-narrative` or
   `analysis-note`.
   The analysis states wait for the ordered navigator or the cited note in the discussion inspector.
+  Before reading a settled frame, the runner moves the pointer off the controls, waits for in-flight host requests,
+  and lets Chromium paint with the loaded fonts. A deliberately held loading frame skips the host wait.
 - **Opt-in states.** A frame with `state: 'loading' | 'empty' | 'error'` captures that state on purpose: loading holds the
   files request behind a promise, empty opens the clean repository, and error opens a repository that does not exist so
   the host's real error shows. Any other frame waits for a settled review, so a spinner never appears by accident.
@@ -83,3 +85,4 @@ differently, so compare artifacts only between runs on the same platform.
 - `tests/demo-capture.test.mjs` covers the scene format, the suites, the byte comparison and the no-sleep rule.
 - `tests/browser/demo-capture.test.mjs` runs each sample scene three times and checks identical bytes, and runs one scene
   with a loading, an empty and an error frame to prove the opt-in states look different from a settled review.
+  CI retains divergent PNG or SVG files in `demo-repeat-failures` inside its browser artifact (`GB2-Q71QW4`).
