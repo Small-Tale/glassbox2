@@ -692,9 +692,9 @@ pub(crate) fn load(input: ReviewSource, difftool: Option<DifftoolInput>) -> io::
         ReviewSource::Git { directory, mode } => {
             let (mode, comparison) = mode.query();
             let review = review_git(&directory, mode).map_err(|error| {
-                if error.kind() == io::ErrorKind::NotFound
-                    && std::fs::metadata(&directory)
-                        .is_err_and(|error| error.kind() == io::ErrorKind::NotFound)
+                // Git startup reports different errors for a missing working directory across platforms.
+                if std::fs::metadata(&directory)
+                    .is_err_and(|error| error.kind() == io::ErrorKind::NotFound)
                 {
                     io::Error::new(
                         io::ErrorKind::NotFound,
